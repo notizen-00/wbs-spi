@@ -5,6 +5,7 @@ node_modules
 **/.output
 .npm-cache
 .env
+.env.*
 .git
 artifacts
 test-results

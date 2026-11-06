@@ -212,15 +212,30 @@ Penutupan dini tersedia dari verifikasi awal. Penundaan menyimpan tahap asal, pe
 
 ### Seluruh aplikasi dalam container
 
+Gunakan [`.env.docker.example`](.env.docker.example) sebagai konfigurasi stack Docker. File `.env` native tetap dapat dipakai melalui `--env-file .env`; koneksi antar-container memakai konfigurasi `DOCKER_*` atau default Compose, sehingga `DATABASE_URL`, `REDIS_URL`, dan `MINIO_ENDPOINT` native tidak digunakan sebagai hostname container. Prasyarat: Docker Desktop aktif dan Compose mendukung `include` (2.20.3+).
+
 ```powershell
-docker compose -f deploy/compose.app.yml up --build -d
+if (-not (Test-Path .env.docker)) { Copy-Item .env.docker.example .env.docker }
+docker compose --env-file .env.docker -f deploy/compose.app.yml config -q
+docker compose --env-file .env.docker -f deploy/compose.app.yml up --build -d
 # Buat akun sintetis dalam environment container, dengan kata sandi dari shell.
 $env:SEED_PASSWORD = 'Ganti-Dengan-Sandi-Uji-Anda'
-docker compose -f deploy/compose.app.yml exec -e SEED_PASSWORD api npm run db:seed
+docker compose --env-file .env.docker -f deploy/compose.app.yml exec -e SEED_PASSWORD api npm run db:seed
 Remove-Item Env:SEED_PASSWORD
+
+# Opsional: akun super admin dengan password eksplisit agar tidak menulis file lokal container.
+$env:SUPER_ADMIN_EMAIL = 'superadmin@example.test'
+$env:SUPER_ADMIN_PASSWORD = 'Ganti-Dengan-Sandi-Admin-Anda'
+docker compose --env-file .env.docker -f deploy/compose.app.yml exec -e SUPER_ADMIN_EMAIL -e SUPER_ADMIN_PASSWORD api npm run db:seed:admin
+Remove-Item Env:SUPER_ADMIN_EMAIL
+Remove-Item Env:SUPER_ADMIN_PASSWORD
 ```
 
-Buka http://localhost:8080. Compose ini khusus integrasi lokal, menggunakan cookie development pada HTTP dan kredensial contoh. Image dibangun sekali, dipakai API, worker, web, serta proses migrasi. Jangan mengganti `POSTGRES_PASSWORD` saja tanpa menyesuaikan `DATABASE_URL` semua service.
+Buka http://localhost:8080. Compose ini khusus integrasi lokal, menggunakan cookie development pada HTTP dan kredensial contoh. Image dibangun sekali, dipakai API, worker, web, serta proses migrasi. Ubah `POSTGRES_PASSWORD` bersama kredensial pada `DOCKER_DATABASE_URL`; URL yang sama diteruskan ke migrator, API, dan worker. Inisialisasi password PostgreSQL hanya berlaku pada volume baru; mengedit env tidak mengganti password database yang sudah ada.
+
+`DOCKER_NODE_ENV=development` melewati CAPTCHA; production memerlukannya. `DOCKER_APP_ORIGIN` harus sesuai alamat browser. Hostname Redis/MinIO/ClamAV di dalam stack ditetapkan Compose; SMTP default memakai `mailpit:1025`. Untuk SMTP eksternal, isi `DOCKER_SMTP_HOST`, `DOCKER_SMTP_PORT`, dan kredensial `SMTP_*`. `.env.docker` diabaikan Git dan tidak disalin ke image. Detail mekanisme `--env-file`: [dokumentasi Docker](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/).
+
+Jika layanan native masih berjalan, hentikan layanan yang memakai port 5432, 6379, 9000/9001, 3310, atau 1025/8025 sebelum menjalankan stack. Data database dan MinIO native tidak otomatis dipindahkan ke volume Docker. Perubahan ini tidak menjalankan container atau memigrasikan data native.
 
 ## Perintah pemeriksaan
 

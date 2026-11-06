@@ -3,6 +3,7 @@ node_modules/
 .output/
 dist/
 .env
+.env.docker
 *.log
 coverage/
 .npm-cache/
