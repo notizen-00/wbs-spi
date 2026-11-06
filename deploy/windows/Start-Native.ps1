@@ -11,6 +11,14 @@ $endpoint=[uri]$settings.endpoint
 if($endpoint.Scheme -ne 'http' -or $endpoint.Host -notin @('localhost','127.0.0.1') -or $endpoint.AbsolutePath -ne '/'){throw 'Launcher native hanya untuk endpoint HTTP localhost/127.0.0.1 tanpa path. MinIO remote tetap dapat dipakai langsung oleh API.'}
 $port=$endpoint.Port
 $existing=Get-OwnedMinioProcess
+$configurationHash=Get-NativeConfigurationHash $settings
+if($existing){
+ $state=Get-Content -LiteralPath $paths.State -Raw|ConvertFrom-Json
+ if(-not $state.PSObject.Properties['configurationHash'] -or $state.configurationHash -ne $configurationHash){
+  Write-Host 'Konfigurasi server MinIO berubah; memuat ulang proses milik proyek ini.'
+  Stop-Process -Id $existing.Id;[void]$existing.WaitForExit(10000);$existing=$null
+ }
+}
 if(-not $existing){
  if((Test-NativePort $port) -or (Test-NativePort 9001)){throw 'Port API atau console sudah terpakai. Hentikan layanan terkait atau gunakan MinIO yang sudah berjalan.'}
  New-Item -ItemType Directory -Force -Path $paths.Data,$paths.Logs|Out-Null
@@ -20,7 +28,7 @@ if(-not $existing){
   $arguments=@('--quiet','server',('"'+$paths.Data+'"'),'--address',('127.0.0.1:'+$port),'--console-address','127.0.0.1:9001')
   $process=Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $paths.Root -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $paths.Logs 'minio.stdout.log') -RedirectStandardError (Join-Path $paths.Logs 'minio.stderr.log')
   $process.Refresh()
-  [pscustomobject]@{pid=$process.Id;startedTicks=$process.StartTime.ToUniversalTime().Ticks.ToString()}|ConvertTo-Json|Set-Content -Encoding UTF8 -LiteralPath $paths.State
+  [pscustomobject]@{pid=$process.Id;startedTicks=$process.StartTime.ToUniversalTime().Ticks.ToString();configurationHash=$configurationHash}|ConvertTo-Json|Set-Content -Encoding UTF8 -LiteralPath $paths.State
  }finally{[Environment]::SetEnvironmentVariable('MINIO_ROOT_USER',$oldUser,'Process');[Environment]::SetEnvironmentVariable('MINIO_ROOT_PASSWORD',$oldPassword,'Process')}
 }
 $ready=$false

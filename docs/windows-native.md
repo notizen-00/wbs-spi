@@ -23,6 +23,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy/windows/Install-N
 
 `native:start` membaca `.env`, menjalankan MinIO di background dengan jendela tersembunyi, menunggu healthcheck, lalu membuat bucket privat dan akses aplikasi. Launcher hanya menerima endpoint HTTP loopback (`localhost`/`127.0.0.1`); default API `9000`, console `9001`. Jika port telah digunakan proses lain, launcher berhenti tanpa mematikan proses tersebut.
 
+Menjalankan `native:start` kembali menerapkan konfigurasi aplikasi/bucket. Bila root credential atau endpoint berubah, launcher memuat ulang proses proyek secara otomatis. Restart API juga diperlukan jika prosesnya masih menyimpan konfigurasi `.env` yang lama.
+
 - API: http://localhost:9000
 - Console: http://localhost:9001
 - Kredensial console: `MINIO_ROOT_USER` dan `MINIO_ROOT_PASSWORD` pada `.env`.

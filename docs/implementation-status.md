@@ -35,14 +35,16 @@ Keputusan institusi yang belum disahkan tetap seperti PRD: mandat, kategori kera
 
 | Pemeriksaan | Hasil |
 | --- | --- |
-| Unit/domain dan integrasi Prisma/PGlite | 24 tes lolos melalui Prisma Client dan Prisma Migrate pada socket PostgreSQL: migrasi ulang, schema diff, draf/submit/idempotensi, mandat, workflow, immutable audit, scope, lifecycle Nest, worker, seed, dan baseline legacy |
-| Client MinIO | 2 tes lolos: prioritas/fallback konfigurasi, signature S3, path-style request, roundtrip data biner dan error objek hilang pada server sintetis |
+| Unit/domain dan integrasi Prisma/PGlite | 25 tes lolos melalui Prisma Client dan Prisma Migrate pada socket PostgreSQL: migrasi ulang, schema diff, upload/karantina/checksum bukti, draf/submit/idempotensi, mandat, workflow, immutable audit, scope, lifecycle Nest, worker, seed, dan baseline legacy |
+| Client MinIO | 3 tes lolos: prioritas/fallback konfigurasi, signature S3, path-style request, roundtrip data biner, error objek hilang dan pesan penolakan kredensial |
+| Validasi MIME | 16 tes lolos: PDF, gambar, MP3, video, penolakan ekstensi palsu, SVG aktif, base64 rusak dan ukuran berlebih |
 | TypeScript API/worker dan Nuxt | Lolos |
 | Build NestJS + Nuxt | Lolos |
 | API hasil kompilasi | Berhasil start; `/health` mengembalikan `ok` |
-| Browser Chrome desktop/mobile | 2 tes lolos; lebar 320/390/768/1440 tanpa overflow, alur form mobile dengan API fixture |
+| Browser Chrome desktop/mobile | 3 tes lolos; lebar 320/390/768/1440 tanpa overflow, alur form dan pemilihan/unggah MP3 pada mobile dengan API fixture |
 | Docker Compose config | Valid |
 | MinIO native Windows | Binary berhasil dibangun; install ulang, start/stop/start, HEAD bucket, upload/download biner dan penolakan baca anonim terverifikasi pada layanan lokal nyata |
+| Perbaikan upload lokal | Penolakan kredensial HTTP 403 teridentifikasi dan pulih setelah reload konfigurasi server; validasi dan unggah/unduh PDF, MP3, MP4 terverifikasi ke MinIO nyata. Objek smoke test dibersihkan |
 | PostgreSQL/Redis/ClamAV/SMTP integrasi penuh | Belum diuji sebagai satu alur operasional; listener PostgreSQL/Redis terdeteksi, SMTP/ClamAV belum tersedia |
 | Audit dependency | Tidak ada high/critical setelah override multer 2.5; masih 12 temuan low/moderate pada dependency transitif build Nuxt. Perlu review sebelum rilis; tidak memaksakan downgrade framework |
 

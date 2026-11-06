@@ -87,3 +87,23 @@ test('client MinIO memakai signature S3, path bucket, dan roundtrip konten biner
     ),
   );
 });
+test('penolakan kredensial MinIO menghasilkan pesan yang dapat ditindaklanjuti', async (t) => {
+  const server = createServer((_req, res) => res.writeHead(403).end());
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const client = new MinioStorageService({
+    endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    region: 'us-east-1',
+    bucket: 'wbs-test',
+    accessKey: 'synthetic',
+    secretKey: 'synthetic-secret',
+  });
+  t.after(async () => {
+    client.onModuleDestroy();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+  await assert.rejects(
+    client.store('quarantine/test.pdf', Buffer.from('%PDF-test'), 'application/pdf'),
+    (error: any) =>
+      error.getStatus() === 503 && error.getResponse().code === 'STORAGE_ACCESS_DENIED',
+  );
+});

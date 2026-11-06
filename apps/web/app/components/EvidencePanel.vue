@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { Upload, FileText, Download, RefreshCw, LockKeyhole } from '@lucide/vue';
+import {
+  EVIDENCE_MAX_BYTES,
+  evidenceAccept,
+  evidenceExtensions,
+  evidenceFormatLabel,
+} from '@wbs/contracts';
 const props = defineProps<{ reportId: string; readonly?: boolean }>();
 const emit = defineEmits<{ updated: [] }>();
 const files = ref<any[]>([]),
@@ -25,7 +31,12 @@ async function upload(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file || busy.value) return;
-  if (file.size > 20971520) {
+  if (!evidenceExtensions.includes(file.name.split('.').pop()?.toLowerCase() || '')) {
+    error.value = 'Format tidak didukung. Pilih PDF, gambar, MP3, atau video yang tercantum.';
+    input.value = '';
+    return;
+  }
+  if (file.size > EVIDENCE_MAX_BYTES) {
     error.value = 'Maksimal 20 MiB per berkas.';
     input.value = '';
     return;
@@ -69,8 +80,8 @@ async function upload(event: Event) {
     <p v-if="error" class="alert error" role="alert">{{ error }}</p>
     <label v-if="!readonly" class="upload-box"
       ><Upload :size="23" /><strong>{{ busy ? 'Mengunggah…' : 'Pilih berkas bukti' }}</strong
-      ><span>PDF, JPEG, PNG · 20 MiB per berkas · maksimal 10 berkas</span
-      ><input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="busy" @change="upload"
+      ><span>{{ evidenceFormatLabel }} · 20 MiB per berkas · maksimal 10 berkas</span
+      ><input type="file" :accept="evidenceAccept" :disabled="busy" @change="upload"
     /></label>
     <div v-for="f in files" :key="f.id" class="evidence-file">
       <FileText :size="19" />

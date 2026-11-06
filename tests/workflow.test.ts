@@ -17,6 +17,8 @@ import { NestFactory } from '@nestjs/core';
 import { WorkerModule } from '../apps/worker/src/worker.module';
 import { OutboxService } from '../apps/worker/src/outbox.service';
 import { ScannerService } from '../apps/worker/src/scanner.service';
+import { EvidenceService } from '../apps/api/src/evidence/evidence.service';
+import type { MinioStorageService } from '../apps/api/src/storage/minio-storage.service';
 
 test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen', async (t) => {
   const db = new PGlite();
@@ -99,6 +101,45 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     );
     r = (await db.query<any>('SELECT * FROM reports WHERE id=$1', [r.id])).rows[0];
   }
+  await t.test(
+    'upload bukti menyimpan MIME dan checksum, tetap karantina, serta privat',
+    async () => {
+      const memory = new Map<string, Buffer>();
+      const storage = {
+        store: async (key: string, bytes: Buffer) => {
+          memory.set(key, bytes);
+        },
+        retrieve: async (key: string) => memory.get(key)!,
+      } as unknown as MinioStorageService;
+      const service = new EvidenceService(prisma, new ReportsRepository(prisma), storage);
+      const draft = await reports.create(reporter, { payload: { title: 'Upload sintetis' } });
+      const bytes = Buffer.from('%PDF-1.7\nSynthetic evidence\n%%EOF');
+      const uploaded = await service.upload(draft.id, reporter, {
+        name: 'sample.pdf',
+        data: bytes.toString('base64'),
+      });
+      assert.equal(uploaded.status, 'PENDING');
+      const metadata = await prisma.evidence.findUniqueOrThrow({ where: { id: uploaded.id } });
+      assert.equal(metadata.mime, 'application/pdf');
+      assert.equal(metadata.bytes, bytes.length);
+      assert.equal(metadata.checksum.length, 64);
+      assert.deepEqual(memory.get(metadata.storageKey), bytes);
+      await assert.rejects(
+        service.download(uploaded.id, reporter),
+        (error: any) => error.getStatus() === 409,
+      );
+      await assert.rejects(
+        service.upload(draft.id, manager, { name: 'sample.pdf', data: bytes.toString('base64') }),
+        (error: any) => error.getStatus() === 404,
+      );
+      assert.equal(
+        await prisma.sensitiveAccessEvent.count({
+          where: { evidenceId: uploaded.id, action: 'UPLOAD' },
+        }),
+        1,
+      );
+    },
+  );
   await t.test(
     'draf privat, submit atomik, idempotensi dan konflik versi melalui Prisma',
     async () => {

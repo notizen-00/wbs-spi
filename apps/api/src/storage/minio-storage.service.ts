@@ -1,4 +1,11 @@
-import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  OnModuleDestroy,
+  Optional,
+  ServiceUnavailableException,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   S3Client,
   PutObjectCommand,
@@ -24,24 +31,60 @@ export class MinioStorageService implements OnModuleDestroy {
     });
   }
   async store(key: string, body: Buffer, mime: string) {
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.options.bucket,
-        Key: key,
-        Body: body,
-        ContentType: mime,
-      }),
-    );
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.options.bucket,
+          Key: key,
+          Body: body,
+          ContentType: mime,
+        }),
+      );
+    } catch (error) {
+      this.storageError(error);
+    }
   }
   async retrieve(key: string): Promise<Buffer> {
-    const result = await this.client.send(
-      new GetObjectCommand({ Bucket: this.options.bucket, Key: key }),
-    );
-    if (!result.Body) throw new Error('MinIO object body is missing.');
-    return Buffer.from(await result.Body.transformToByteArray());
+    try {
+      const result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.options.bucket, Key: key }),
+      );
+      if (!result.Body) throw new Error('MinIO object body is missing.');
+      return Buffer.from(await result.Body.transformToByteArray());
+    } catch (error) {
+      this.storageError(error);
+    }
   }
   async check() {
-    await this.client.send(new HeadBucketCommand({ Bucket: this.options.bucket }));
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.options.bucket }));
+    } catch (error) {
+      this.storageError(error);
+    }
+  }
+  private storageError(error: unknown): never {
+    const details = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (details?.name === 'NoSuchKey')
+      throw new NotFoundException({
+        code: 'EVIDENCE_OBJECT_MISSING',
+        message: 'Berkas bukti tidak ditemukan di storage. Hubungi pengelola.',
+      });
+    if (details?.$metadata?.httpStatusCode === 403)
+      throw new ServiceUnavailableException({
+        code: 'STORAGE_ACCESS_DENIED',
+        message:
+          'Penyimpanan bukti menolak akses. Hubungi pengelola untuk memeriksa konfigurasi penyimpanan.',
+      });
+    if (details?.name === 'NoSuchBucket' || details?.$metadata?.httpStatusCode === 404)
+      throw new ServiceUnavailableException({
+        code: 'STORAGE_BUCKET_MISSING',
+        message: 'Bucket bukti belum tersedia. Jalankan inisialisasi MinIO terlebih dahulu.',
+      });
+    throw new ServiceUnavailableException({
+      code: 'STORAGE_UNAVAILABLE',
+      message:
+        'Penyimpanan MinIO belum dapat diakses. Pastikan MinIO berjalan dan konfigurasi endpoint sesuai.',
+    });
   }
   onModuleDestroy() {
     this.client.destroy();

@@ -57,3 +57,37 @@ export interface User {
   role: Role;
   verified: boolean;
 }
+
+export const EVIDENCE_MAX_BYTES = 20 * 1024 * 1024;
+export const EVIDENCE_MAX_FILES = 10;
+export const evidenceTypes = {
+  'application/pdf': ['pdf'],
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+  'image/gif': ['gif'],
+  'image/webp': ['webp'],
+  'image/bmp': ['bmp'],
+  'image/tiff': ['tif', 'tiff'],
+  'image/avif': ['avif'],
+  'image/heic': ['heic', 'heif'],
+  'image/heif': ['heif', 'heic'],
+  'audio/mpeg': ['mp3'],
+  'video/mp4': ['mp4'],
+  'video/quicktime': ['mov'],
+  'video/webm': ['webm'],
+  'video/matroska': ['mkv'],
+  'video/vnd.avi': ['avi'],
+  'video/mpeg': ['mpeg', 'mpg'],
+  'video/3gpp': ['3gp'],
+  'video/3gpp2': ['3g2'],
+  'video/x-m4v': ['m4v'],
+} as const;
+export const evidenceExtensions: readonly string[] = [
+  ...new Set(Object.values(evidenceTypes).flat()),
+];
+export const evidenceAccept = [
+  ...evidenceExtensions.map((ext) => `.${ext}`),
+  ...Object.keys(evidenceTypes),
+].join(',');
+export const evidenceFormatLabel =
+  'PDF, gambar, MP3, video (MP4, MOV, WebM, MKV, AVI, MPEG, 3GP, M4V)';

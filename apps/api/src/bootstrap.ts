@@ -39,15 +39,23 @@ export async function createApplication() {
           : exception instanceof Prisma.PrismaClientKnownRequestError &&
               ['P2002', 'P2034'].includes(exception.code)
             ? 409
-            : 503;
+            : exception?.type === 'entity.too.large'
+              ? 413
+              : exception?.type === 'entity.parse.failed'
+                ? 400
+                : 503;
       res.status(status).json(
         exception instanceof HttpException
           ? exception.getResponse()
           : {
               message:
-                status === 409
-                  ? 'Data telah berubah atau permintaan sudah diproses. Muat ulang data terbaru.'
-                  : 'Layanan sementara tidak tersedia. Silakan coba lagi.',
+                status === 413
+                  ? 'Berkas atau request terlalu besar. Maksimal 20 MiB per berkas.'
+                  : status === 400
+                    ? 'Data JSON tidak valid.'
+                    : status === 409
+                      ? 'Data telah berubah atau permintaan sudah diproses. Muat ulang data terbaru.'
+                      : 'Layanan sementara tidak tersedia. Silakan coba lagi.',
             },
       );
     },

@@ -24,3 +24,7 @@ function Test-NativePort([int]$Port) {
     $socket=New-Object Net.Sockets.TcpClient
     try { $pending=$socket.BeginConnect('127.0.0.1',$Port,$null,$null); if(-not $pending.AsyncWaitHandle.WaitOne(500)){return $false};$socket.EndConnect($pending);return $true } catch { return $false } finally { $socket.Dispose() }
 }
+function Get-NativeConfigurationHash($Settings) {
+    $hash=[Security.Cryptography.SHA256]::Create()
+    try{return ([BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($Settings.rootUser+[char]0+$Settings.rootPassword+[char]0+$Settings.endpoint)))).Replace('-','')}finally{$hash.Dispose()}
+}

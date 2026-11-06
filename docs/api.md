@@ -57,12 +57,21 @@ Keputusan tidak memakai PATCH status bebas. Proposal yang dikembalikan memiliki 
 
 ## Bukti
 
-Upload dibatasi 20 MiB dan 10 berkas per perkara sebagai konfigurasi awal yang belum disahkan. Konten diperiksa signature PDF/JPEG/PNG dan ekstensi; nama disanitasi. Objek S3 berada dalam bucket privat dengan key acak di prefix karantina. Worker membaca objek, memverifikasi checksum SHA-256, dan mengirim ke ClamAV INSTREAM. Hasil scan gagal tetap tertutup; setelah lima percobaan perlu investigasi operator.
+Upload dibatasi 20 MiB dan 10 berkas per perkara. Tipe diperiksa dari isi biner menggunakan `file-type`, lalu dicocokkan dengan ekstensi; MIME dari browser tidak dipercaya. Allowlist backend dan UI memakai kontrak bersama. Nama berkas disanitasi. Objek MinIO berada dalam bucket privat dengan key acak di prefix karantina. Worker membaca objek, memverifikasi checksum SHA-256, dan mengirim ke ClamAV INSTREAM. Hasil scan gagal tetap tertutup; setelah lima percobaan perlu investigasi operator.
+
+| Jenis | Ekstensi | MIME |
+| --- | --- | --- |
+| PDF | pdf | application/pdf |
+| Gambar | jpg, jpeg, png, gif, webp, bmp, tif, tiff, avif, heic, heif | image/jpeg, image/png, image/gif, image/webp, image/bmp, image/tiff, image/avif, image/heic, image/heif |
+| Audio | mp3 | audio/mpeg |
+| Video | mp4, mov, webm, mkv, avi, mpeg, mpg, 3gp, 3g2, m4v | video/mp4, video/quicktime, video/webm, video/matroska, video/vnd.avi, video/mpeg, video/3gpp, video/3gpp2, video/x-m4v |
+
+SVG/HTML/script tidak diterima. MIME MPEG dan HEIF sequence dari detektor dinormalisasi ke keluarga MIME yang sesuai. Ekstensi palsu, base64 tidak valid dan berkas yang tidak dikenali ditolak 422; berkas terlalu besar ditolak 413.
 
 Download melalui API, bukan public URL atau presigned URL. Konten diambil dan diverifikasi terlebih dahulu; audit akses di-commit sebelum respons. Header attachment, no-store, dan nosniff diterapkan. Upload base64 adalah kompromi versi pengembangan; streaming multipart diperlukan untuk kapasitas produksi.
 
 ## Respons dan batas
 
-401 sesi tidak sah, 403 aksi tidak diizinkan, 404 objek tidak boleh diketahui, 409 konflik versi/idempotensi/tahap, 422 input/domain, 429 rate limit, 503 dependensi tidak tersedia. Detail SQL, kredensial dan stack tidak dikembalikan.
+401 sesi tidak sah, 403 aksi tidak diizinkan, 404 objek tidak boleh diketahui, 409 konflik versi/idempotensi/tahap, 413 ukuran berkas/request berlebih, 422 input/domain, 429 rate limit, 503 dependensi tidak tersedia. Error MinIO memiliki kode `STORAGE_ACCESS_DENIED`, `STORAGE_BUCKET_MISSING`, atau `STORAGE_UNAVAILABLE` dan pesan yang dapat ditindaklanjuti. Detail SQL, kredensial dan stack tidak dikembalikan.
 
 Kontrak ini dokumentasi implementasi, belum OpenAPI-generated client. API memiliki otorisasi dan pembatasan dasar; pengujian keamanan menyeluruh tetap diperlukan.

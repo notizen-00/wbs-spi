@@ -1,11 +1,5 @@
 import './config/environment';
 import { createConnection } from 'node:net';
-export function detectMime(b: Buffer): string | null {
-  if (b.subarray(0, 5).toString() === '%PDF-') return 'application/pdf';
-  if (b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return 'image/png';
-  if (b[0] === 255 && b[1] === 216 && b[2] === 255) return 'image/jpeg';
-  return null;
-}
 export function scan(body: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
     const socket = createConnection({

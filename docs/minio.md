@@ -48,4 +48,6 @@ Browser mengunggah dan mengunduh melalui API WBS; secret MinIO tidak dikirim ke 
 
 `npm.cmd run storage:check` melakukan HEAD bucket tanpa membuat atau menghapus objek. Ini memeriksa koneksi dan izin akses bucket; bukan verifikasi lengkap policy atau pemindaian malware.
 
+Jika upload mendapat `STORAGE_ACCESS_DENIED`, periksa kredensial `.env`, jalankan `npm.cmd run native:start`, lalu restart API jika masih memakai konfigurasi lama. Launcher native memeriksa hash konfigurasi server dan memuat ulang proses milik proyek saat root credential/endpoint berubah; bucket dan data dipertahankan. Perubahan kredensial aplikasi diterapkan kembali oleh initializer. Dukungan tipe PDF, gambar, MP3 dan video dijelaskan di [API](api.md#bukti).
+
 Tes client memakai server HTTP S3 sintetis untuk memeriksa signature, path-style request, roundtrip data biner dan error objek hilang. MinIO native Windows juga sudah diuji langsung: build, start/stop, akses bucket, unggah/unduh biner dan penolakan akses anonim berhasil. Integrasi pemindaian ClamAV tetap memerlukan scanner yang berjalan.

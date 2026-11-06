@@ -2,10 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { User } from '@wbs/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportsRepository } from '../reports/reports.repository';
-import { detectMime } from '../storage';
+import { validateEvidenceFile } from './evidence-file';
 import { MinioStorageService } from '../storage/minio-storage.service';
 import { hash, token } from '../security';
 import { fail, validId, object } from '../common/validation';
+import { EVIDENCE_MAX_FILES } from '@wbs/contracts';
 
 @Injectable()
 export class EvidenceService {
@@ -39,29 +40,12 @@ export class EvidenceService {
   }
   async upload(id: string, user: User, input: unknown) {
     const b = object(input);
-    if (
-      typeof b.name !== 'string' ||
-      typeof b.data !== 'string' ||
-      !b.data.length ||
-      b.data.length > 27962030 ||
-      !/^[A-Za-z0-9+/]*={0,2}$/.test(b.data)
-    )
-      fail(422, 'Berkas tidak valid atau melebihi 20 MiB.');
-    const bytes = Buffer.from(b.data, 'base64');
-    if (!bytes.length || bytes.length > 20971520) fail(422, 'Batas berkas 20 MiB.');
-    const mime = detectMime(bytes);
-    const extensions: Record<string, RegExp> = {
-      'application/pdf': /\.pdf$/i,
-      'image/png': /\.png$/i,
-      'image/jpeg': /\.jpe?g$/i,
-    };
-    if (!mime || !extensions[mime]?.test(b.name))
-      fail(422, 'Hanya PDF, JPEG, dan PNG dengan format sesuai yang diterima.');
+    const { bytes, mime } = await validateEvidenceFile(b.name, b.data);
     return this.prisma.$transaction(async (tx) => {
       const report = await this.reports.authorized(id, user, tx, true);
       if (['COMPLETED', 'CLOSED'].includes(report.stage) || report.lifecycle === 'SUSPENDED')
         fail(409, 'Perkara tidak menerima bukti pada tahap ini.');
-      if ((await tx.evidence.count({ where: { reportId: id } })) >= 10)
+      if ((await tx.evidence.count({ where: { reportId: id } })) >= EVIDENCE_MAX_FILES)
         fail(422, 'Maksimal 10 berkas per laporan pada versi kebijakan awal.');
       const key = `quarantine/${token()}`;
       await this.storage.store(key, bytes, mime);
