@@ -60,7 +60,7 @@ async function main() {
     await prisma.$disconnect();
   }
 }
-main().catch((error) => {
+if (require.main === module) main().catch((error) => {
   console.error(error instanceof Error ? error.message : 'Seed failed');
   process.exitCode = 1;
 });

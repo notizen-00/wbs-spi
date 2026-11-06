@@ -4,6 +4,8 @@ Whistleblowing System berbentuk **npm workspaces monorepo**, berdasarkan [PRD](d
 
 ## Struktur
 
+Panduan pengguna: [role dan alur pelaporan](docs/role-dan-alur-pelaporan.md), termasuk tugas setiap role, alur persetujuan, status perkara, dan simulasi lima akun demo berdasarkan implementasi kode.
+
 ```text
 apps/api               NestJS modules/controllers/services, PrismaService, akses perkara
 apps/web               Nuxt 4 + Vue, portal pelapor dan ruang kerja internal

@@ -19,6 +19,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:status": "prisma migrate status",
     "db:seed": "prisma db seed",
+    "predb:seed:case": "npm run db:generate",
+    "db:seed:case": "tsx apps/api/src/seed-completed-case.ts",
     "predb:seed": "npm run db:generate",
     "db:studio": "prisma studio",
     "predev": "npm run db:generate",
