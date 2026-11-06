@@ -1,7 +1,9 @@
+import { stubRecaptcha } from './captcha-fixture';
 import { test, expect } from '@playwright/test';
 test('desktop dan mobile dapat digunakan tanpa overflow horizontal', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  await stubRecaptcha(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /Ada yang perlu/ })).toBeVisible();
   for (const width of [1440, 768, 390, 320]) {
@@ -70,6 +72,7 @@ test('form pelapor bertahap, simpan draf dan kirim pada layar mobile', async ({ 
       result = { officialResponses: [], reopenRequests: [] };
     await route.fulfill({ json: result });
   });
+  await stubRecaptcha(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Selamat datang, Pelapor.' })).toBeVisible();
   await page.getByRole('button', { name: 'Buat laporan', exact: true }).click();
@@ -86,6 +89,7 @@ test('form pelapor bertahap, simpan draf dan kirim pada layar mobile', async ({ 
   await page.getByLabel('Sumber bukti atau alasan').fill('Bukti sintetis belum tersedia');
   await page.getByRole('button', { name: 'Lanjutkan' }).click();
   await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Verifikasi CAPTCHA', exact: true }).click();
   await page.getByRole('button', { name: 'Kirim laporan' }).click();
   await expect(
     page.getByText('Laporan berhasil dikirim. Simpan nomor penerimaan Anda.'),

@@ -1,3 +1,4 @@
+import { stubRecaptcha } from './captcha-fixture';
 import { test, expect } from '@playwright/test';
 
 test('pengunjung mendapat landing, login terpisah, guard dashboard, dan login/logout berpindah path', async ({
@@ -33,6 +34,7 @@ test('pengunjung mendapat landing, login terpisah, guard dashboard, dan login/lo
     if (path.endsWith('/reports')) reportRequests++;
     return route.fulfill({ json: [] });
   });
+  await stubRecaptcha(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /Ada yang perlu/ })).toBeVisible();
   await expect(page.locator('.sidebar, .stats-grid, .reports-panel')).toHaveCount(0);
@@ -66,6 +68,10 @@ test('pengunjung mendapat landing, login terpisah, guard dashboard, dan login/lo
   await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel('Email', { exact: true }).fill(user.email);
   await page.getByLabel('Kata sandi', { exact: true }).fill('Synthetic-Test-Password');
+  await page
+    .locator('.public-auth-card')
+    .getByRole('button', { name: 'Verifikasi CAPTCHA', exact: true })
+    .click();
   await page.getByRole('button', { name: 'Masuk ke akun', exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: 'Selamat datang, Pelapor.' })).toBeVisible();
@@ -92,6 +98,7 @@ test('tautan verifikasi dan reset akun tetap tersedia dari halaman publik', asyn
     }
     return route.fulfill({ json: [] });
   });
+  await stubRecaptcha(page);
   await page.goto('/?verify=synthetic-token');
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('status')).toContainText('Email berhasil diverifikasi.');

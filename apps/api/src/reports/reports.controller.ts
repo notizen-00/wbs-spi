@@ -16,12 +16,15 @@ import type { Request } from 'express';
 import { CurrentUser, SessionGuard } from '../auth/session.guard';
 import { AuthService } from '../auth/auth.service';
 import { ReportsService } from './reports.service';
+import { CaptchaService } from '../auth/captcha.service';
+import { object } from '../common/validation';
 @Controller('api/v1')
 @UseGuards(SessionGuard)
 export class ReportsController {
   constructor(
     @Inject(ReportsService) private readonly reports: ReportsService,
     @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(CaptchaService) private readonly captcha: CaptchaService,
   ) {}
   @Get('reports') list(@CurrentUser() user: User, @Query() query: Record<string, string>) {
     return query.paginated === 'true'
@@ -46,12 +49,17 @@ export class ReportsController {
   ) {
     return this.reports.save(id, user, body);
   }
-  @Post('reports/:id/commands') command(
+  @Post('reports/:id/commands') async command(
     @CurrentUser() user: User,
     @Param('id') id: string,
     @Body() body: unknown,
+    @Req() req: Request,
     @Headers('idempotency-key') key?: string,
   ) {
+    if (object(body).action === 'SUBMIT') {
+      await this.auth.rate(req, 'report-submission', 20);
+      await this.captcha.verify(object(body).captchaToken);
+    }
     return this.reports.command(id, user, body, key ?? '');
   }
   @Get('reports/:id/workspace') workspace(@CurrentUser() user: User, @Param('id') id: string) {

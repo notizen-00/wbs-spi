@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { X, LockKeyhole, ArrowRight } from '@lucide/vue';
 const props = defineProps<{ token?: string }>();
+const captchaToken = ref('');
+const captcha = ref<{ reset: () => void } | null>(null);
 const emit = defineEmits<{ close: []; done: [message: string] }>();
 const email = ref(''),
   password = ref(''),
@@ -8,6 +10,7 @@ const email = ref(''),
   busy = ref(false),
   kind = ref('RESET');
 async function submit() {
+  if (!captchaToken.value || busy.value) return;
   busy.value = true;
   error.value = '';
   try {
@@ -16,14 +19,15 @@ async function submit() {
       {
         method: 'POST',
         body: props.token
-          ? { token: props.token, password: password.value }
-          : { email: email.value, kind: kind.value },
+          ? { token: props.token, password: password.value, captchaToken: captchaToken.value }
+          : { email: email.value, kind: kind.value, captchaToken: captchaToken.value },
       },
     );
     emit('done', response.message);
   } catch (e: any) {
     error.value = e?.data?.message || 'Layanan sementara tidak tersedia.';
   } finally {
+    captcha.value?.reset();
     busy.value = false;
   }
 }
@@ -71,7 +75,10 @@ async function submit() {
               <option value="VERIFY">Kirim ulang verifikasi email</option>
             </select></label
           ></template
-        ><button class="button full" :disabled="busy">
+        ><RecaptchaWidget ref="captcha" v-model="captchaToken" /><button
+          class="button full"
+          :disabled="busy || !captchaToken"
+        >
           {{ busy ? 'Memproses…' : token ? 'Simpan kata sandi' : 'Kirim tautan'
           }}<ArrowRight :size="17" />
         </button>

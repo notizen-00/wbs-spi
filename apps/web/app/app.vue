@@ -43,6 +43,8 @@ const user = ref<User | null>(null),
   selected = ref<Report | null>(null),
   showNotifications = ref(false);
 const showTimeline = ref(true);
+const submissionToken = ref('');
+const submissionCaptcha = ref<{ reset: () => void } | null>(null);
 const sessionReady = ref(false);
 const publicAuthPage = ref(false);
 const routePaths: Record<string, string> = {
@@ -263,11 +265,11 @@ function newReport() {
   confirmed.value = false;
   navigate('create');
 }
-async function login() {
+async function login(captchaToken: string) {
   await run(async () => {
     user.value = await api<User>('/auth/login', {
       method: 'POST',
-      body: credentials,
+      body: { ...credentials, captchaToken },
     });
     credentials.password = '';
     auth.value = '';
@@ -275,11 +277,11 @@ async function login() {
     navigate('dashboard', true);
   });
 }
-async function register() {
+async function register(captchaToken: string) {
   await run(async () => {
     const result = await api('/auth/register', {
       method: 'POST',
-      body: credentials,
+      body: { ...credentials, captchaToken },
     });
     notice.value = result.message;
     openAuth('login', true);
@@ -336,13 +338,15 @@ async function submit() {
   await run(async () => {
     if (!confirmed.value)
       throw { data: { message: 'Konfirmasi kebenaran laporan terlebih dahulu.' } };
+    if (!submissionToken.value)
+      throw { data: { message: 'Selesaikan reCAPTCHA sebelum mengirim laporan.' } };
     await saveDraft();
     await api(`/reports/${selected.value!.id}/commands`, {
       method: 'POST',
       headers: { 'Idempotency-Key': `submit-${selected.value!.id}-${selected.value!.version}` },
       body: {
         action: 'SUBMIT',
-
+        captchaToken: submissionToken.value,
         expectedVersion: selected.value!.version,
         reason: 'Laporan dikirim oleh pelapor.',
       },
@@ -352,6 +356,8 @@ async function submit() {
     await load();
     notice.value = 'Laporan berhasil dikirim. Simpan nomor penerimaan Anda.';
   });
+  submissionCaptcha.value?.reset();
+  submissionToken.value = '';
 }
 async function openReport(r: Report) {
   await run(async () => {
@@ -447,7 +453,10 @@ onMounted(async () => {
           :busy="busy"
           :error="error"
           :notice="notice"
-          @submit="auth === 'register' ? register() : login()"
+          @submit="
+            (captchaToken: string) =>
+              auth === 'register' ? register(captchaToken) : login(captchaToken)
+          "
           @mode="openAuth"
           @recovery="
             auth = 'recovery';
@@ -977,6 +986,7 @@ onMounted(async () => {
                     <p v-if="!user?.verified" class="warning-text">
                       Verifikasi email diperlukan sebelum mengirim. Anda tetap dapat menyimpan draf.
                     </p>
+                    <RecaptchaWidget ref="submissionCaptcha" v-model="submissionToken" />
                   </div>
                 </div>
                 <div class="form-actions">
@@ -991,7 +1001,7 @@ onMounted(async () => {
                     ><button
                       v-else
                       class="button"
-                      :disabled="busy || !confirmed || !user?.verified"
+                      :disabled="busy || !confirmed || !user?.verified || !submissionToken"
                       @click="submit"
                     >
                       <Send :size="16" />{{ busy ? 'Mengirim…' : 'Kirim laporan' }}

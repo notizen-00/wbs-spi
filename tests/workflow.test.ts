@@ -25,7 +25,7 @@ import {
   NotificationPublisher,
   notificationChannel,
 } from '../apps/api/src/notifications/notification-publisher';
-import type { AuthService } from '../apps/api/src/auth/auth.service';
+import { AuthService } from '../apps/api/src/auth/auth.service';
 import { UnauthorizedException } from '@nestjs/common';
 import { createServer } from 'node:http';
 import { EventEmitter } from 'node:events';
@@ -420,6 +420,8 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
   });
   await t.test('modul Nest, dependency injection, lifecycle Prisma dan guard HTTP', async () => {
     const previous = process.env.DATABASE_URL;
+    const previousSecret = process.env.RECAPTCHA_SECRET_KEY;
+    process.env.RECAPTCHA_SECRET_KEY = 'synthetic-captcha-secret';
     process.env.DATABASE_URL = connectionString;
     const app = await createApplication();
     try {
@@ -438,10 +440,44 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
         ).status,
         403,
       );
+      const auth = app.get(AuthService);
+      auth.rate = async () => {};
+      for (const path of [
+        '/auth/register',
+        '/auth/login',
+        '/auth/recovery',
+        '/auth/reset-password',
+      ]) {
+        const response = await fetch(url + '/api/v1' + path, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: process.env.APP_ORIGIN || 'http://localhost:3000',
+          },
+          body: '{}',
+        });
+        assert.equal(response.status, 422, path);
+        assert.match((await response.json()).message, /reCAPTCHA/);
+      }
+      const config = await (await fetch(url + '/api/v1/public/captcha')).json();
+      assert.deepEqual(Object.keys(config).sort(), ['configured', 'siteKey']);
+      auth.session = async () => reporter;
+      const submitWithoutCaptcha = await fetch(url + `/api/v1/reports/${r.id}/commands`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: process.env.APP_ORIGIN || 'http://localhost:3000',
+        },
+        body: JSON.stringify({ action: 'SUBMIT' }),
+      });
+      assert.equal(submitWithoutCaptcha.status, 422);
+      assert.match((await submitWithoutCaptcha.json()).message, /reCAPTCHA/);
     } finally {
       await app.close();
       if (previous === undefined) delete process.env.DATABASE_URL;
       else process.env.DATABASE_URL = previous;
+      if (previousSecret === undefined) delete process.env.RECAPTCHA_SECRET_KEY;
+      else process.env.RECAPTCHA_SECRET_KEY = previousSecret;
     }
   });
   await t.test('worker Nest memakai PrismaService yang dikelola lifecycle', async () => {

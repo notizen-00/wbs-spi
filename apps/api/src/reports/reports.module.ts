@@ -4,9 +4,10 @@ import { ReportsRepository } from './reports.repository';
 import { ReportsController } from './reports.controller';
 import { WorkflowService } from './workflow.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PublicController } from './public.controller';
 @Module({
   imports: [NotificationsModule],
-  controllers: [ReportsController],
+  controllers: [ReportsController, PublicController],
   providers: [ReportsService, ReportsRepository, WorkflowService],
   exports: [ReportsRepository],
 })

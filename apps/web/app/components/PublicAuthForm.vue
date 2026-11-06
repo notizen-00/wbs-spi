@@ -1,13 +1,25 @@
 <script setup lang="ts">
 import { ShieldCheck, LockKeyhole, ArrowRight, LoaderCircle } from '@lucide/vue';
-defineProps<{
+const props = defineProps<{
   mode: string;
   credentials: { name: string; email: string; password: string };
   busy: boolean;
   error: string;
   notice: string;
 }>();
-defineEmits<{ submit: []; mode: [mode: string]; recovery: [] }>();
+const emit = defineEmits<{ submit: [captchaToken: string]; mode: [mode: string]; recovery: [] }>();
+const captchaToken = ref('');
+const captcha = ref<{ reset: () => void } | null>(null);
+watch(
+  () => props.busy,
+  (value, prior) => {
+    if (prior && !value) captcha.value?.reset();
+  },
+);
+watch(
+  () => props.mode,
+  () => captcha.value?.reset(),
+);
 </script>
 <template>
   <section class="auth-modal public-auth-card" aria-labelledby="auth-title">
@@ -23,7 +35,7 @@ defineEmits<{ submit: []; mode: [mode: string]; recovery: [] }>();
     </p>
     <div v-if="error" class="alert error" role="alert">{{ error }}</div>
     <div v-if="notice" class="alert success" role="status">{{ notice }}</div>
-    <form class="fields" @submit.prevent="$emit('submit')">
+    <form class="fields" @submit.prevent="captchaToken && emit('submit', captchaToken)">
       <label v-if="mode === 'register'"
         >Nama lengkap<input v-model="credentials.name" autocomplete="name" required
       /></label>
@@ -45,7 +57,8 @@ defineEmits<{ submit: []; mode: [mode: string]; recovery: [] }>();
           :placeholder="mode === 'register' ? 'Minimal 12 karakter' : 'Masukkan kata sandi'"
           required
       /></label>
-      <button class="button full" :disabled="busy" type="submit">
+      <RecaptchaWidget ref="captcha" v-model="captchaToken" />
+      <button class="button full" :disabled="busy || !captchaToken" type="submit">
         <LoaderCircle v-if="busy" class="spin" :size="18" />{{
           busy ? 'Memproses…' : mode === 'register' ? 'Buat akun' : 'Masuk ke akun'
         }}<ArrowRight :size="17" />

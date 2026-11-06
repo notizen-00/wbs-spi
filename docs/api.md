@@ -44,6 +44,8 @@ Filter digabungkan, dan seluruh query tetap dibatasi scope perkara pengguna. Web
 
 ## Payload laporan
 
+Body login, register, recovery, reset-password, dan command `SUBMIT` wajib menyertakan `captchaToken` valid. Token diperiksa server melalui Google reCAPTCHA v2. Permintaan tanpa token, token gagal, atau hostname yang tidak sesuai ditolak; layanan verifikasi yang belum dikonfigurasi/tidak tersedia menghasilkan 503.
+
 `title, category, what, who, when (YYYY-MM-DD), where, why, how, evidenceReason, confidentiality`.
 
 `confidentiality`: `PROTECTED` atau `IDENTIFIED`. Keduanya menggunakan akun; opsi kedua berarti bersedia dihubungi, bukan publikasi identitas. Kedua opsi masih perlu pengesahan institusi. Bukti atau kronologi dapat mengandung identitas; sistem tidak mengklaim anonimisasi otomatis.
