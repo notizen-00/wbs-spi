@@ -1,26 +1,5 @@
-import './db';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import './config/environment';
 import { createConnection } from 'node:net';
-export const storage = new S3Client({
-  endpoint: process.env.S3_ENDPOINT || 'http://localhost:9000',
-  region: process.env.S3_REGION || 'us-east-1',
-  forcePathStyle: true,
-  credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY || 'wbs_local',
-    secretAccessKey: process.env.S3_SECRET_KEY || 'wbs_local_secret_only',
-  },
-});
-const bucket = process.env.S3_BUCKET || 'wbs-private';
-export async function store(key: string, body: Buffer, mime: string) {
-  await storage.send(
-    new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: mime }),
-  );
-}
-export async function retrieve(key: string) {
-  const r = await storage.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-  if (!r.Body) throw new Error('Missing object');
-  return Buffer.from(await r.Body.transformToByteArray());
-}
 export function detectMime(b: Buffer): string | null {
   if (b.subarray(0, 5).toString() === '%PDF-') return 'application/pdf';
   if (b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return 'image/png';

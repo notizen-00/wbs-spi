@@ -1,0 +1,350 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../../apps/api/src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Legacy SQL-runner history. Prisma Migrate uses its own _prisma_migrations table.
+model LegacyMigration {
+  name      String    @id
+  appliedAt DateTime? @default(now()) @map("applied_at") @db.Timestamptz
+
+  @@map("schema_migrations")
+}
+
+model User {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  email                 String                 @unique
+  passwordHash          String                 @map("password_hash")
+  role                  String                 @default("REPORTER")
+  verified              Boolean                @default(false)
+  active                Boolean                @default(true)
+  authVersion           Int                    @default(1) @map("auth_version")
+  tokens                AccountToken[]
+  ownedReports          Report[]               @relation("ReportOwner")
+  proposedReports       Report[]               @relation("ReportProposer")
+  caseAccess            CaseAccess[]
+  events                CaseEvent[]
+  idempotencyRecords    IdempotencyRecord[]
+  outboxEvents          OutboxEvent[]
+  notifications         Notification[]
+  mandates              AuthorityMandate[]
+  proposals             Proposal[]
+  decisions             ApprovalDecision[]
+  conflicts             Conflict[]
+  assignments           Assignment[]
+  findings              Finding[]
+  tasks                 FollowUpTask[]         @relation("TaskExecutor")
+  reviews               FollowUpTask[]         @relation("TaskReviewer")
+  suspensions           Suspension[]
+  reopenRequests        ReopenRequest[]
+  evidence              Evidence[]
+  sensitiveAccessEvents SensitiveAccessEvent[]
+  intakeMembership      IntakeMember?
+
+  @@map("users")
+}
+
+model AccountToken {
+  tokenHash  String    @id @map("token_hash")
+  userId     String    @map("user_id") @db.Uuid
+  kind       String
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  user       User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("account_tokens")
+}
+
+model Report {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId               String                 @map("owner_id") @db.Uuid
+  number                String?                @unique
+  stage                 String                 @default("DRAFT")
+  lifecycle             String                 @default("ACTIVE")
+  version               Int                    @default(1)
+  payload               Json                   @default("{}")
+  proposerId            String?                @map("proposer_id") @db.Uuid
+  clarification         Json?
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime               @default(now()) @map("updated_at") @db.Timestamptz
+  owner                 User                   @relation("ReportOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposer              User?                  @relation("ReportProposer", fields: [proposerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  access                CaseAccess[]
+  versions              ReportVersion[]
+  events                CaseEvent[]
+  idempotencyRecords    IdempotencyRecord[]
+  proposals             Proposal[]
+  conflicts             Conflict[]
+  assignments           Assignment[]
+  findings              Finding[]
+  tasks                 FollowUpTask[]
+  suspensions           Suspension[]
+  reopenRequests        ReopenRequest[]
+  officialResponses     OfficialResponse[]
+  evidence              Evidence[]
+  sensitiveAccessEvents SensitiveAccessEvent[]
+
+  @@index([ownerId, createdAt(sort: Desc)], map: "reports_owner_idx")
+  @@map("reports")
+}
+
+model CaseAccess {
+  reportId  String    @map("report_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  report    Report    @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user      User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([reportId, userId])
+  @@map("case_access")
+}
+
+model ReportVersion {
+  reportId  String   @map("report_id") @db.Uuid
+  version   Int
+  snapshot  Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([reportId, version])
+  @@map("report_versions")
+}
+
+model CaseEvent {
+  id         BigInt   @id @default(autoincrement())
+  reportId   String   @map("report_id") @db.Uuid
+  actorId    String   @map("actor_id") @db.Uuid
+  action     String
+  reason     String
+  visibility String   @default("PUBLIC")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  report     Report   @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("case_events")
+}
+
+model IdempotencyRecord {
+  actorId     String  @map("actor_id") @db.Uuid
+  operation   String
+  key         String
+  requestHash String  @map("request_hash")
+  reportId    String? @map("report_id") @db.Uuid
+  actor       User    @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  report      Report? @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([actorId, operation, key])
+  @@map("idempotency_records")
+}
+
+model OutboxEvent {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientId String    @map("recipient_id") @db.Uuid
+  kind        String
+  payload     Json      @default("{}")
+  processedAt DateTime? @map("processed_at") @db.Timestamptz
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  recipient   User      @relation(fields: [recipientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("outbox_events")
+}
+
+model Notification {
+  id        String   @id @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  message   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("notifications")
+}
+
+model AuthorityMandate {
+  id           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String             @map("user_id") @db.Uuid
+  decisionType String             @map("decision_type")
+  validFrom    DateTime           @default(now()) @map("valid_from") @db.Timestamptz
+  validUntil   DateTime           @map("valid_until") @db.Timestamptz
+  revokedAt    DateTime?          @map("revoked_at") @db.Timestamptz
+  user         User               @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  decisions    ApprovalDecision[]
+
+  @@map("authority_mandates")
+}
+
+model Proposal {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId          String             @map("report_id") @db.Uuid
+  type              String
+  proposerId        String             @map("proposer_id") @db.Uuid
+  payload           Json
+  status            String             @default("PENDING")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  report            Report             @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposer          User               @relation(fields: [proposerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  decision          ApprovalDecision?
+  assignments       Assignment[]
+  officialResponses OfficialResponse[]
+
+  @@map("proposals")
+}
+
+model ApprovalDecision {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  proposalId String           @unique @map("proposal_id") @db.Uuid
+  actorId    String           @map("actor_id") @db.Uuid
+  mandateId  String           @map("mandate_id") @db.Uuid
+  decision   String
+  reason     String
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  proposal   Proposal         @relation(fields: [proposalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actor      User             @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mandate    AuthorityMandate @relation(fields: [mandateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("approval_decisions")
+}
+
+model Conflict {
+  reportId  String   @map("report_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([reportId, userId])
+  @@map("conflicts")
+}
+
+model Assignment {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId   String    @map("report_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  proposalId String    @map("proposal_id") @db.Uuid
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz
+  report     Report    @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user       User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal   Proposal  @relation(fields: [proposalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("assignments")
+}
+
+model Finding {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId  String   @map("report_id") @db.Uuid
+  actorId   String   @map("actor_id") @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("findings")
+}
+
+model FollowUpTask {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId    String    @map("report_id") @db.Uuid
+  executorId  String    @map("executor_id") @db.Uuid
+  instruction String
+  execution   String?
+  reviewedBy  String?   @map("reviewed_by") @db.Uuid
+  status      String    @default("OPEN")
+  evidenceId  String?   @map("evidence_id") @db.Uuid
+  report      Report    @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  executor    User      @relation("TaskExecutor", fields: [executorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer    User?     @relation("TaskReviewer", fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evidence    Evidence? @relation(fields: [evidenceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("follow_up_tasks")
+}
+
+model Suspension {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId         String    @map("report_id") @db.Uuid
+  originStage      String    @map("origin_stage")
+  actorId          String    @map("actor_id") @db.Uuid
+  reason           String
+  evaluationAt     DateTime  @map("evaluation_at") @db.Timestamptz
+  resumeConditions String    @map("resume_conditions")
+  resumedAt        DateTime? @map("resumed_at") @db.Timestamptz
+  report           Report    @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actor            User      @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("suspensions")
+}
+
+model ReopenRequest {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId    String   @map("report_id") @db.Uuid
+  requesterId String   @map("requester_id") @db.Uuid
+  reason      String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requester   User     @relation(fields: [requesterId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("reopen_requests")
+}
+
+model OfficialResponse {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId   String   @map("report_id") @db.Uuid
+  proposalId String   @map("proposal_id") @db.Uuid
+  content    String
+  outcome    String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  report     Report   @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("official_responses")
+}
+
+model Evidence {
+  id           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId     String                 @map("report_id") @db.Uuid
+  uploaderId   String                 @map("uploader_id") @db.Uuid
+  storageKey   String                 @unique @map("storage_key")
+  originalName String                 @map("original_name")
+  mime         String
+  bytes        Int
+  checksum     String
+  scanStatus   String                 @default("PENDING") @map("scan_status")
+  scanVersion  String?                @map("scan_version")
+  attempts     Int                    @default(0)
+  createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  report       Report                 @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  uploader     User                   @relation(fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tasks        FollowUpTask[]
+  accessEvents SensitiveAccessEvent[]
+
+  @@map("evidence")
+}
+
+model SensitiveAccessEvent {
+  id         BigInt    @id @default(autoincrement())
+  actorId    String    @map("actor_id") @db.Uuid
+  reportId   String    @map("report_id") @db.Uuid
+  evidenceId String?   @map("evidence_id") @db.Uuid
+  action     String
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  actor      User      @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  report     Report    @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evidence   Evidence? @relation(fields: [evidenceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("sensitive_access_events")
+}
+
+model IntakeMember {
+  userId String  @id @map("user_id") @db.Uuid
+  active Boolean @default(true)
+  user   User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("intake_members")
+}

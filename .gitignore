@@ -8,3 +8,5 @@ coverage/
 .npm-cache/
 test-results/
 playwright-report/
+apps/api/src/generated/
+.local/

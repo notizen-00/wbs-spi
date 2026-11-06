@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": [
+    "apps/api/src/**/*.ts",
+    "apps/worker/src/**/*.ts",
+    "packages/**/*.ts",
+    "tests/**/*.ts",
+    "prisma.config.ts",
+    "playwright.config.ts"
+  ]
+}

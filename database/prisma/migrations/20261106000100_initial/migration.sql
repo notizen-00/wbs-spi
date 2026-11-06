@@ -1,3 +1,5 @@
+-- Preserve bookkeeping from databases initialized by the previous SQL runner.
+CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz DEFAULT now());
 CREATE TABLE users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, email text UNIQUE NOT NULL, password_hash text NOT NULL, role text NOT NULL DEFAULT 'REPORTER' CHECK(role IN ('REPORTER','MANAGER','INVESTIGATOR','OFFICIAL','EXECUTOR','ADMIN')), verified boolean NOT NULL DEFAULT false, active boolean NOT NULL DEFAULT true);
 CREATE TABLE account_tokens (token_hash text PRIMARY KEY, user_id uuid REFERENCES users NOT NULL, kind text NOT NULL, expires_at timestamptz NOT NULL, consumed_at timestamptz);
 CREATE SEQUENCE report_numbers;

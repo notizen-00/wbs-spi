@@ -8,3 +8,5 @@ node_modules
 .git
 artifacts
 test-results
+apps/api/src/generated
+.local

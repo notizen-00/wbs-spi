@@ -5,12 +5,13 @@ Whistleblowing System berbentuk **npm workspaces monorepo**, berdasarkan [PRD](d
 ## Struktur
 
 ```text
-apps/api               NestJS HTTP API, sesi, akses perkara, command transaksi
+apps/api               NestJS modules/controllers/services, PrismaService, akses perkara
 apps/web               Nuxt 4 + Vue, portal pelapor dan ruang kerja internal
 apps/worker            Outbox email/notifikasi dan pemindaian ClamAV
 packages/contracts     Tipe publik dan label status bersama
 packages/domain        Aturan transisi serta validasi pengiriman
-database/migrations    Empat migrasi PostgreSQL berversi
+database/prisma        Schema Prisma dan empat migrasi PostgreSQL berversi
+prisma.config.ts       Konfigurasi Prisma CLI, datasource, migrasi dan seed
 deploy                 Docker Compose, Dockerfile dan reverse proxy
 tests                  Integrasi PostgreSQL tertanam dan pengujian browser
 artifacts              Screenshot desktop/mobile hasil uji browser
@@ -18,11 +19,14 @@ artifacts              Screenshot desktop/mobile hasil uji browser
 
 ## Menjalankan di Windows
 
+Untuk **MinIO native tanpa Docker**, gunakan [installer Windows/local](docs/windows-native.md): `npm.cmd run native:install`, kemudian `npm.cmd run native:start`. Script opsional pemasangan prasyarat native juga tersedia di panduan tersebut.
+
 Prasyarat: Node.js 24.15+ dan Docker Desktop dengan Linux containers berjalan. Gunakan `npm.cmd` bila PowerShell memblokir `npm.ps1`.
 
 ```powershell
 Copy-Item .env.example .env
 npm.cmd ci
+npm.cmd run db:generate
 docker compose -f deploy/compose.yml up -d
 npm.cmd run db:migrate
 
@@ -46,7 +50,11 @@ npm.cmd run worker
 - Kotak email pengembangan Mailpit: http://localhost:8025
 - Konsol storage pengembangan: http://localhost:9001
 
+Storage menggunakan **MinIO**. Pengaturan `MINIO_*`, inisialisasi bucket privat, dan panduan memakai server MinIO sendiri ada di [docs/minio.md](docs/minio.md). Untuk menjalankan hanya storage: `docker compose --env-file .env -f deploy/compose.yml up -d minio storage-init`, lalu `npm.cmd run storage:check`.
+
 ClamAV perlu mengunduh basis definisi saat startup pertama; berkas tetap terkunci sampai scan berhasil. Seluruh port infrastruktur Compose dibatasi ke loopback. Kredensial `.env.example` hanya untuk pengembangan lokal.
+
+Database yang sebelumnya sudah dibuat memakai runner SQL lama harus mengikuti [panduan baseline Prisma](docs/prisma.md#database-lama-dari-runner-sql), bukan menjalankan migrasi awal lagi atau reset database.
 
 Registrasi publik selalu membuat role pelapor. Verifikasi email melalui tautan di Mailpit, lalu masuk. Worker harus berjalan untuk mengirim email dan memindai bukti. Isi formulir dapat disimpan sebagai draf sebelum akun terverifikasi.
 
@@ -98,7 +106,22 @@ npm.cmd run build
 npm.cmd run test:browser
 ```
 
-`CHROME_PATH` dapat diatur jika lokasi Chrome berbeda; konfigurasi default mengikuti instalasi Windows. Tes workflow menggunakan PGlite (PostgreSQL tertanam) agar bisa berjalan tanpa Docker. Ini tidak menggantikan pengujian konkurensi terhadap PostgreSQL/Redis nyata. Tes form mobile menggunakan API fixture secara eksplisit, sedangkan halaman publik diuji melalui aplikasi yang berjalan.
+`CHROME_PATH` dapat diatur jika lokasi Chrome berbeda; konfigurasi default mengikuti instalasi Windows. Tes workflow menggunakan Prisma Client + adapter PostgreSQL melalui socket PGlite agar bisa berjalan tanpa Docker. Tes juga menjalankan CLI `prisma migrate deploy`, pemeriksaan drift schema dan baseline database lama. Ini tidak menggantikan pengujian konkurensi PostgreSQL/Redis nyata. Tes form mobile menggunakan API fixture secara eksplisit, sedangkan halaman publik diuji melalui aplikasi yang berjalan.
+
+## Prisma ORM dan migrasi
+
+CRUD API, seed dan worker memakai Prisma Client. `PrismaService` dikelola lifecycle NestJS, dan transaksi memakai `$transaction`. SQL khusus hanya dipakai melalui tagged `$queryRaw` untuk row lock, sequence nomor, healthcheck dan `SKIP LOCKED`. Constraint, partial index dan trigger immutable tetap berada dalam Prisma migrations.
+
+```powershell
+npm.cmd run db:validate
+npm.cmd run db:generate
+npm.cmd run db:migrate                 # Terapkan migrasi yang sudah disimpan
+npm.cmd run db:migrate:dev -- --name nama_perubahan
+npm.cmd run db:status
+npm.cmd run db:studio
+```
+
+Setelah mengubah schema/membuat migrasi, jalankan `db:generate`. Perintah dev, test, typecheck, seed dan build menyiapkan client secara otomatis. Generated client tidak disimpan di Git. Panduan lengkap dan transisi database lama: [docs/prisma.md](docs/prisma.md).
 
 Hasil pemeriksaan, batas implementasi dan kebutuhan operasional tercatat di [status implementasi](docs/implementation-status.md). Kontrak command ada di [API](docs/api.md) dan petunjuk operasi di [runbook](docs/runbook.md).
 

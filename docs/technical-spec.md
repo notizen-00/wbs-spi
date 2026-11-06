@@ -11,7 +11,7 @@ Seluruh pilihan implementasi adalah usulan. Dokumen ini belum merupakan kode, ko
 | Backend | NestJS, TypeScript, modular monolith | Modul terpisah dengan transaksi lintas proses bisnis tanpa microservice awal |
 | Frontend | Nuxt, Vue, TypeScript | Satu aplikasi dengan layout publik, pelapor, internal |
 | Database | PostgreSQL | Relasi, constraints, transaksi, dan penguncian keputusan |
-| Akses data | `pg`, repository terparameterisasi, migrasi SQL berversi | Kendali eksplisit transaksi dan query; tanpa interpolasi input ke SQL |
+| Akses data | Prisma ORM 7, Prisma Migrate, adapter PostgreSQL | Revisi implementasi atas permintaan pemilik proyek: CRUD bertipe, transaksi interaktif, dan migrasi berversi; raw SQL terparameterisasi terbatas untuk lock/sequence/worker |
 | Redis | Sesi server, rate limit, BullMQ | Tugas asynchronous terpisah dari request |
 | Worker | Proses NestJS tersendiri dari codebase sama | Scan, email, pengingat, dan outbox dispatcher |
 | Storage | Object storage S3-compatible privat | Bukti tidak disimpan sebagai blob Redis atau folder publik |
@@ -32,8 +32,9 @@ Dokumentasi primer: [NestJS queues](https://docs.nestjs.com/techniques/queues), 
 | `apps/web` | Nuxt pages, layouts, components, middleware, composables |
 | `packages/contracts` | Tipe hasil OpenAPI dan client API; tidak berisi entity database rahasia |
 | `packages/domain` | Aturan transisi dan domain yang dipakai API/worker |
-| `database/migrations` | SQL schema, constraints, indexes, grants |
-| `database/seeds` | Data referensi dan data sintetis terpisah |
+| `database/prisma/schema.prisma` | Model dan relasi Prisma; camelCase dipetakan ke tabel/kolom snake_case |
+| `database/prisma/migrations` | Riwayat Prisma Migrate, SQL constraints, partial indexes dan triggers |
+| `apps/api/src/seed.ts` | Seed sintetis idempotent menggunakan Prisma Client |
 | `docs` | PRD, flowchart, design, OpenAPI, keputusan arsitektur, runbook |
 | `deploy` | Compose, proxy, healthcheck, backup dan restore |
 

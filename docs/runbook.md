@@ -9,7 +9,7 @@ Untuk deployment institusi, provisioning harus melalui prosedur yang disetujui. 
 ## Pemeriksaan awal
 
 1. `docker compose -f deploy/compose.yml ps`: PostgreSQL/Redis/MinIO/Mailpit/scanner berjalan.
-2. `npm.cmd run db:migrate`: semua migrasi diterapkan sekali; seluruh batch dijalankan dalam transaksi dengan advisory lock.
+2. `npm.cmd run db:generate`, lalu `npm.cmd run db:migrate`: Prisma Migrate menerapkan migrasi tersimpan dan mencatat `_prisma_migrations`; `db:status` memeriksa statusnya. Untuk database dari runner SQL lama, ikuti baseline di `docs/prisma.md` lebih dahulu. Prisma Migrate mengelola migration lock; atomicity command bisnis tetap ditangani Prisma `$transaction`.
 3. `/api/v1/health` hanya memeriksa proses; `/api/v1/ready` memeriksa PostgreSQL dan Redis.
 4. Worker berjalan, Mailpit menerima verifikasi, bucket `wbs-private` bersifat privat.
 5. Uji upload PDF sintetis, amati pending lalu READY, unduh sebagai pemilik dan pastikan pengguna lain ditolak.
