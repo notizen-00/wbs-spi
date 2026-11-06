@@ -1324,9 +1324,21 @@ legend {
 }
 .detail-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
   gap: 24px;
   align-items: start;
+}
+.detail-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+.detail-layout.timeline-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+main.detail-page {
+  max-width: none;
+  width: 100%;
 }
 .detail-body {
   padding: 28px;
@@ -1639,7 +1651,7 @@ details p {
     display: none;
   }
   .detail-layout {
-    grid-template-columns: minmax(0, 1fr) 235px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr);
   }
   .steps {
     padding: 18px;

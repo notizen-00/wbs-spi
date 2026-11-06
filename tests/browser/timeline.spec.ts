@@ -58,6 +58,20 @@ test('timeline menampilkan urutan terbaru, label tindakan dan waktu lengkap WIB 
       '2026-11-06T01:02:03Z',
     );
     await expect(timeline).toContainText('2 aktivitas tercatat');
+    if (width >= 1000) {
+      const timelineBox = await timeline.boundingBox();
+      const bodyBox = await page.locator('.detail-body').boundingBox();
+      expect(timelineBox!.x).toBeGreaterThanOrEqual(bodyBox!.x + bodyBox!.width);
+      expect(timelineBox!.y).toBeCloseTo(bodyBox!.y, 0);
+    }
+    await page.getByRole('button', { name: 'Sembunyikan timeline' }).click();
+    await expect(timeline).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Tampilkan timeline' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await page.getByRole('button', { name: 'Tampilkan timeline' }).click();
+    await expect(timeline).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
