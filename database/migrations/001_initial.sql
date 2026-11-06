@@ -1,0 +1,16 @@
+CREATE TABLE users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, email text UNIQUE NOT NULL, password_hash text NOT NULL, role text NOT NULL DEFAULT 'REPORTER' CHECK(role IN ('REPORTER','MANAGER','INVESTIGATOR','OFFICIAL','EXECUTOR','ADMIN')), verified boolean NOT NULL DEFAULT false, active boolean NOT NULL DEFAULT true);
+CREATE TABLE account_tokens (token_hash text PRIMARY KEY, user_id uuid REFERENCES users NOT NULL, kind text NOT NULL, expires_at timestamptz NOT NULL, consumed_at timestamptz);
+CREATE SEQUENCE report_numbers;
+CREATE TABLE reports (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner_id uuid REFERENCES users NOT NULL, number text UNIQUE, stage text NOT NULL DEFAULT 'DRAFT' CHECK(stage IN ('DRAFT','SUBMITTED','INITIAL_REVIEW','ASSIGNMENT_APPROVAL','INVESTIGATION','RESULT_REVIEW','RESULT_APPROVAL','FOLLOW_UP','CLOSURE_APPROVAL','COMPLETED','CLOSED')), lifecycle text NOT NULL DEFAULT 'ACTIVE', version integer NOT NULL DEFAULT 1, payload jsonb NOT NULL DEFAULT '{}', proposer_id uuid REFERENCES users, clarification jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE case_access (report_id uuid REFERENCES reports NOT NULL,user_id uuid REFERENCES users NOT NULL,revoked_at timestamptz, PRIMARY KEY(report_id,user_id));
+CREATE TABLE report_versions (report_id uuid REFERENCES reports NOT NULL, version integer NOT NULL, snapshot jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(report_id,version));
+CREATE TABLE case_events (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,report_id uuid REFERENCES reports NOT NULL,actor_id uuid REFERENCES users NOT NULL,action text NOT NULL,reason text NOT NULL,visibility text NOT NULL DEFAULT 'PUBLIC',created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE idempotency_records (actor_id uuid REFERENCES users, operation text NOT NULL,key text NOT NULL,request_hash text NOT NULL,report_id uuid REFERENCES reports,PRIMARY KEY(actor_id,operation,key));
+CREATE TABLE outbox_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), recipient_id uuid REFERENCES users NOT NULL,kind text NOT NULL, payload jsonb NOT NULL DEFAULT '{}',processed_at timestamptz,attempts integer NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE notifications (id uuid PRIMARY KEY, user_id uuid REFERENCES users NOT NULL,message text NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX reports_owner_idx ON reports(owner_id,created_at DESC);
+CREATE INDEX access_user_idx ON case_access(user_id, report_id) WHERE revoked_at IS NULL;
+CREATE INDEX outbox_pending_idx ON outbox_events(created_at) WHERE processed_at IS NULL;
+CREATE FUNCTION prevent_event_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Immutable record'; END $$;
+CREATE TRIGGER immutable_events BEFORE UPDATE OR DELETE ON case_events FOR EACH ROW EXECUTE FUNCTION prevent_event_mutation();
+CREATE TRIGGER immutable_snapshots BEFORE UPDATE OR DELETE ON report_versions FOR EACH ROW EXECUTE FUNCTION prevent_event_mutation();

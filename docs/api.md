@@ -1,0 +1,68 @@
+# API implementasi lokal
+
+Prefix `/api/v1`. Sesi opaque berupa cookie `wbs_session` HttpOnly, SameSite Strict; Secure pada environment produksi. ID sesi di-hash sebagai key Redis; session menyimpan ID pengguna dan versi autentikasi. Reset sandi menaikkan versi sehingga sesi lama gagal digunakan.
+
+Mutasi menggunakan `application/json` dan header `Origin` yang sama persis dengan `APP_ORIGIN`. Frontend dan API dilayani melalui origin yang sama. Jangan mengaktifkan CORS bebas.
+
+| Metode | Path | Keterangan |
+| --- | --- | --- |
+| GET | `/health`, `/ready` | Liveness; readiness database/Redis |
+| POST | `/auth/register` | `{name,email,password}`, role selalu REPORTER |
+| POST | `/auth/verify` | `{token}`, token sekali pakai, 1 jam |
+| POST | `/auth/recovery` | `{email,kind: RESET atau VERIFY}`, respons generik |
+| POST | `/auth/reset-password` | `{token,password}`, cabut sesi lama |
+| POST | `/auth/login`, `/auth/logout` | Masuk/keluar |
+| GET | `/me` | Profil pengguna sendiri |
+| GET | `/reports?page=1&q=` | Maksimal 50 per halaman; scope akses di SQL |
+| POST | `/reports/drafts` | `{payload}`, membuat draf privat |
+| PATCH | `/reports/:id/draft` | `{payload,expectedVersion}`, hanya draf milik sendiri |
+| GET | `/reports/:id` | Detail sesuai role, status, versi, timeline tersaring |
+| GET | `/reports/:id/workspace` | Proposal, temuan, tugas, jawaban resmi sesuai hak |
+| POST | `/reports/:id/commands` | Perintah di bawah, transaksi dan idempotensi |
+| GET/POST | `/reports/:id/evidence` | Metadata atau upload `{name,data:base64}` |
+| GET | `/evidence/:id/download` | Otorisasi perkara, status READY, checksum, audit durable |
+| GET | `/notifications` | 30 pemberitahuan terakhir milik sendiri |
+
+## Payload laporan
+
+`title, category, what, who, when (YYYY-MM-DD), where, why, how, evidenceReason, confidentiality`.
+
+`confidentiality`: `PROTECTED` atau `IDENTIFIED`. Keduanya menggunakan akun; opsi kedua berarti bersedia dihubungi, bukan publikasi identitas. Kedua opsi masih perlu pengesahan institusi. Bukti atau kronologi dapat mengandung identitas; sistem tidak mengklaim anonimisasi otomatis.
+
+## Perintah perkara
+
+Semua command menyertakan `action`, `expectedVersion`, `reason` (wajib), dan header `Idempotency-Key` 16–128 karakter. Kunci di-scope ke aktor + perkara, hash payload dicatat. Pengulangan payload sama mengembalikan keadaan perkara terkini setelah memeriksa ulang akses; payload berbeda dengan kunci sama ditolak 409.
+
+| Action | Input tambahan | Kewenangan |
+| --- | --- | --- |
+| SUBMIT | — | Pemilik, email terverifikasi; intake harus dikonfigurasi |
+| ADVANCE | — | Pengelola, hanya SUBMITTED → INITIAL_REVIEW |
+| CLARIFY | reason menjadi pertanyaan | Pengelola perkara |
+| RESPOND | reason menjadi tanggapan | Pemilik dengan klarifikasi terbuka |
+| PROPOSE_ASSIGNMENT | assigneeId, summary tersamarkan | Pengelola pada verifikasi awal |
+| DECIDE | decision: APPROVE / RETURN | Pejabat, mandat sesuai jenis proposal, bukan pengusul |
+| FINDING | content hasil dan rekomendasi | Pemeriksa dengan penugasan aktif |
+| REVIEW_FINDING | decision: RETURN | Pengelola pada review hasil |
+| PROPOSE_RESULT | executorId, instruction | Pengelola pada review hasil |
+| EXECUTE | taskId, execution, evidenceId | Pelaksana tugas, bukti READY milik sendiri |
+| REVIEW_EXECUTION | taskId, decision: VERIFY / RETURN | Pengelola berbeda dari pelaksana, bukti masih READY |
+| PROPOSE_CLOSURE | outcome: CLOSED / COMPLETED, response aman | Pengelola, COMPLETED harus seluruh tugas terverifikasi |
+| SUSPEND | evaluationAt ISO, conditions | Pengelola perkara; kewenangan institusi belum final |
+| RESUME | reason hasil evaluasi | Pengelola, kembali ke tahap asal |
+| REQUEST_REOPEN | reason informasi baru | Pemilik, perkara final |
+| PROPOSE_REOPEN | targetStage: INITIAL_REVIEW / INVESTIGATION | Pengelola, ada request pending |
+| CONFLICT | reason | Petugas terkait, mencabut akses dan penugasannya |
+
+Keputusan tidak memakai PATCH status bebas. Proposal yang dikembalikan memiliki keputusan final tersendiri; revisi dibuat sebagai proposal baru. Snapshot dan keputusan terdahulu tidak ditimpa. API umum tidak menyediakan DELETE perkara.
+
+## Bukti
+
+Upload dibatasi 20 MiB dan 10 berkas per perkara sebagai konfigurasi awal yang belum disahkan. Konten diperiksa signature PDF/JPEG/PNG dan ekstensi; nama disanitasi. Objek S3 berada dalam bucket privat dengan key acak di prefix karantina. Worker membaca objek, memverifikasi checksum SHA-256, dan mengirim ke ClamAV INSTREAM. Hasil scan gagal tetap tertutup; setelah lima percobaan perlu investigasi operator.
+
+Download melalui API, bukan public URL atau presigned URL. Konten diambil dan diverifikasi terlebih dahulu; audit akses di-commit sebelum respons. Header attachment, no-store, dan nosniff diterapkan. Upload base64 adalah kompromi versi pengembangan; streaming multipart diperlukan untuk kapasitas produksi.
+
+## Respons dan batas
+
+401 sesi tidak sah, 403 aksi tidak diizinkan, 404 objek tidak boleh diketahui, 409 konflik versi/idempotensi/tahap, 422 input/domain, 429 rate limit, 503 dependensi tidak tersedia. Detail SQL, kredensial dan stack tidak dikembalikan.
+
+Kontrak ini dokumentasi implementasi, belum OpenAPI-generated client. API memiliki otorisasi dan pembatasan dasar; pengujian keamanan menyeluruh tetap diperlukan.

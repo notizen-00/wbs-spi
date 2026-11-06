@@ -1,0 +1,5 @@
+CREATE TABLE evidence (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),report_id uuid REFERENCES reports NOT NULL,uploader_id uuid REFERENCES users NOT NULL,storage_key text UNIQUE NOT NULL,original_name text NOT NULL,mime text NOT NULL,bytes integer NOT NULL CHECK(bytes BETWEEN 1 AND 20971520),checksum text NOT NULL,scan_status text NOT NULL DEFAULT 'PENDING' CHECK(scan_status IN ('PENDING','READY','REJECTED','ERROR')),scan_version text,attempts integer NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE follow_up_tasks ADD COLUMN evidence_id uuid REFERENCES evidence;
+CREATE TABLE sensitive_access_events (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,actor_id uuid REFERENCES users NOT NULL,report_id uuid REFERENCES reports NOT NULL,evidence_id uuid REFERENCES evidence,action text NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TRIGGER immutable_access_events BEFORE UPDATE OR DELETE ON sensitive_access_events FOR EACH ROW EXECUTE FUNCTION prevent_event_mutation();
+CREATE INDEX scan_pending_idx ON evidence(created_at) WHERE scan_status IN ('PENDING','ERROR');

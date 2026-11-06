@@ -1,0 +1,16 @@
+CREATE TABLE authority_mandates (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid REFERENCES users NOT NULL,decision_type text NOT NULL,valid_from timestamptz NOT NULL DEFAULT now(),valid_until timestamptz NOT NULL,revoked_at timestamptz);
+CREATE TABLE proposals (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),report_id uuid REFERENCES reports NOT NULL,type text NOT NULL CHECK(type IN ('ASSIGNMENT','RESULT','CLOSURE','REOPEN')),proposer_id uuid REFERENCES users NOT NULL,payload jsonb NOT NULL,status text NOT NULL DEFAULT 'PENDING',created_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX proposal_pending_idx ON proposals(report_id) WHERE status='PENDING';
+CREATE TABLE approval_decisions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),proposal_id uuid REFERENCES proposals UNIQUE NOT NULL,actor_id uuid REFERENCES users NOT NULL,mandate_id uuid REFERENCES authority_mandates NOT NULL,decision text NOT NULL,reason text NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE conflicts (report_id uuid REFERENCES reports NOT NULL,user_id uuid REFERENCES users NOT NULL,reason text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(report_id,user_id));
+CREATE TABLE assignments (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),report_id uuid REFERENCES reports NOT NULL,user_id uuid REFERENCES users NOT NULL,proposal_id uuid REFERENCES proposals NOT NULL,revoked_at timestamptz);
+CREATE TABLE findings (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),report_id uuid REFERENCES reports NOT NULL,actor_id uuid REFERENCES users NOT NULL,content text NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE follow_up_tasks (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),report_id uuid REFERENCES reports NOT NULL,executor_id uuid REFERENCES users NOT NULL,instruction text NOT NULL,execution text,reviewed_by uuid REFERENCES users,status text NOT NULL DEFAULT 'OPEN');
+CREATE TABLE suspensions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),report_id uuid REFERENCES reports NOT NULL,origin_stage text NOT NULL,actor_id uuid REFERENCES users NOT NULL,reason text NOT NULL,evaluation_at timestamptz NOT NULL,resume_conditions text NOT NULL,resumed_at timestamptz);
+CREATE UNIQUE INDEX active_suspension_idx ON suspensions(report_id) WHERE resumed_at IS NULL;
+CREATE TABLE reopen_requests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),report_id uuid REFERENCES reports NOT NULL,requester_id uuid REFERENCES users NOT NULL,reason text NOT NULL,status text NOT NULL DEFAULT 'PENDING',created_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX pending_reopen_idx ON reopen_requests(report_id) WHERE status='PENDING';
+CREATE TABLE official_responses (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),report_id uuid REFERENCES reports NOT NULL,proposal_id uuid REFERENCES proposals NOT NULL,content text NOT NULL,outcome text NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TRIGGER immutable_decisions BEFORE UPDATE OR DELETE ON approval_decisions FOR EACH ROW EXECUTE FUNCTION prevent_event_mutation();
+CREATE TRIGGER immutable_findings BEFORE UPDATE OR DELETE ON findings FOR EACH ROW EXECUTE FUNCTION prevent_event_mutation();
+CREATE TRIGGER immutable_responses BEFORE UPDATE OR DELETE ON official_responses FOR EACH ROW EXECUTE FUNCTION prevent_event_mutation();

@@ -1,0 +1,8 @@
+{
+  "name": "@wbs/worker",
+  "private": true,
+  "version": "0.1.0",
+  "dependencies": {
+    "@wbs/api": "*"
+  }
+}
