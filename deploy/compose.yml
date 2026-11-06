@@ -23,6 +23,9 @@ services:
       context: ..
       dockerfile: deploy/minio.Dockerfile
       target: server
+      args:
+        GO_BASE_IMAGE: ${GO_BASE_IMAGE:-public.ecr.aws/docker/library/golang:1.24-alpine}
+        ALPINE_BASE_IMAGE: ${ALPINE_BASE_IMAGE:-public.ecr.aws/docker/library/alpine:3.22}
     pull_policy: build
     command: server /data --console-address :9001
     environment:
@@ -36,6 +39,9 @@ services:
       context: ..
       dockerfile: deploy/minio.Dockerfile
       target: client
+      args:
+        GO_BASE_IMAGE: ${GO_BASE_IMAGE:-public.ecr.aws/docker/library/golang:1.24-alpine}
+        ALPINE_BASE_IMAGE: ${ALPINE_BASE_IMAGE:-public.ecr.aws/docker/library/alpine:3.22}
     pull_policy: build
     depends_on: [minio]
     environment:

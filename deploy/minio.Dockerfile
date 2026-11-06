@@ -1,6 +1,8 @@
 # MinIO community distributions are source-only. Keep these tags aligned with
 # deploy/windows/Install-Native.ps1 instead of relying on removed registry images.
-FROM golang:1.24-alpine AS go-base
+ARG GO_BASE_IMAGE=public.ecr.aws/docker/library/golang:1.24-alpine
+ARG ALPINE_BASE_IMAGE=public.ecr.aws/docker/library/alpine:3.22
+FROM ${GO_BASE_IMAGE} AS go-base
 RUN apk add --no-cache ca-certificates git
 ENV CGO_ENABLED=0 GOMAXPROCS=2 GOBIN=/out
 
@@ -14,7 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go install -p 2 -trimpath -ldflags="-s -w" github.com/minio/mc@RELEASE.2025-08-13T08-35-41Z
 
-FROM alpine:3.22 AS runtime
+FROM ${ALPINE_BASE_IMAGE} AS runtime
 RUN apk add --no-cache ca-certificates
 
 FROM runtime AS server

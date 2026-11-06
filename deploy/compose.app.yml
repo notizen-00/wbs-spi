@@ -4,6 +4,8 @@ include:
 x-app-build: &app-build
   context: ..
   dockerfile: deploy/Dockerfile
+  args:
+    NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-public.ecr.aws/docker/library/node:24-alpine}
 services:
   migrate:
     build: *app-build

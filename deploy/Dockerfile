@@ -1,4 +1,5 @@
-FROM node:24-alpine
+ARG NODE_BASE_IMAGE=public.ecr.aws/docker/library/node:24-alpine
+FROM ${NODE_BASE_IMAGE}
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 COPY apps/api/package.json apps/api/package.json
