@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Upload, FileText, Download, RefreshCw, LockKeyhole, X } from '@lucide/vue';
+import { Upload, FileText, Download, RefreshCw, LockKeyhole, X, Eye } from '@lucide/vue';
 import {
   EVIDENCE_MAX_BYTES,
   evidenceAccept,
@@ -8,6 +8,7 @@ import {
 } from '@wbs/contracts';
 const props = defineProps<{ reportId: string; readonly?: boolean }>();
 const emit = defineEmits<{ updated: [] }>();
+const preview = ref<any>(null);
 const files = ref<any[]>([]),
   busy = ref(false),
   error = ref('');
@@ -35,6 +36,8 @@ async function refresh() {
     const result = await $fetch<any[]>(`/api/v1/reports/${reportId}/evidence`);
     if (disposed || reportId !== props.reportId) return;
     files.value = result;
+    if (preview.value && !result.some((f) => f.id === preview.value.id && f.status === 'READY'))
+      preview.value = null;
     const failures: string[] = [];
     for (const file of result) {
       if (['ERROR', 'REJECTED'].includes(file.status)) {
@@ -65,6 +68,7 @@ watch(
   () => {
     clearTimeout(pollTimer);
     reported.clear();
+    preview.value = null;
     files.value = [];
     snackbar.value = '';
     void refresh();
@@ -179,7 +183,18 @@ async function upload(event: Event) {
         aria-label="Unduh bukti"
         ><Download :size="17" /></a
       ><LockKeyhole v-else :size="15" />
+      <button
+        v-if="f.status === 'READY'"
+        type="button"
+        class="text-button"
+        :aria-label="`Lihat bukti ${f.name}`"
+        :aria-expanded="preview?.id === f.id"
+        @click="preview = preview?.id === f.id ? null : f"
+      >
+        <Eye :size="16" />Lihat bukti
+      </button>
     </div>
+    <EvidencePreview v-if="preview" :key="preview.id" :file="preview" @close="preview = null" />
     <p class="evidence-note">
       Berkas dikarantina sampai lolos pemindaian. Status diperbarui otomatis. Jika gagal, periksa
       alasannya dan coba ulang setelah layanan diperbaiki.
