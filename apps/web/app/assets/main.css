@@ -1,5 +1,42 @@
 @import '@fontsource-variable/dm-sans';
 @import '@fontsource-variable/manrope';
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.notification-count {
+  position: absolute;
+  right: -2px;
+  top: -3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: #b77936;
+  color: white;
+  font-size: 10px;
+  line-height: 17px;
+  text-align: center;
+  font-weight: 600;
+}
+.notification-connection {
+  display: block;
+  font-size: 10px;
+  color: #8a9a8f;
+  line-height: 1.7;
+  margin-top: 7px;
+}
+.notification-panel {
+  max-height: min(420px, 70dvh);
+  overflow-y: auto;
+}
 :root {
   font-family: 'DM Sans Variable', sans-serif;
   color: #233b35;

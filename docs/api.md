@@ -4,24 +4,26 @@ Prefix `/api/v1`. Sesi opaque berupa cookie `wbs_session` HttpOnly, SameSite Str
 
 Mutasi menggunakan `application/json` dan header `Origin` yang sama persis dengan `APP_ORIGIN`. Frontend dan API dilayani melalui origin yang sama. Jangan mengaktifkan CORS bebas.
 
-| Metode | Path | Keterangan |
-| --- | --- | --- |
-| GET | `/health`, `/ready` | Liveness; readiness database/Redis |
-| POST | `/auth/register` | `{name,email,password}`, role selalu REPORTER |
-| POST | `/auth/verify` | `{token}`, token sekali pakai, 1 jam |
-| POST | `/auth/recovery` | `{email,kind: RESET atau VERIFY}`, respons generik |
-| POST | `/auth/reset-password` | `{token,password}`, cabut sesi lama |
-| POST | `/auth/login`, `/auth/logout` | Masuk/keluar |
-| GET | `/me` | Profil pengguna sendiri |
-| GET | `/reports?page=1&q=` | Maksimal 50 per halaman; scope akses di SQL |
-| POST | `/reports/drafts` | `{payload}`, membuat draf privat |
-| PATCH | `/reports/:id/draft` | `{payload,expectedVersion}`, hanya draf milik sendiri |
-| GET | `/reports/:id` | Detail sesuai role, status, versi, timeline tersaring |
-| GET | `/reports/:id/workspace` | Proposal, temuan, tugas, jawaban resmi sesuai hak |
-| POST | `/reports/:id/commands` | Perintah di bawah, transaksi dan idempotensi |
-| GET/POST | `/reports/:id/evidence` | Metadata atau upload `{name,data:base64}` |
-| GET | `/evidence/:id/download` | Otorisasi perkara, status READY, checksum, audit durable |
-| GET | `/notifications` | 30 pemberitahuan terakhir milik sendiri |
+| Metode   | Path                          | Keterangan                                               |
+| -------- | ----------------------------- | -------------------------------------------------------- |
+| GET      | `/health`, `/ready`           | Liveness; readiness database/Redis                       |
+| POST     | `/auth/register`              | `{name,email,password}`, role selalu REPORTER            |
+| POST     | `/auth/verify`                | `{token}`, token sekali pakai, 1 jam                     |
+| POST     | `/auth/recovery`              | `{email,kind: RESET atau VERIFY}`, respons generik       |
+| POST     | `/auth/reset-password`        | `{token,password}`, cabut sesi lama                      |
+| POST     | `/auth/login`, `/auth/logout` | Masuk/keluar                                             |
+| GET      | `/me`                         | Profil pengguna sendiri                                  |
+| GET      | `/reports?page=1&q=`          | Maksimal 50 per halaman; scope akses di SQL              |
+| POST     | `/reports/drafts`             | `{payload}`, membuat draf privat                         |
+| PATCH    | `/reports/:id/draft`          | `{payload,expectedVersion}`, hanya draf milik sendiri    |
+| GET      | `/reports/:id`                | Detail sesuai role, status, versi, timeline tersaring    |
+| GET      | `/reports/:id/workspace`      | Proposal, temuan, tugas, jawaban resmi sesuai hak        |
+| POST     | `/reports/:id/commands`       | Perintah di bawah, transaksi dan idempotensi             |
+| GET/POST | `/reports/:id/evidence`       | Metadata atau upload `{name,data:base64}`                |
+| GET      | `/evidence/:id/download`      | Otorisasi perkara, status READY, checksum, audit durable |
+| GET      | `/notifications`              | 30 pemberitahuan terakhir milik sendiri                  |
+
+Notifikasi baru juga dikirim melalui Socket.IO, namespace `/notifications`, engine path `/api/v1/socket.io`, event `notification:new`. Handshake memakai cookie sesi dan validasi origin. Lihat [protokol realtime](realtime-notifications.md).
 
 ## Payload laporan
 
@@ -33,25 +35,25 @@ Mutasi menggunakan `application/json` dan header `Origin` yang sama persis denga
 
 Semua command menyertakan `action`, `expectedVersion`, `reason` (wajib), dan header `Idempotency-Key` 16–128 karakter. Kunci di-scope ke aktor + perkara, hash payload dicatat. Pengulangan payload sama mengembalikan keadaan perkara terkini setelah memeriksa ulang akses; payload berbeda dengan kunci sama ditolak 409.
 
-| Action | Input tambahan | Kewenangan |
-| --- | --- | --- |
-| SUBMIT | — | Pemilik, email terverifikasi; intake harus dikonfigurasi |
-| ADVANCE | — | Pengelola, hanya SUBMITTED → INITIAL_REVIEW |
-| CLARIFY | reason menjadi pertanyaan | Pengelola perkara |
-| RESPOND | reason menjadi tanggapan | Pemilik dengan klarifikasi terbuka |
-| PROPOSE_ASSIGNMENT | assigneeId, summary tersamarkan | Pengelola pada verifikasi awal |
-| DECIDE | decision: APPROVE / RETURN | Pejabat, mandat sesuai jenis proposal, bukan pengusul |
-| FINDING | content hasil dan rekomendasi | Pemeriksa dengan penugasan aktif |
-| REVIEW_FINDING | decision: RETURN | Pengelola pada review hasil |
-| PROPOSE_RESULT | executorId, instruction | Pengelola pada review hasil |
-| EXECUTE | taskId, execution, evidenceId | Pelaksana tugas, bukti READY milik sendiri |
-| REVIEW_EXECUTION | taskId, decision: VERIFY / RETURN | Pengelola berbeda dari pelaksana, bukti masih READY |
-| PROPOSE_CLOSURE | outcome: CLOSED / COMPLETED, response aman | Pengelola, COMPLETED harus seluruh tugas terverifikasi |
-| SUSPEND | evaluationAt ISO, conditions | Pengelola perkara; kewenangan institusi belum final |
-| RESUME | reason hasil evaluasi | Pengelola, kembali ke tahap asal |
-| REQUEST_REOPEN | reason informasi baru | Pemilik, perkara final |
-| PROPOSE_REOPEN | targetStage: INITIAL_REVIEW / INVESTIGATION | Pengelola, ada request pending |
-| CONFLICT | reason | Petugas terkait, mencabut akses dan penugasannya |
+| Action             | Input tambahan                              | Kewenangan                                               |
+| ------------------ | ------------------------------------------- | -------------------------------------------------------- |
+| SUBMIT             | —                                           | Pemilik, email terverifikasi; intake harus dikonfigurasi |
+| ADVANCE            | —                                           | Pengelola, hanya SUBMITTED → INITIAL_REVIEW              |
+| CLARIFY            | reason menjadi pertanyaan                   | Pengelola perkara                                        |
+| RESPOND            | reason menjadi tanggapan                    | Pemilik dengan klarifikasi terbuka                       |
+| PROPOSE_ASSIGNMENT | assigneeId, summary tersamarkan             | Pengelola pada verifikasi awal                           |
+| DECIDE             | decision: APPROVE / RETURN                  | Pejabat, mandat sesuai jenis proposal, bukan pengusul    |
+| FINDING            | content hasil dan rekomendasi               | Pemeriksa dengan penugasan aktif                         |
+| REVIEW_FINDING     | decision: RETURN                            | Pengelola pada review hasil                              |
+| PROPOSE_RESULT     | executorId, instruction                     | Pengelola pada review hasil                              |
+| EXECUTE            | taskId, execution, evidenceId               | Pelaksana tugas, bukti READY milik sendiri               |
+| REVIEW_EXECUTION   | taskId, decision: VERIFY / RETURN           | Pengelola berbeda dari pelaksana, bukti masih READY      |
+| PROPOSE_CLOSURE    | outcome: CLOSED / COMPLETED, response aman  | Pengelola, COMPLETED harus seluruh tugas terverifikasi   |
+| SUSPEND            | evaluationAt ISO, conditions                | Pengelola perkara; kewenangan institusi belum final      |
+| RESUME             | reason hasil evaluasi                       | Pengelola, kembali ke tahap asal                         |
+| REQUEST_REOPEN     | reason informasi baru                       | Pemilik, perkara final                                   |
+| PROPOSE_REOPEN     | targetStage: INITIAL_REVIEW / INVESTIGATION | Pengelola, ada request pending                           |
+| CONFLICT           | reason                                      | Petugas terkait, mencabut akses dan penugasannya         |
 
 Keputusan tidak memakai PATCH status bebas. Proposal yang dikembalikan memiliki keputusan final tersendiri; revisi dibuat sebagai proposal baru. Snapshot dan keputusan terdahulu tidak ditimpa. API umum tidak menyediakan DELETE perkara.
 
@@ -59,12 +61,12 @@ Keputusan tidak memakai PATCH status bebas. Proposal yang dikembalikan memiliki 
 
 Upload dibatasi 20 MiB dan 10 berkas per perkara. Tipe diperiksa dari isi biner menggunakan `file-type`, lalu dicocokkan dengan ekstensi; MIME dari browser tidak dipercaya. Allowlist backend dan UI memakai kontrak bersama. Nama berkas disanitasi. Objek MinIO berada dalam bucket privat dengan key acak di prefix karantina. Worker membaca objek, memverifikasi checksum SHA-256, dan mengirim ke ClamAV INSTREAM. Hasil scan gagal tetap tertutup; setelah lima percobaan perlu investigasi operator.
 
-| Jenis | Ekstensi | MIME |
-| --- | --- | --- |
-| PDF | pdf | application/pdf |
-| Gambar | jpg, jpeg, png, gif, webp, bmp, tif, tiff, avif, heic, heif | image/jpeg, image/png, image/gif, image/webp, image/bmp, image/tiff, image/avif, image/heic, image/heif |
-| Audio | mp3 | audio/mpeg |
-| Video | mp4, mov, webm, mkv, avi, mpeg, mpg, 3gp, 3g2, m4v | video/mp4, video/quicktime, video/webm, video/matroska, video/vnd.avi, video/mpeg, video/3gpp, video/3gpp2, video/x-m4v |
+| Jenis  | Ekstensi                                                    | MIME                                                                                                                    |
+| ------ | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| PDF    | pdf                                                         | application/pdf                                                                                                         |
+| Gambar | jpg, jpeg, png, gif, webp, bmp, tif, tiff, avif, heic, heif | image/jpeg, image/png, image/gif, image/webp, image/bmp, image/tiff, image/avif, image/heic, image/heif                 |
+| Audio  | mp3                                                         | audio/mpeg                                                                                                              |
+| Video  | mp4, mov, webm, mkv, avi, mpeg, mpg, 3gp, 3g2, m4v          | video/mp4, video/quicktime, video/webm, video/matroska, video/vnd.avi, video/mpeg, video/3gpp, video/3gpp2, video/x-m4v |
 
 SVG/HTML/script tidak diterima. MIME MPEG dan HEIF sequence dari detektor dinormalisasi ke keluarga MIME yang sesuai. Ekstensi palsu, base64 tidak valid dan berkas yang tidak dikenali ditolak 422; berkas terlalu besar ditolak 413.
 

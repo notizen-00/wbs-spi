@@ -14,6 +14,7 @@ Status: **versi pengembangan/UAT dengan data sintetis**. Dokumen PRD dan spesifi
 - Penutupan normal/dini dengan jawaban resmi, penundaan/evaluasi, request dan keputusan pembukaan kembali, pencabutan akses setelah konflik.
 - Row lock, expected version, snapshot, event, idempotensi dan outbox dalam satu transaksi command. Trigger mencegah perubahan event/snapshot/keputusan dari jalur SQL biasa.
 - Notifikasi email umum, worker retry terbatas, UI loading/error/empty, panduan dan bantuan, font lokal, layar responsif.
+- Notifikasi WebSocket Socket.IO, room per pengguna, pemeriksaan ulang sesi, Redis Pub/Sub setelah commit, notifikasi durable terpisah dari keberhasilan email, badge UI dan sinkronisasi reconnect.
 
 ## Belum memenuhi gerbang operasional PRD
 
@@ -35,16 +36,17 @@ Keputusan institusi yang belum disahkan tetap seperti PRD: mandat, kategori kera
 
 | Pemeriksaan | Hasil |
 | --- | --- |
-| Unit/domain dan integrasi Prisma/PGlite | 25 tes lolos melalui Prisma Client dan Prisma Migrate pada socket PostgreSQL: migrasi ulang, schema diff, upload/karantina/checksum bukti, draf/submit/idempotensi, mandat, workflow, immutable audit, scope, lifecycle Nest, worker, seed, dan baseline legacy |
+| Unit/domain dan integrasi Prisma/PGlite/WebSocket | 27 tes lolos: seluruh alur sebelumnya, akses WebSocket/sesi/origin, pemisahan penerima, pencabutan sesi dan notifikasi pasca-commit tanpa menunggu email |
 | Client MinIO | 3 tes lolos: prioritas/fallback konfigurasi, signature S3, path-style request, roundtrip data biner, error objek hilang dan pesan penolakan kredensial |
 | Validasi MIME | 16 tes lolos: PDF, gambar, MP3, video, penolakan ekstensi palsu, SVG aktif, base64 rusak dan ukuran berlebih |
 | TypeScript API/worker dan Nuxt | Lolos |
 | Build NestJS + Nuxt | Lolos |
 | API hasil kompilasi | Berhasil start; `/health` mengembalikan `ok` |
-| Browser Chrome desktop/mobile | 3 tes lolos; lebar 320/390/768/1440 tanpa overflow, alur form dan pemilihan/unggah MP3 pada mobile dengan API fixture |
+| Browser Chrome desktop/mobile | 4 tes lolos; responsivitas, form, upload MP3, dan notifikasi realtime dengan badge/deduplikasi/reconnect/logout pada mobile |
 | Docker Compose config | Valid |
 | MinIO native Windows | Binary berhasil dibangun; install ulang, start/stop/start, HEAD bucket, upload/download biner dan penolakan baca anonim terverifikasi pada layanan lokal nyata |
 | Perbaikan upload lokal | Penolakan kredensial HTTP 403 teridentifikasi dan pulih setelah reload konfigurasi server; validasi dan unggah/unduh PDF, MP3, MP4 terverifikasi ke MinIO nyata. Objek smoke test dibersihkan |
+| Realtime lokal | Redis nyata + sesi WebSocket terautentikasi + pencabutan sesi berhasil pada channel/database uji terisolasi; handshake melalui proxy frontend juga terverifikasi |
 | PostgreSQL/Redis/ClamAV/SMTP integrasi penuh | Belum diuji sebagai satu alur operasional; listener PostgreSQL/Redis terdeteksi, SMTP/ClamAV belum tersedia |
 | Audit dependency | Tidak ada high/critical setelah override multer 2.5; masih 12 temuan low/moderate pada dependency transitif build Nuxt. Perlu review sebelum rilis; tidak memaksakan downgrade framework |
 

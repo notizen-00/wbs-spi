@@ -3,7 +3,9 @@ export default defineNuxtConfig({
   ssr: false,
   devtools: { enabled: false },
   css: ['~/assets/main.css'],
-  nitro: { devProxy: { '/api': { target: 'http://localhost:3001/api', changeOrigin: true } } },
+  nitro: {
+    devProxy: { '/api': { target: 'http://localhost:3001/api', changeOrigin: true, ws: true } },
+  },
   routeRules: {
     '/**': {
       headers: {

@@ -19,6 +19,18 @@ import { OutboxService } from '../apps/worker/src/outbox.service';
 import { ScannerService } from '../apps/worker/src/scanner.service';
 import { EvidenceService } from '../apps/api/src/evidence/evidence.service';
 import type { MinioStorageService } from '../apps/api/src/storage/minio-storage.service';
+import { NotificationsGateway } from '../apps/api/src/notifications/notifications.gateway';
+import {
+  NotificationPublisher,
+  notificationChannel,
+} from '../apps/api/src/notifications/notification-publisher';
+import type { AuthService } from '../apps/api/src/auth/auth.service';
+import { UnauthorizedException } from '@nestjs/common';
+import { createServer } from 'node:http';
+import { EventEmitter } from 'node:events';
+import { Server as SocketServer } from 'socket.io';
+import { io, type Socket as ClientSocket } from 'socket.io-client';
+import type Redis from 'ioredis';
 
 test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen', async (t) => {
   const db = new PGlite();
@@ -374,6 +386,164 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       else process.env.DATABASE_URL = previous;
     }
   });
+  await t.test(
+    'WebSocket menerima notifikasi hanya untuk sesi pemilik dan menolak sesi/origin tidak sah',
+    async () => {
+      const origin = process.env.APP_ORIGIN || 'http://localhost:3000';
+      const bus = new EventEmitter() as EventEmitter & {
+        subscribe: () => Promise<void>;
+        connect: () => Promise<void>;
+        disconnect: () => void;
+        publish: (channel: string, payload: string) => Promise<number>;
+      };
+      bus.subscribe = async () => {};
+      bus.connect = async () => {
+        bus.emit('ready');
+      };
+      bus.disconnect = () => {};
+      bus.publish = async (channel, payload) => {
+        bus.emit('message', channel, payload);
+        return 1;
+      };
+      const firstToken = 'a'.repeat(64),
+        secondToken = 'b'.repeat(64);
+      const sessions = new Map([
+        [firstToken, reporter],
+        [secondToken, manager],
+      ]);
+      const auth = {
+        sessionFromToken: async (token: string) =>
+          sessions.get(token) ??
+          (() => {
+            throw new UnauthorizedException();
+          })(),
+      } as unknown as AuthService;
+      const http = createServer();
+      const server = new SocketServer(http, {
+        path: '/api/v1/socket.io',
+        transports: ['websocket'],
+        allowRequest: (req, cb) => cb(null, req.headers.origin === origin),
+      });
+      const gateway = new NotificationsGateway(auth, prisma, bus as unknown as Redis);
+      const publisher = new NotificationPublisher(bus as unknown as Redis);
+      const namespace = server.of('/notifications');
+      gateway.afterInit(namespace);
+      namespace.on('connection', (socket) => {
+        void gateway.handleConnection(socket);
+      });
+      await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
+      const address = http.address() as { port: number };
+      const clients: ClientSocket[] = [];
+      const connect = (token: string, requestOrigin = origin) => {
+        const socket = io(`http://127.0.0.1:${address.port}/notifications`, {
+          path: '/api/v1/socket.io',
+          transports: ['websocket'],
+          autoConnect: false,
+          reconnection: false,
+          extraHeaders: { Origin: requestOrigin, Cookie: `wbs_session=${token}` },
+          timeout: 1000,
+        });
+        clients.push(socket);
+        return socket;
+      };
+      async function ready(socket: ClientSocket) {
+        await new Promise<void>((resolve, reject) => {
+          socket.once('connect_error', reject);
+          socket.once('notifications:ready', () => resolve());
+          socket.connect();
+        });
+      }
+      async function rejected(socket: ClientSocket) {
+        await new Promise<void>((resolve, reject) => {
+          socket.once('connect', () => reject(new Error('Unauthorized connection accepted')));
+          socket.once('connect_error', () => resolve());
+          socket.connect();
+        });
+      }
+      try {
+        await rejected(connect('invalid'));
+        await rejected(connect(firstToken, 'https://invalid.example.test'));
+        const first = connect(firstToken),
+          second = connect(secondToken);
+        await ready(first);
+        await ready(second);
+        let foreign = 0;
+        second.on('notification:new', () => foreign++);
+        second.emit('join', `user:${reporter.id}`);
+        const event = await prisma.notification.create({
+          data: { id: randomUUID(), userId: reporter.id, message: 'Ada pembaruan di portal WBS.' },
+        });
+        const received = new Promise<any>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Notification timeout')), 2000);
+          first.once('notification:new', (item) => {
+            clearTimeout(timer);
+            resolve(item);
+          });
+        });
+        await publisher.publish([event.id]);
+        const item = await received;
+        assert.deepEqual(Object.keys(item).sort(), ['created_at', 'id', 'message']);
+        assert.equal(item.id, event.id);
+        assert.equal(foreign, 0);
+        sessions.delete(firstToken);
+        const disconnected = new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error('Revoked session was not disconnected')),
+            2000,
+          );
+          first.once('disconnect', () => {
+            clearTimeout(timer);
+            resolve();
+          });
+        });
+        let leaked = false;
+        first.on('notification:new', () => {
+          leaked = true;
+        });
+        await publisher.publish([event.id]);
+        await disconnected;
+        assert.equal(leaked, false);
+      } finally {
+        for (const client of clients) client.disconnect();
+        gateway.onModuleDestroy();
+        publisher.onModuleDestroy();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    },
+  );
+  await t.test(
+    'notifikasi tersimpan sebelum broadcast dan tidak menunggu worker email',
+    async () => {
+      const caseReport = await prisma.report.create({
+        data: { ownerId: reporter.id, stage: 'SUBMITTED' },
+      });
+      await prisma.caseAccess.create({ data: { reportId: caseReport.id, userId: manager.id } });
+      let broadcasts = 0;
+      const publisher = {
+        publish: async (ids: string[]) => {
+          assert.equal(db.isInTransaction(), false);
+          assert.ok(ids.length);
+          assert.equal(await prisma.notification.count({ where: { id: { in: ids } } }), ids.length);
+          assert.equal(
+            await prisma.outboxEvent.count({ where: { id: { in: ids }, processedAt: null } }),
+            ids.length,
+          );
+          broadcasts++;
+        },
+      } as NotificationPublisher;
+      const service = new ReportsService(
+        prisma,
+        new ReportsRepository(prisma),
+        new WorkflowService(),
+        publisher,
+      );
+      const body = { action: 'ADVANCE', reason: 'Catatan pengujian', expectedVersion: 1 };
+      const key = randomUUID();
+      await service.command(caseReport.id, manager, body, key);
+      await service.command(caseReport.id, manager, body, key);
+      assert.equal(broadcasts, 1);
+    },
+  );
   await t.test('outbox Prisma mempertahankan retry dan deduplikasi notifikasi', async () => {
     await prisma.outboxEvent.updateMany({ data: { processedAt: new Date() } });
     const event = await prisma.outboxEvent.create({

@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { NotificationPublisher } from '../notifications/notification-publisher';
 import { stageLabels, type Stage, type User, type ReportPayload } from '@wbs/contracts';
 import { nextStage, validateSubmission } from '@wbs/domain';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +17,7 @@ export class ReportsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ReportsRepository) private readonly repository: ReportsRepository,
     @Inject(WorkflowService) private readonly workflow: WorkflowService,
+    @Optional() @Inject(NotificationPublisher) private readonly publisher?: NotificationPublisher,
   ) {}
   async list(user: User, pageValue: unknown, qValue: unknown) {
     const page = Math.max(1, Math.min(100000, Math.trunc(Number(pageValue) || 1)));
@@ -85,7 +87,7 @@ export class ReportsService {
     this.version(b.expectedVersion);
     const fingerprint = hash(JSON.stringify(input));
     text(b.reason, 'alasan atau catatan', 10000);
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const report = await this.repository.authorized(id, user, tx, true);
       const prior = await tx.idempotencyRecord.findUnique({
         where: { actorId_operation_key: { actorId: user.id, operation: id, key } },
@@ -93,7 +95,7 @@ export class ReportsService {
       if (prior) {
         if (prior.requestHash !== fingerprint)
           fail(409, 'Kunci telah dipakai untuk permintaan berbeda.');
-        return serializeReport(report, user);
+        return { report: serializeReport(report, user), notificationIds: [] as string[] };
       }
       if (report.version !== b.expectedVersion)
         fail(409, 'Laporan telah berubah. Muat ulang sebelum melanjutkan.');
@@ -223,14 +225,28 @@ export class ReportsService {
         },
         select: { userId: true },
       });
-      await tx.outboxEvent.createMany({
+      const outbox = await tx.outboxEvent.createManyAndReturn({
         data: [
           { recipientId: report.ownerId, kind: 'UPDATE' },
           ...recipients.map((m) => ({ recipientId: m.userId, kind: 'UPDATE' })),
         ],
+        select: { id: true, recipientId: true },
       });
-      return serializeReport(updated, user);
+      await tx.notification.createMany({
+        data: outbox.map((event) => ({
+          id: event.id,
+          userId: event.recipientId,
+          message: 'Ada pembaruan di portal WBS.',
+        })),
+        skipDuplicates: true,
+      });
+      return {
+        report: serializeReport(updated, user),
+        notificationIds: outbox.map((event) => event.id),
+      };
     });
+    if (result.notificationIds.length) await this.publisher?.publish(result.notificationIds);
+    return result.report;
   }
   async workspace(id: string, user: User) {
     const report = await this.repository.authorized(id, user);

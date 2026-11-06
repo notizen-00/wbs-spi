@@ -19,8 +19,11 @@ export class AuthService implements OnModuleDestroy {
     this.redis.disconnect();
   }
   async session(req: Request): Promise<User> {
-    const raw = req.cookies?.wbs_session;
-    if (!raw) fail(401, 'Silakan masuk terlebih dahulu.');
+    return this.sessionFromToken(req.cookies?.wbs_session);
+  }
+  async sessionFromToken(raw: unknown): Promise<User> {
+    if (typeof raw !== 'string' || !/^[a-f0-9]{64}$/i.test(raw))
+      fail(401, 'Silakan masuk terlebih dahulu.');
     let stored: string | null = null;
     try {
       stored = await this.redis.get(`session:${hash(raw)}`);

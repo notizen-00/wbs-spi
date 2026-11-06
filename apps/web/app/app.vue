@@ -43,8 +43,14 @@ const user = ref<User | null>(null),
   step = ref(0),
   reports = ref<Report[]>([]),
   selected = ref<Report | null>(null),
-  notifications = ref<any[]>([]),
   showNotifications = ref(false);
+const {
+  notifications,
+  unreadCount,
+  connectionStatus,
+  announcement,
+  refresh: refreshNotifications,
+} = useRealtimeNotifications(user, showNotifications);
 const credentials = reactive({ name: '', email: '', password: '' });
 const resetToken = ref('');
 const workspace = ref<{ refresh: () => Promise<void> } | null>(null);
@@ -320,10 +326,7 @@ async function command(action: string) {
 }
 async function toggleNotifications() {
   showNotifications.value = !showNotifications.value;
-  if (showNotifications.value && user.value)
-    await run(async () => {
-      notifications.value = await api('/notifications');
-    });
+  if (showNotifications.value && user.value) await refreshNotifications();
 }
 onMounted(async () => {
   window.addEventListener('keydown', keydown);
@@ -426,10 +429,13 @@ onMounted(async () => {
           <span class="secure-label"><span></span>Koneksi privat</span
           ><button
             class="icon-button notification-button"
-            aria-label="Notifikasi"
+            :aria-label="unreadCount ? `Notifikasi, ${unreadCount} pembaruan baru` : 'Notifikasi'"
+            :aria-expanded="showNotifications"
             @click="toggleNotifications"
           >
-            <Bell :size="20" /><i v-if="notifications.length"></i></button
+            <Bell :size="20" /><span v-if="unreadCount" class="notification-count">{{
+              unreadCount > 99 ? '99+' : unreadCount
+            }}</span></button
           ><span class="header-divider"></span
           ><template v-if="user"
             ><span class="avatar">{{ initials }}</span
@@ -444,11 +450,29 @@ onMounted(async () => {
         </div>
         <div v-if="showNotifications" class="notification-panel">
           <strong>Notifikasi</strong>
+          <small class="notification-connection">{{
+            connectionStatus === 'connected'
+              ? 'Pembaruan langsung aktif'
+              : connectionStatus === 'connecting'
+                ? 'Menghubungkan pembaruan langsung…'
+                : 'Koneksi langsung terputus. Daftar tetap dapat dibuka.'
+          }}</small>
           <p v-if="!notifications.length">Belum ada pemberitahuan baru.</p>
           <p v-for="n in notifications" :key="n.id">
             {{ n.message }}<small>{{ date(n.created_at) }}</small>
           </p>
+          <button
+            v-if="user"
+            class="text-button"
+            @click="
+              showNotifications = false;
+              navigate('reports');
+            "
+          >
+            Lihat laporan<ArrowRight :size="14" />
+          </button>
         </div>
+        <span class="sr-only" role="status" aria-live="polite">{{ announcement }}</span>
       </header>
       <main id="main-content">
         <div v-if="error" class="alert error" role="alert">

@@ -127,6 +127,8 @@ Hasil pemeriksaan, batas implementasi dan kebutuhan operasional tercatat di [sta
 
 ## Prinsip UI
 
+Notifikasi mendukung **WebSocket realtime**: lonceng/badge diperbarui otomatis, koneksi dipulihkan dengan sinkronisasi riwayat, dan sesi divalidasi sebelum pengiriman. Redis yang sama dipakai API/worker; detail endpoint dan konfigurasi ada di [notifikasi realtime](docs/realtime-notifications.md).
+
 Dashboard hijau, sidebar desktop dan drawer mobile, formulir empat langkah, daftar berbentuk kartu pada mobile, fokus keyboard, dialog akun, feedback error/sukses, serta tata letak tanpa tabel lebar. Ukuran 320, 390, 768 dan 1440 px diuji tanpa overflow horizontal. Font disajikan dari aplikasi sendiri; isi laporan tidak disimpan ke localStorage dan tidak dikirim ke analytics.
 
 Pratinjau hasil pengujian: [desktop](artifacts/portal-1440.png) · [mobile](artifacts/portal-390.png).

@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import nodemailer from 'nodemailer';
 import { PrismaService } from '../../api/src/prisma/prisma.service';
 import { object } from '../../api/src/common/validation';
+import { NotificationPublisher } from '../../api/src/notifications/notification-publisher';
 
 export const MAIL_TRANSPORT = Symbol('MAIL_TRANSPORT');
 type MailTransport = Pick<ReturnType<typeof nodemailer.createTransport>, 'sendMail'>;
@@ -11,6 +12,7 @@ export class OutboxService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Optional() @Inject(MAIL_TRANSPORT) transport?: MailTransport,
+    @Optional() @Inject(NotificationPublisher) private readonly publisher?: NotificationPublisher,
   ) {
     this.transport =
       transport ??
@@ -24,7 +26,7 @@ export class OutboxService {
       });
   }
   async tick() {
-    await this.prisma.$transaction(async (tx) => {
+    const notificationId = await this.prisma.$transaction(async (tx) => {
       const [candidate] = await tx.$queryRaw<
         { id: string }[]
       >`SELECT id FROM outbox_events WHERE processed_at IS NULL AND attempts<10 ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1`;
@@ -74,6 +76,8 @@ export class OutboxService {
         where: { id: event.id },
         data: { processedAt: new Date(), payload: {} },
       });
+      return event.id;
     });
+    if (notificationId) await this.publisher?.publish([notificationId]);
   }
 }

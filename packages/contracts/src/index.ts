@@ -1,3 +1,8 @@
+export interface NotificationItem {
+  id: string;
+  message: string;
+  created_at: string;
+}
 export const stages = [
   'DRAFT',
   'SUBMITTED',
