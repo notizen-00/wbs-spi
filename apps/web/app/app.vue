@@ -484,7 +484,10 @@ onMounted(async () => {
           }}</small>
           <p v-if="!notifications.length">Belum ada pemberitahuan baru.</p>
           <p v-for="n in notifications" :key="n.id">
-            {{ n.message }}<small>{{ date(n.created_at) }}</small>
+            <strong>{{ n.title || 'Pembaruan laporan WBS' }}</strong>
+            <small v-if="n.subject">{{ n.subject }}</small>
+            <span>{{ n.message }}</span
+            ><small>{{ date(n.created_at) }}</small>
           </p>
           <button
             v-if="user && user.role !== 'ADMIN'"

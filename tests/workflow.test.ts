@@ -18,6 +18,7 @@ import { WorkerModule } from '../apps/worker/src/worker.module';
 import { OutboxService } from '../apps/worker/src/outbox.service';
 import { ScannerService } from '../apps/worker/src/scanner.service';
 import { EvidenceService } from '../apps/api/src/evidence/evidence.service';
+import { seedCompletedCase, completedCaseId } from '../apps/api/src/seed-completed-case';
 import type { MinioStorageService } from '../apps/api/src/storage/minio-storage.service';
 import { NotificationsGateway } from '../apps/api/src/notifications/notifications.gateway';
 import {
@@ -69,7 +70,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     assert.equal(
       (await db.query('SELECT * FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows
         .length,
-      5,
+      6,
     );
   });
   await t.test('schema Prisma sesuai dengan database hasil migrasi', async () => {
@@ -553,7 +554,9 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
         });
         await publisher.publish([event.id]);
         const item = await received;
-        assert.deepEqual(Object.keys(item).sort(), ['created_at', 'id', 'message']);
+        assert.deepEqual(Object.keys(item).sort(), ['created_at', 'id', 'message', 'subject', 'title']);
+        assert.equal(item.title, event.title);
+        assert.equal(item.subject, event.subject);
         assert.equal(item.id, event.id);
         assert.equal(foreign, 0);
         sessions.delete(firstToken);
@@ -613,12 +616,28 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       await service.command(caseReport.id, manager, body, key);
       await service.command(caseReport.id, manager, body, key);
       assert.equal(broadcasts, 1);
+      const saved = await prisma.notification.findFirstOrThrow({
+        where: { userId: reporter.id, title: 'Verifikasi awal dimulai' },
+      });
+      assert.ok(saved.subject.includes('Verifikasi awal dimulai'));
+      assert.ok(saved.message.includes('Verifikasi awal'));
+      assert.ok(!saved.message.includes('Catatan pengujian'));
+      const pending = await prisma.outboxEvent.findUniqueOrThrow({ where: { id: saved.id } });
+      assert.equal((pending.payload as any).subject, saved.subject);
     },
   );
   await t.test('outbox Prisma mempertahankan retry dan deduplikasi notifikasi', async () => {
     await prisma.outboxEvent.updateMany({ data: { processedAt: new Date() } });
     const event = await prisma.outboxEvent.create({
-      data: { recipientId: reporter.id, kind: 'UPDATE' },
+      data: {
+        recipientId: reporter.id,
+        kind: 'UPDATE',
+        payload: {
+          title: 'Laporan selesai ditangani',
+          subject: 'Laporan WBS/2026/00001: Laporan selesai ditangani',
+          message: 'Buka portal untuk membaca jawaban resmi.',
+        },
+      },
     });
     const failing = new OutboxService(prisma, {
       sendMail: async () => {
@@ -631,8 +650,10 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     assert.equal(failed.processedAt, null);
     let sent = 0;
     const success = new OutboxService(prisma, {
-      sendMail: async () => {
+      sendMail: async (mail: any) => {
         sent++;
+        assert.equal(mail.subject, 'Laporan WBS/2026/00001: Laporan selesai ditangani');
+        assert.ok(mail.text.includes('Buka portal untuk membaca jawaban resmi.'));
         return {};
       },
     } as any);
@@ -643,6 +664,10 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       (await prisma.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).processedAt,
     );
     assert.equal(await prisma.notification.count({ where: { id: event.id } }), 1);
+    assert.equal(
+      (await prisma.notification.findUniqueOrThrow({ where: { id: event.id } })).title,
+      'Laporan selesai ditangani',
+    );
   });
   await t.test('Prisma seed dapat diulang tanpa duplikasi akun atau mandat', async () => {
     const env = { SEED_PASSWORD: 'Synthetic-Prisma-Test-Password', NODE_ENV: 'development' };
@@ -659,12 +684,84 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     });
     assert.equal(await prisma.authorityMandate.count({ where: { userId: official.id } }), 4);
   });
+  await t.test(
+    'seed kasus lengkap pulih dari scanner gagal dan aman diulang setelah selesai',
+    async () => {
+      const memory = new Map<string, Buffer>();
+      const storage = {
+        check: async () => {},
+        store: async (key: string, bytes: Buffer) => {
+          memory.set(key, bytes);
+        },
+        retrieve: async (key: string) => memory.get(key)!,
+      } as unknown as MinioStorageService;
+      // Explicit scanner fixture: no real infrastructure is used by this integration test.
+      let scans = 0;
+      await assert.rejects(
+        () =>
+          seedCompletedCase(prisma, storage, async () => {
+            if (++scans === 3) throw new Error('Synthetic scanner outage');
+            return 'READY';
+          }),
+        /Synthetic scanner outage/,
+      );
+      assert.equal(
+        (await prisma.report.findUniqueOrThrow({ where: { id: completedCaseId } })).stage,
+        'FOLLOW_UP',
+      );
+      const result = await seedCompletedCase(prisma, storage, async () => 'READY');
+      assert.equal(result.stage, 'COMPLETED');
+      assert.equal(result.lifecycle, 'COMPLETED');
+      assert.ok(result.number?.startsWith('WBS/'));
+      const where = { reportId: completedCaseId };
+      assert.equal(await prisma.proposal.count({ where: { ...where, status: 'APPROVED' } }), 3);
+      assert.equal(
+        await prisma.approvalDecision.count({ where: { proposal: { reportId: completedCaseId } } }),
+        3,
+      );
+      assert.equal(await prisma.followUpTask.count({ where: { ...where, status: 'VERIFIED' } }), 1);
+      assert.equal(
+        await prisma.officialResponse.count({ where: { ...where, outcome: 'COMPLETED' } }),
+        1,
+      );
+      assert.equal(await prisma.evidence.count({ where: { ...where, scanStatus: 'READY' } }), 2);
+      const demoReporter = await prisma.user.findUniqueOrThrow({
+        where: { email: 'pelapor@example.test' },
+      });
+      const visible = await reports.workspace(completedCaseId, demoReporter as User);
+      assert.equal(visible.officialResponses.length, 1);
+      const item = await prisma.evidence.findFirstOrThrow({ where });
+      const file = await new EvidenceService(
+        prisma,
+        new ReportsRepository(prisma),
+        storage,
+      ).download(item.id, demoReporter as User);
+      assert.ok(file.bytes.toString().startsWith('%PDF-1.4'));
+      const counts = [
+        await prisma.caseEvent.count({ where }),
+        await prisma.reportVersion.count({ where }),
+        await prisma.outboxEvent.count(),
+      ];
+      await seedCompletedCase(prisma, storage, async () => {
+        throw new Error('Completed seed must not rescan');
+      });
+      assert.deepEqual(
+        [
+          await prisma.caseEvent.count({ where }),
+          await prisma.reportVersion.count({ where }),
+          await prisma.outboxEvent.count(),
+        ],
+        counts,
+      );
+      assert.equal(await prisma.report.count({ where: { id: completedCaseId } }), 1);
+    },
+  );
   await t.test('baseline database lama mempertahankan laporan dan riwayat', async () => {
     const count = await prisma.report.count();
     const snapshots = await prisma.reportVersion.count();
     // Only this disposable test database: simulate history from the previous SQL runner.
     await db.exec(
-      'DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; DELETE FROM _prisma_migrations',
+      'DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; ALTER TABLE notifications DROP COLUMN title, DROP COLUMN subject; DELETE FROM _prisma_migrations',
     );
     const entries = [
       ['001_initial.sql', '20261106000100_initial'],

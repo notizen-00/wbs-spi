@@ -118,6 +118,8 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
         }
         socket.emit('notification:new', {
           id: notification.id,
+          title: notification.title,
+          subject: notification.subject,
           message: notification.message,
           created_at: notification.createdAt.toISOString(),
         });

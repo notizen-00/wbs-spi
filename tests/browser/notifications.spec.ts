@@ -40,7 +40,9 @@ test('notifikasi realtime menambah badge, deduplikasi, sinkronisasi reconnect da
   await expect.poll(() => connections).toBe(1);
   const first = {
     id: 'notification-one',
-    message: 'Ada pembaruan di portal WBS.',
+    title: 'Klarifikasi laporan diperlukan',
+    subject: 'Laporan WBS/2026/00042: Klarifikasi laporan diperlukan',
+    message: 'Buka laporan dan jawab permintaan klarifikasi pengelola.',
     created_at: new Date().toISOString(),
   };
   const push = () => live.send('42/notifications,' + JSON.stringify(['notification:new', first]));
@@ -51,6 +53,8 @@ test('notifikasi realtime menambah badge, deduplikasi, sinkronisasi reconnect da
   await expect(page.locator('.notification-count')).toHaveText('1');
   await page.getByRole('button', { name: /Notifikasi/ }).click();
   await expect(page.locator('.notification-panel')).toContainText(first.message);
+  await expect(page.locator('.notification-panel')).toContainText(first.title);
+  await expect(page.locator('.notification-panel')).toContainText(first.subject);
   await expect(page.locator('.notification-count')).toHaveCount(0);
   await expect(page.locator('.notification-panel')).toContainText('Pembaruan langsung aktif');
   await page.getByRole('button', { name: /Notifikasi/ }).click();

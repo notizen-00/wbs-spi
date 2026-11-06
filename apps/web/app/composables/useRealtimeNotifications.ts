@@ -106,7 +106,7 @@ export function useRealtimeNotifications(user: Ref<User | null>, panelOpen: Ref<
           .slice(0, 30);
         if (!panelOpen.value) {
           unreadCount.value++;
-          announcement.value = 'Ada pemberitahuan baru di portal WBS.';
+          announcement.value = item.title || 'Ada pemberitahuan baru di portal WBS.';
         }
       });
       socket.connect();

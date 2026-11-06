@@ -160,6 +160,8 @@ model Notification {
   id        String   @id @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   message   String
+  title     String   @default("Pembaruan laporan WBS")
+  subject   String   @default("WBS — Pembaruan penanganan laporan")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 

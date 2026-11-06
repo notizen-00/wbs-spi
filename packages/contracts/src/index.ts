@@ -1,5 +1,7 @@
 export interface NotificationItem {
   id: string;
+  title?: string;
+  subject?: string;
   message: string;
   created_at: string;
 }

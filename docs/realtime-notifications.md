@@ -6,12 +6,13 @@ Notifikasi portal memakai **Socket.IO pada NestJS** dan Redis Pub/Sub untuk meng
 
 ```powershell
 npm.cmd ci
+npm.cmd run db:migrate
 npm.cmd run dev
 # Terminal lain untuk email dan scan bukti:
 npm.cmd run worker
 ```
 
-Tidak ada migrasi database baru. `REDIS_URL` harus sama untuk API dan worker. `NOTIFICATION_REDIS_CHANNEL` opsional, default `wbs:notifications:v1`; gunakan nilai sama pada seluruh proses deployment. `APP_ORIGIN` harus tepat sesuai origin browser, termasuk protocol dan port.
+Migrasi `20261106090000_notification_titles` menambahkan judul dan subjek pada riwayat notifikasi. Terapkan migrasi sebelum menjalankan API/worker versi baru. `REDIS_URL` harus sama untuk API dan worker. `NOTIFICATION_REDIS_CHANNEL` opsional, default `wbs:notifications:v1`; gunakan nilai sama pada seluruh proses deployment. `APP_ORIGIN` harus tepat sesuai origin browser, termasuk protocol dan port.
 
 Nuxt development proxy meneruskan upgrade WebSocket melalui `/api`. Konfigurasi Nginx juga meneruskan upgrade, sehingga frontend selalu menggunakan origin yang sama, baik lokal native maupun Compose. Tidak ada port WebSocket terpisah.
 
@@ -23,7 +24,7 @@ Nuxt development proxy meneruskan upgrade WebSocket melalui `/api`. Konfigurasi 
 4. UI memperbarui lonceng, jumlah pembaruan baru dan daftar tanpa refresh. Event dengan ID yang sama tidak menggandakan daftar/badge.
 5. Saat reconnect, UI mengambil kembali 30 notifikasi terbaru melalui REST. Jika Redis subscriber tersambung kembali, server mengirim sinyal sinkronisasi tanpa isi perkara.
 
-Email dan notifikasi aplikasi dipisahkan: SMTP gagal tidak menahan notifikasi command yang sudah di-commit. Worker tetap mengirim email umum melalui outbox; notifikasi email memakai ID yang sama sehingga tidak menghasilkan duplikasi. Retry pengiriman command dengan idempotency key sama tidak membuat notifikasi baru.
+Email dan notifikasi aplikasi dipisahkan: SMTP gagal tidak menahan notifikasi command yang sudah di-commit. Worker mengirim email melalui outbox dengan subjek dan pesan yang sama dengan notifikasi portal; notifikasi email memakai ID yang sama sehingga tidak menghasilkan duplikasi. Retry pengiriman command dengan idempotency key sama tidak membuat notifikasi baru.
 
 ## Protokol dan akses
 
@@ -38,11 +39,13 @@ Server mengirim:
 
 ```typescript
 // notification:new
-{ id: string, message: string, created_at: string }
+{ id: string, title: string, subject: string, message: string, created_at: string }
 // notifications:ready dan notifications:sync: tanpa isi perkara
 ```
 
-Payload hanya pesan umum; tidak berisi kronologi, bukti, identitas, nomor perkara, catatan internal atau token. `GET /api/v1/notifications` tetap menjadi riwayat durable terfilter ke pengguna saat ini.
+Payload berisi judul kejadian, subjek dengan nomor laporan, status, dan petunjuk tindakan sesuai role penerima. Contoh: judul **Klarifikasi laporan diperlukan**, subjek **Laporan WBS/2026/00042: Klarifikasi laporan diperlukan**, serta pesan untuk menjawab klarifikasi melalui portal. Penutupan yang disetujui memakai judul **Laporan selesai ditangani** dan petunjuk membaca jawaban resmi.
+
+Isi kronologi, pertanyaan klarifikasi, alasan keputusan, bukti, identitas, dan token tidak disalin ke pesan pembaruan. Pelapor menerima ringkasan perkembangan untuk aktivitas internal. Email verifikasi dan reset memiliki subjek khusus; token hanya masuk tautan email akun dan tidak masuk notifikasi portal. `GET /api/v1/notifications` tetap menjadi riwayat durable terfilter ke pengguna saat ini. Riwayat lama mendapat judul/subjek default dari migrasi; detail kejadian lama tidak direkonstruksi. Outbox lama tanpa template menggunakan pesan fallback.
 
 Badge menghitung pembaruan baru selama sesi halaman; membuka panel mengosongkan badge tersebut. Status baca lintas perangkat belum disimpan ke database. Semua listener, timer dan koneksi frontend dibersihkan saat logout/unmount; respons HTTP lama tidak dapat mengembalikan notifikasi akun sebelumnya.
 

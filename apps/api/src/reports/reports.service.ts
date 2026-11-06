@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { NotificationPublisher } from '../notifications/notification-publisher';
+import { caseNotification, outboxNotification } from '../notifications/notification-content';
 import { stageLabels, type Stage, type User, type ReportPayload } from '@wbs/contracts';
 import { nextStage, validateSubmission } from '@wbs/domain';
 import { PrismaService } from '../prisma/prisma.service';
@@ -227,20 +228,42 @@ export class ReportsService {
           userId: { notIn: [report.ownerId, user.id] },
           user: { is: { active: true, conflicts: { none: { reportId: id } } } },
         },
-        select: { userId: true },
+        select: { userId: true, user: { select: { role: true } } },
       });
       const outbox = await tx.outboxEvent.createManyAndReturn({
         data: [
-          { recipientId: report.ownerId, kind: 'UPDATE' },
-          ...recipients.map((m) => ({ recipientId: m.userId, kind: 'UPDATE' })),
+          {
+            recipientId: report.ownerId,
+            kind: 'UPDATE',
+            payload: caseNotification(
+              b.action,
+              updated.stage,
+              number,
+              'REPORTER',
+              b.decision,
+              report.stage,
+            ),
+          },
+          ...recipients.map((m) => ({
+            recipientId: m.userId,
+            kind: 'UPDATE',
+            payload: caseNotification(
+              b.action,
+              updated.stage,
+              number,
+              m.user.role,
+              b.decision,
+              report.stage,
+            ),
+          })),
         ],
-        select: { id: true, recipientId: true },
+        select: { id: true, recipientId: true, payload: true },
       });
       await tx.notification.createMany({
         data: outbox.map((event) => ({
           id: event.id,
           userId: event.recipientId,
-          message: 'Ada pembaruan di portal WBS.',
+          ...outboxNotification('UPDATE', object(event.payload)),
         })),
         skipDuplicates: true,
       });
@@ -318,9 +341,15 @@ export class ReportsService {
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
       take: 30,
-      select: { id: true, message: true, createdAt: true },
+      select: { id: true, title: true, subject: true, message: true, createdAt: true },
     });
-    return rows.map((r) => ({ id: r.id, message: r.message, created_at: r.createdAt }));
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      subject: r.subject,
+      message: r.message,
+      created_at: r.createdAt,
+    }));
   }
   private version(value: unknown) {
     if (!Number.isSafeInteger(value) || Number(value) < 1) fail(422, 'Versi laporan tidak valid.');

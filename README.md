@@ -184,6 +184,8 @@ Registrasi publik selalu membuat role pelapor. Verifikasi email melalui tautan d
 
 ### Akun UAT sintetis
 
+Untuk langsung melihat **satu kasus lengkap sampai Selesai**, gunakan `npm.cmd run db:seed:case`. Seeder membuat laporan pungutan tambahan sintetis, klarifikasi, hasil pemeriksaan, keputusan pejabat, tindak lanjut terverifikasi, dua PDF bukti, dan jawaban resmi. Cara menjalankan serta cerita kasus tersedia di [panduan seed kasus lengkap](docs/seed-kasus-lengkap.md).
+
 Semua memakai kata sandi `SEED_PASSWORD` yang ditentukan saat seed. Seed tidak mengganti kata sandi akun yang sudah ada dan ditolak pada `NODE_ENV=production`.
 
 | Email | Peran |

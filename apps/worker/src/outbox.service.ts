@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer';
 import { PrismaService } from '../../api/src/prisma/prisma.service';
 import { object } from '../../api/src/common/validation';
 import { NotificationPublisher } from '../../api/src/notifications/notification-publisher';
+import { outboxNotification } from '../../api/src/notifications/notification-content';
 
 export const MAIL_TRANSPORT = Symbol('MAIL_TRANSPORT');
 type MailTransport = Pick<ReturnType<typeof nodemailer.createTransport>, 'sendMail'>;
@@ -36,23 +37,19 @@ export class OutboxService {
         include: { recipient: { select: { email: true } } },
       });
       const payload = object(event.payload);
+      const content = outboxNotification(event.kind, payload);
       const origin = process.env.APP_ORIGIN || 'http://localhost:3000';
       const text =
         event.kind === 'VERIFY'
           ? `Verifikasi email Anda: ${origin}/?verify=${payload.token}`
           : event.kind === 'RESET'
             ? `Atur ulang kata sandi Anda: ${origin}/?reset=${payload.token}`
-            : 'Ada pembaruan di portal WBS. Masuk ke aplikasi untuk melihat informasi.';
+            : `${content.title}\n\n${content.message}\n\nBuka portal WBS: ${origin}`;
       try {
         await this.transport.sendMail({
           from: process.env.SMTP_FROM || 'WBS <noreply@wbs.local>',
           to: event.recipient.email,
-          subject:
-            event.kind === 'VERIFY'
-              ? 'Verifikasi email WBS'
-              : event.kind === 'RESET'
-                ? 'Pemulihan akun WBS'
-                : 'Pembaruan WBS',
+          subject: content.subject,
           text,
           messageId: `<${event.id}@wbs.local>`,
         });
@@ -68,7 +65,7 @@ export class OutboxService {
         create: {
           id: event.id,
           userId: event.recipientId,
-          message: 'Ada pembaruan di portal WBS.',
+          ...content,
         },
         update: {},
       });
