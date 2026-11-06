@@ -35,4 +35,11 @@ export class NotificationPublisher implements OnModuleDestroy {
   onModuleDestroy() {
     this.redis.disconnect();
   }
+  async sync(userId: string) {
+    try {
+      await this.redis.publish(notificationChannel(), JSON.stringify({ userIds: [userId] }));
+    } catch {
+      this.logger.warn('Read status saved; realtime sync unavailable.');
+    }
+  }
 }

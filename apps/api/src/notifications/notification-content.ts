@@ -111,3 +111,15 @@ export function outboxNotification(kind: string, payload: Record<string, any>) {
         : 'Ada pembaruan penanganan laporan. Masuk ke portal WBS untuk melihat status terbaru.',
   };
 }
+
+export function notificationContext(kind: string, payload: Record<string, any>) {
+  const target = typeof payload.targetPath === 'string' ? payload.targetPath : '';
+  const valid =
+    /^\/reports\/[a-f0-9-]{36}$/i.test(target) ||
+    ['/dashboard', '/reports', '/help', '/admin/settings', '/admin/categories'].includes(target);
+  return {
+    kind:
+      typeof payload.notificationKind === 'string' ? payload.notificationKind.slice(0, 60) : kind,
+    targetPath: valid ? target : ['VERIFY', 'RESET'].includes(kind) ? '/help' : '/dashboard',
+  };
+}

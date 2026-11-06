@@ -73,7 +73,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     assert.equal(
       (await db.query('SELECT * FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows
         .length,
-      8,
+      9,
     );
   });
   await t.test('schema Prisma sesuai dengan database hasil migrasi', async () => {
@@ -603,8 +603,11 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
         assert.deepEqual(Object.keys(item).sort(), [
           'created_at',
           'id',
+          'kind',
           'message',
+          'read_at',
           'subject',
+          'targetPath',
           'title',
         ]);
         assert.equal(item.title, event.title);
@@ -1017,12 +1020,77 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       await assert.rejects(db.query('DELETE FROM admin_audits'));
     },
   );
+  await t.test(
+    'status baca notifikasi tersimpan, dibatasi pemilik, dan tidak menandai pembaruan setelah cutoff',
+    async () => {
+      await prisma.notification.updateMany({
+        where: { userId: reporter.id },
+        data: { readAt: new Date() },
+      });
+      const before = new Date();
+      const first = await prisma.notification.create({
+        data: {
+          id: randomUUID(),
+          userId: reporter.id,
+          message: 'Satu',
+          createdAt: new Date(before.getTime() - 2000),
+        },
+      });
+      const second = await prisma.notification.create({
+        data: {
+          id: randomUUID(),
+          userId: reporter.id,
+          message: 'Dua',
+          createdAt: new Date(before.getTime() - 1000),
+        },
+      });
+      const future = await prisma.notification.create({
+        data: {
+          id: randomUUID(),
+          userId: reporter.id,
+          message: 'Baru',
+          createdAt: new Date(before.getTime() + 60000),
+        },
+      });
+      const foreign = await prisma.notification.create({
+        data: { id: randomUUID(), userId: manager.id, message: 'Privat' },
+      });
+      await assert.rejects(() => reports.readNotification(manager, first.id));
+      assert.equal((await reports.notificationSummary(reporter)).unreadCount, 3);
+      await reports.readNotification(reporter, first.id);
+      assert.equal((await reports.notificationSummary(reporter)).unreadCount, 2);
+      const stamp = (await prisma.notification.findUniqueOrThrow({ where: { id: first.id } }))
+        .readAt;
+      await reports.readNotification(reporter, first.id);
+      assert.deepEqual(
+        (await prisma.notification.findUniqueOrThrow({ where: { id: first.id } })).readAt,
+        stamp,
+      );
+      assert.equal(
+        (await reports.readAllNotifications(reporter, before.toISOString())).unreadCount,
+        1,
+      );
+      assert.ok((await prisma.notification.findUniqueOrThrow({ where: { id: second.id } })).readAt);
+      assert.equal(
+        (await prisma.notification.findUniqueOrThrow({ where: { id: future.id } })).readAt,
+        null,
+      );
+      assert.equal(
+        (await prisma.notification.findUniqueOrThrow({ where: { id: foreign.id } })).readAt,
+        null,
+      );
+      await assert.rejects(() => reports.readAllNotifications(reporter, 'invalid timestamp'));
+      const history = await reports.notifications(reporter);
+      assert.ok(history.some((n) => n.id === first.id && n.read_at));
+      assert.ok(history.every((n) => n.targetPath && n.kind));
+    },
+  );
   await t.test('baseline database lama mempertahankan laporan dan riwayat', async () => {
     const count = await prisma.report.count();
     const snapshots = await prisma.reportVersion.count();
     // Only this disposable test database: simulate history from the previous SQL runner.
     await db.exec(
-      'DROP TABLE admin_audits, site_settings, report_categories; DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; ALTER TABLE notifications DROP COLUMN title, DROP COLUMN subject; ALTER TABLE reports DROP COLUMN tracking_code; DELETE FROM _prisma_migrations',
+      'DROP TABLE admin_audits, site_settings, report_categories; DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; ALTER TABLE notifications DROP COLUMN title, DROP COLUMN subject, DROP COLUMN kind, DROP COLUMN target_path, DROP COLUMN read_at; ALTER TABLE reports DROP COLUMN tracking_code; DELETE FROM _prisma_migrations',
     );
     const entries = [
       ['001_initial.sql', '20261106000100_initial'],

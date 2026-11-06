@@ -68,4 +68,23 @@ export class ReportsController {
   @Get('notifications') notifications(@CurrentUser() user: User) {
     return this.reports.notifications(user);
   }
+  @Get('notifications/summary') notificationSummary(@CurrentUser() user: User) {
+    return this.reports.notificationSummary(user);
+  }
+  @Patch('notifications/read-all') async readAll(
+    @CurrentUser() user: User,
+    @Req() req: Request,
+    @Body() body: unknown,
+  ) {
+    await this.auth.rate(req, 'read-notifications', 120);
+    return this.reports.readAllNotifications(user, object(body).before);
+  }
+  @Patch('notifications/:id/read') async read(
+    @CurrentUser() user: User,
+    @Req() req: Request,
+    @Param('id') id: string,
+  ) {
+    await this.auth.rate(req, 'read-notifications', 120);
+    return this.reports.readNotification(user, id);
+  }
 }

@@ -3,7 +3,10 @@ import nodemailer from 'nodemailer';
 import { PrismaService } from '../../api/src/prisma/prisma.service';
 import { object } from '../../api/src/common/validation';
 import { NotificationPublisher } from '../../api/src/notifications/notification-publisher';
-import { outboxNotification } from '../../api/src/notifications/notification-content';
+import {
+  outboxNotification,
+  notificationContext,
+} from '../../api/src/notifications/notification-content';
 
 export const MAIL_TRANSPORT = Symbol('MAIL_TRANSPORT');
 type MailTransport = Pick<ReturnType<typeof nodemailer.createTransport>, 'sendMail'>;
@@ -66,6 +69,7 @@ export class OutboxService {
           id: event.id,
           userId: event.recipientId,
           ...content,
+          ...notificationContext(event.kind, payload),
         },
         update: {},
       });

@@ -97,6 +97,11 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
   private async onMessage(message: string) {
     try {
       const payload = JSON.parse(message);
+      if (Array.isArray(payload.userIds))
+        for (const userId of payload.userIds.slice(0, 100)) {
+          if (typeof userId === 'string' && /^[a-f0-9-]{36}$/i.test(userId))
+            this.server.to(`user:${userId}`).emit('notifications:sync');
+        }
       if (!Array.isArray(payload.ids)) return;
       for (const id of payload.ids.slice(0, 100)) {
         if (typeof id === 'string' && /^[a-f0-9-]{36}$/i.test(id)) await this.deliver(id);
@@ -121,6 +126,9 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
           title: notification.title,
           subject: notification.subject,
           message: notification.message,
+          kind: notification.kind,
+          targetPath: notification.targetPath,
+          read_at: notification.readAt?.toISOString() ?? null,
           created_at: notification.createdAt.toISOString(),
         });
       } catch (error) {

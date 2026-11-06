@@ -29,7 +29,13 @@ import {
   Mail,
   LoaderCircle,
 } from '@lucide/vue';
-import { stageLabels, type Report, type ReportPayload, type User } from '@wbs/contracts';
+import {
+  stageLabels,
+  type Report,
+  type ReportPayload,
+  type User,
+  type NotificationItem,
+} from '@wbs/contracts';
 const { site, reloadSite } = useSiteConfiguration();
 useHead({ title: () => `${site.value.appName} - ${site.value.institutionName}` });
 const user = ref<User | null>(null),
@@ -114,9 +120,15 @@ const {
   connectionStatus,
   announcement,
   refresh: refreshNotifications,
+  markRead,
+  markAllRead,
+  loading: notificationsLoading,
+  marking: markingNotifications,
+  error: notificationError,
 } = useRealtimeNotifications(user, showNotifications);
 const credentials = reactive({ name: '', email: '', password: '' });
 const resetToken = ref('');
+const recoveryKind = ref<'RESET' | 'VERIFY'>('RESET');
 const workspace = ref<{ refresh: () => Promise<void> } | null>(null);
 watch(auth, async (value) => {
   if (value) {
@@ -410,6 +422,29 @@ async function toggleNotifications() {
   showNotifications.value = !showNotifications.value;
   if (showNotifications.value && user.value) await refreshNotifications();
 }
+async function openNotification(item: NotificationItem) {
+  await markRead(item);
+  showNotifications.value = false;
+  if (item.kind === 'VERIFY' || item.kind === 'RESET') {
+    recoveryKind.value = item.kind;
+    auth.value = 'recovery';
+    return;
+  }
+  const target = item.targetPath || '/dashboard';
+  const report = /^\/reports\/([a-f0-9-]{36})$/i.exec(target);
+  if (report) {
+    await openReport({ id: report[1] } as Report);
+    return;
+  }
+  const context: Record<string, string> = {
+    '/reports': 'reports',
+    '/help': 'help',
+    '/dashboard': 'dashboard',
+    '/admin/settings': 'adminSettings',
+    '/admin/categories': 'adminCategories',
+  };
+  navigate(context[target] || 'dashboard');
+}
 onMounted(async () => {
   await reloadSite().catch(() => {});
   window.addEventListener('keydown', keydown);
@@ -573,6 +608,7 @@ onMounted(async () => {
             <span class="secure-label"><span></span>Koneksi privat</span
             ><button
               class="icon-button notification-button"
+              aria-haspopup="dialog"
               :aria-label="unreadCount ? `Notifikasi, ${unreadCount} pembaruan baru` : 'Notifikasi'"
               :aria-expanded="showNotifications"
               @click="toggleNotifications"
@@ -592,33 +628,19 @@ onMounted(async () => {
               Masuk <ArrowRight :size="15" />
             </button>
           </div>
-          <div v-if="showNotifications" class="notification-panel">
-            <strong>Notifikasi</strong>
-            <small class="notification-connection">{{
-              connectionStatus === 'connected'
-                ? 'Pembaruan langsung aktif'
-                : connectionStatus === 'connecting'
-                  ? 'Menghubungkan pembaruan langsung…'
-                  : 'Koneksi langsung terputus. Daftar tetap dapat dibuka.'
-            }}</small>
-            <p v-if="!notifications.length">Belum ada pemberitahuan baru.</p>
-            <p v-for="n in notifications" :key="n.id">
-              <strong>{{ n.title || 'Pembaruan laporan WBS' }}</strong>
-              <small v-if="n.subject">{{ n.subject }}</small>
-              <span>{{ n.message }}</span
-              ><small>{{ date(n.created_at) }}</small>
-            </p>
-            <button
-              v-if="user && user.role !== 'ADMIN'"
-              class="text-button"
-              @click="
-                showNotifications = false;
-                navigate('reports');
-              "
-            >
-              {{ internal ? 'Lihat perkara' : 'Lihat laporan' }}<ArrowRight :size="14" />
-            </button>
-          </div>
+          <NotificationsPanel
+            v-if="showNotifications && user"
+            :items="notifications"
+            :unread-count="unreadCount"
+            :connection-status="connectionStatus"
+            :loading="notificationsLoading"
+            :marking="markingNotifications"
+            :error="notificationError"
+            @close="showNotifications = false"
+            @open="openNotification"
+            @mark-all="markAllRead"
+            @refresh="refreshNotifications"
+          />
           <span class="sr-only" role="status" aria-live="polite">{{ announcement }}</span>
         </header>
         <main id="main-content" :class="{ 'detail-page': page === 'detail' }">
@@ -1334,6 +1356,7 @@ onMounted(async () => {
     <AccountRecovery
       v-if="['recovery', 'reset'].includes(auth)"
       :token="auth === 'reset' ? resetToken : undefined"
+      :initial-kind="recoveryKind"
       @close="auth = publicAuthPage ? 'login' : ''"
       @done="
         (m: string) => {

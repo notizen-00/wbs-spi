@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { X, LockKeyhole, ArrowRight } from '@lucide/vue';
-const props = defineProps<{ token?: string }>();
+const props = defineProps<{ token?: string; initialKind?: 'RESET' | 'VERIFY' }>();
 const captchaToken = ref('');
 const captcha = ref<{ reset: () => void } | null>(null);
 const emit = defineEmits<{ close: []; done: [message: string] }>();
@@ -8,7 +8,7 @@ const email = ref(''),
   password = ref(''),
   error = ref(''),
   busy = ref(false),
-  kind = ref('RESET');
+  kind = ref(props.initialKind || 'RESET');
 async function submit() {
   if (!captchaToken.value || busy.value) return;
   busy.value = true;

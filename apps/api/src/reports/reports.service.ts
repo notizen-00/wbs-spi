@@ -1,12 +1,16 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { NotificationPublisher } from '../notifications/notification-publisher';
-import { caseNotification, outboxNotification } from '../notifications/notification-content';
+import {
+  caseNotification,
+  outboxNotification,
+  notificationContext,
+} from '../notifications/notification-content';
 import { stageLabels, stages, type Stage, type User, type ReportPayload } from '@wbs/contracts';
 import { nextStage, validateSubmission } from '@wbs/domain';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import { caseScope } from '../prisma/access-policy';
-import { object, json, reportPayload, fail, text } from '../common/validation';
+import { object, json, reportPayload, fail, text, validId } from '../common/validation';
 import { hash } from '../security';
 import { ReportsRepository } from './reports.repository';
 import { serializeReport } from './report.serializer';
@@ -298,26 +302,39 @@ export class ReportsService {
           {
             recipientId: report.ownerId,
             kind: 'UPDATE',
-            payload: caseNotification(
-              b.action,
-              updated.stage,
-              number,
-              'REPORTER',
-              b.decision,
-              report.stage,
-            ),
+            payload: {
+              targetPath: `/reports/${id}`,
+              notificationKind:
+                b.action === 'CLARIFY'
+                  ? 'CLARIFY'
+                  : ['COMPLETED', 'CLOSED'].includes(updated.stage)
+                    ? 'COMPLETED'
+                    : 'UPDATE',
+              ...caseNotification(
+                b.action,
+                updated.stage,
+                number,
+                'REPORTER',
+                b.decision,
+                report.stage,
+              ),
+            },
           },
           ...recipients.map((m) => ({
             recipientId: m.userId,
             kind: 'UPDATE',
-            payload: caseNotification(
-              b.action,
-              updated.stage,
-              number,
-              m.user.role,
-              b.decision,
-              report.stage,
-            ),
+            payload: {
+              targetPath: `/reports/${id}`,
+              notificationKind: b.action,
+              ...caseNotification(
+                b.action,
+                updated.stage,
+                number,
+                m.user.role,
+                b.decision,
+                report.stage,
+              ),
+            },
           })),
         ],
         select: { id: true, recipientId: true, payload: true },
@@ -327,6 +344,7 @@ export class ReportsService {
           id: event.id,
           userId: event.recipientId,
           ...outboxNotification('UPDATE', object(event.payload)),
+          ...notificationContext('UPDATE', object(event.payload)),
         })),
         skipDuplicates: true,
       });
@@ -404,15 +422,65 @@ export class ReportsService {
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
       take: 30,
-      select: { id: true, title: true, subject: true, message: true, createdAt: true },
+      select: {
+        id: true,
+        title: true,
+        subject: true,
+        message: true,
+        kind: true,
+        targetPath: true,
+        readAt: true,
+        createdAt: true,
+      },
     });
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
       subject: r.subject,
       message: r.message,
+      kind: r.kind,
+      targetPath: r.targetPath,
+      read_at: r.readAt,
       created_at: r.createdAt,
     }));
+  }
+  async notificationSummary(user: User) {
+    return {
+      unreadCount: await this.prisma.notification.count({
+        where: { userId: user.id, readAt: null },
+      }),
+    };
+  }
+  async readNotification(user: User, id: string) {
+    validId(id);
+    const readAt = new Date();
+    const found = await this.prisma.notification.updateMany({
+      where: { id, userId: user.id, readAt: null },
+      data: { readAt },
+    });
+    if (
+      !found.count &&
+      !(await this.prisma.notification.findFirst({ where: { id, userId: user.id } }))
+    )
+      fail(404, 'Notifikasi tidak ditemukan.');
+    await this.publisher?.sync(user.id);
+    return this.notificationSummary(user);
+  }
+  async readAllNotifications(user: User, beforeValue: unknown) {
+    const before = beforeValue ? new Date(String(beforeValue)) : new Date();
+    if (!Number.isFinite(before.getTime())) fail(422, 'Waktu pembacaan tidak valid.');
+    if (before.getTime() > Date.now()) before.setTime(Date.now());
+    const readAt = new Date();
+    await this.prisma.notification.updateMany({
+      where: { userId: user.id, readAt: null, createdAt: { lte: before } },
+      data: { readAt },
+    });
+    await this.publisher?.sync(user.id);
+    return {
+      ...(await this.notificationSummary(user)),
+      before: before.toISOString(),
+      readAt: readAt.toISOString(),
+    };
   }
   private version(value: unknown) {
     if (!Number.isSafeInteger(value) || Number(value) < 1) fail(422, 'Versi laporan tidak valid.');

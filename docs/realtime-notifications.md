@@ -39,7 +39,7 @@ Server mengirim:
 
 ```typescript
 // notification:new
-{ id: string, title: string, subject: string, message: string, created_at: string }
+{ id: string, title: string, subject: string, message: string, kind: string, targetPath: string, read_at: string | null, created_at: string }
 // notifications:ready dan notifications:sync: tanpa isi perkara
 ```
 
@@ -47,7 +47,13 @@ Payload berisi judul kejadian, subjek dengan nomor laporan, status, dan petunjuk
 
 Isi kronologi, pertanyaan klarifikasi, alasan keputusan, bukti, identitas, dan token tidak disalin ke pesan pembaruan. Pelapor menerima ringkasan perkembangan untuk aktivitas internal. Email verifikasi dan reset memiliki subjek khusus; token hanya masuk tautan email akun dan tidak masuk notifikasi portal. `GET /api/v1/notifications` tetap menjadi riwayat durable terfilter ke pengguna saat ini. Riwayat lama mendapat judul/subjek default dari migrasi; detail kejadian lama tidak direkonstruksi. Outbox lama tanpa template menggunakan pesan fallback.
 
-Badge menghitung pembaruan baru selama sesi halaman; membuka panel mengosongkan badge tersebut. Status baca lintas perangkat belum disimpan ke database. Semua listener, timer dan koneksi frontend dibersihkan saat logout/unmount; respons HTTP lama tidak dapat mengembalikan notifikasi akun sebelumnya.
+Badge menghitung notifikasi belum dibaca dari database, termasuk yang lebih lama dari 30 notifikasi yang ditampilkan. Membuka panel tidak mengubah status baca. Klik notifikasi menandai item tersebut dibaca, lalu membuka perkara/halaman sesuai `targetPath`; otorisasi perkara tetap diperiksa saat halaman tujuan dimuat. Notifikasi verifikasi/reset akun membuka formulir pemulihan dengan keperluan sesuai jenis notifikasi. Target URL dibatasi ke path aplikasi, bukan URL eksternal.
+
+Tombol berikon centang ganda **Tandai semua dibaca** menyimpan status baca pengguna saat ini. Pembaruan setelah waktu cutoff tidak ikut ditandai. Status tetap tersimpan setelah reload, dan API mengirim sinyal `notifications:sync` ke room pengguna agar perangkat lain memuat ulang jumlah belum dibaca. Panel desktop berupa dialog di kanan atas; pada mobile menjadi modal layar penuh dengan tombol tutup, Escape, penguncian scroll, dan pengelolaan fokus.
+
+Endpoint tambahan: `GET /notifications/summary` → `{unreadCount}`, `PATCH /notifications/:id/read`, dan `PATCH /notifications/read-all` dengan body `{before?: ISO-timestamp}`. Semua memerlukan sesi; mutasi memiliki rate limit dan tidak dapat mengubah notifikasi pengguna lain. Migrasi `20261106120000_notification_read_context` menambahkan tipe, target halaman, status baca, dan memulihkan tautan perkara lama yang memiliki nomor laporan pada subjek.
+
+Semua listener, timer dan koneksi frontend dibersihkan saat logout/unmount; respons HTTP lama tidak dapat mengembalikan notifikasi akun sebelumnya.
 
 Redis Pub/Sub bersifat best effort, bukan penyimpanan notifikasi. Bila sinyal terlewat, notifikasi tetap ada di PostgreSQL dan dipulihkan lewat REST ketika reconnect/panel dibuka. Kehilangan koneksi tidak membuat keputusan perkara dijalankan ulang.
 

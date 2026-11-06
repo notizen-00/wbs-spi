@@ -25,6 +25,8 @@ Mutasi menggunakan `application/json` dan header `Origin` yang sama persis denga
 
 Notifikasi baru juga dikirim melalui Socket.IO, namespace `/notifications`, engine path `/api/v1/socket.io`, event `notification:new`. Handshake memakai cookie sesi dan validasi origin. Lihat [protokol realtime](realtime-notifications.md).
 
+Notifikasi menyertakan `kind`, `targetPath`, dan `read_at`. `GET /notifications/summary` mengembalikan jumlah belum dibaca. Gunakan `PATCH /notifications/:id/read` untuk satu item atau `PATCH /notifications/read-all` dengan `{before?: ISO-timestamp}` untuk seluruh notifikasi sampai cutoff. Seluruh operasi dibatasi ke pemilik sesi; status baca tetap tersimpan setelah reload.
+
 ## Pagination dan filter daftar
 
 Daftar pada website menggunakan `GET /reports?paginated=true&page=1&pageSize=10`. Respons berbentuk `{items,page,pageSize,total,totalPages}`; `total` menghitung seluruh hasil yang memenuhi filter dan hak akses, bukan hanya halaman saat ini. Permintaan tanpa `paginated=true` tetap mengembalikan array maksimal 50 laporan untuk kompatibilitas dashboard.

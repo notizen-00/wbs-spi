@@ -162,6 +162,9 @@ model Notification {
   id        String   @id @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   message   String
+  kind      String   @default("UPDATE")
+  targetPath String  @default("/dashboard") @map("target_path")
+  readAt    DateTime? @map("read_at") @db.Timestamptz
   title     String   @default("Pembaruan laporan WBS")
   subject   String   @default("WBS — Pembaruan penanganan laporan")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz

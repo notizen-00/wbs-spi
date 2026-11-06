@@ -3,6 +3,9 @@ export interface NotificationItem {
   title?: string;
   subject?: string;
   message: string;
+  kind?: string;
+  targetPath?: string;
+  read_at?: string | null;
   created_at: string;
 }
 export const stages = [
