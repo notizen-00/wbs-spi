@@ -253,6 +253,8 @@ Hasil pemeriksaan, batas implementasi dan kebutuhan operasional tercatat di [sta
 
 ## Prinsip UI
 
+Administrasi kategori, logo, nama situs, dan kontak bantuan tersedia bagi role `SUPER_ADMIN`. Buat akun dengan `npm.cmd run db:seed:admin`, lalu buka `/login`. Pada development, kredensial acak akun baru disimpan di `.local/super-admin-credentials.txt`. Panduan: [super admin](docs/super-admin.md).
+
 Kode pelacakan per laporan tersedia bagi pelapor di halaman detail. Pengecekan status publik pada `/tracking` serta formulir publik dilindungi Google reCAPTCHA v2. Isi site key dan secret di `.env`, restart API, lalu reload browser. Detail konfigurasi, migrasi, dan batas informasi publik ada di [CAPTCHA dan pelacakan](docs/captcha-dan-pelacakan.md).
 
 Pengunjung tanpa sesi membuka landing page publik pada `/`, berisi informasi WBS, alur pelaporan, kerahasiaan, dan pusat bantuan. Tombol Masuk/Laporkan membuka `/login`, pendaftaran berada di `/register`, dan login berhasil mengarah ke `/dashboard`. Dashboard serta daftar/detail laporan memerlukan sesi; akses langsung tanpa login diarahkan ke halaman masuk. Logout kembali ke landing page. Informasi publik juga dapat dibuka melalui `/guide`, `/privacy`, dan `/help`.

@@ -5,8 +5,9 @@ import { ReportsModule } from './reports/reports.module';
 import { EvidenceModule } from './evidence/evidence.module';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
+import { AdminModule } from './admin/admin.module';
 @Module({
-  imports: [PrismaModule, AuthModule, ReportsModule, EvidenceModule],
+  imports: [PrismaModule, AuthModule, ReportsModule, EvidenceModule, AdminModule],
   controllers: [HealthController],
   providers: [HealthService],
 })

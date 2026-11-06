@@ -46,6 +46,7 @@ model User {
   evidence              Evidence[]
   sensitiveAccessEvents SensitiveAccessEvent[]
   intakeMembership      IntakeMember?
+  adminAudits           AdminAudit[]
 
   @@map("users")
 }
@@ -352,4 +353,41 @@ model IntakeMember {
   user   User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("intake_members")
+}
+
+model ReportCategory {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique
+  description String   @default("")
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0) @map("sort_order")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@map("report_categories")
+}
+
+model SiteSettings {
+  id              String   @id @default("main")
+  appName         String   @default("WBS") @map("app_name")
+  institutionName String   @default("Universitas Jember") @map("institution_name")
+  tagline         String   @default("Whistleblowing System")
+  helpEmail       String   @default("") @map("help_email")
+  helpPhone       String   @default("") @map("help_phone")
+  helpAddress     String   @default("") @map("help_address")
+  logoDataUrl     String?  @map("logo_data_url")
+  version         Int      @default(1)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@map("site_settings")
+}
+
+model AdminAudit {
+  id        BigInt   @id @default(autoincrement())
+  actorId   String   @map("actor_id") @db.Uuid
+  action    String
+  targetId  String   @map("target_id")
+  details   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("admin_audits")
 }

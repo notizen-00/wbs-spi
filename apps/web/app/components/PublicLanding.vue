@@ -8,6 +8,7 @@ import {
   CheckCircle2,
 } from '@lucide/vue';
 defineProps<{ authPage: boolean; trackingPage?: boolean }>();
+const { site } = useSiteConfiguration();
 defineEmits<{ login: []; report: []; home: []; section: [section: string] }>();
 const steps = [
   [
@@ -55,10 +56,7 @@ const faqs = [
   <div class="public-portal">
     <a href="#public-content" class="public-skip">Lewati ke konten</a>
     <header class="public-header">
-      <a href="/" class="public-brand" @click.prevent="$emit('home')"
-        ><span class="public-brand-mark"><ShieldCheck :size="27" /></span
-        ><span><strong>WBS</strong><small>UNIVERSITAS JEMBER</small></span></a
-      >
+      <a href="/" class="public-brand" @click.prevent="$emit('home')"><SiteBrand /></a>
       <nav aria-label="Navigasi publik">
         <a href="/guide" @click.prevent="$emit('section', 'guide')">Alur pelaporan</a
         ><a href="/privacy" @click.prevent="$emit('section', 'privacy')">Kerahasiaan</a
@@ -86,8 +84,9 @@ const faqs = [
             <div class="public-kicker"><span>01 / KANAL PELAPORAN</span> WHISTLEBLOWING SYSTEM</div>
             <h1 id="public-title">Ada yang perlu<br /><em>dilaporkan?</em></h1>
             <p>
-              Sampaikan dugaan pelanggaran di lingkungan Universitas Jember. Tuliskan kejadiannya,
-              sertakan informasi yang Anda ketahui, lalu ikuti penanganannya melalui portal ini.
+              Sampaikan dugaan pelanggaran di lingkungan {{ site.institutionName }}. Tuliskan
+              kejadiannya, sertakan informasi yang Anda ketahui, lalu ikuti penanganannya melalui
+              portal ini.
             </p>
             <div class="public-actions">
               <a href="/login" class="button public-primary" @click.prevent="$emit('report')"
@@ -193,7 +192,24 @@ const faqs = [
             <p>
               Temukan jawaban tentang akun, bukti, dan proses pelaporan sebelum mengirim laporan.
             </p>
-            <div class="public-contact">
+            <div
+              v-if="site.helpEmail || site.helpPhone || site.helpAddress"
+              class="public-contact configured-contact"
+            >
+              <HelpCircle :size="21" />
+              <div>
+                <p v-if="site.helpEmail">
+                  <a :href="`mailto:${site.helpEmail}`">{{ site.helpEmail }}</a>
+                </p>
+                <p v-if="site.helpPhone">
+                  <a :href="`tel:${site.helpPhone.replace(/[^+0-9]/g, '')}`">{{
+                    site.helpPhone
+                  }}</a>
+                </p>
+                <p v-if="site.helpAddress">{{ site.helpAddress }}</p>
+              </div>
+            </div>
+            <div v-else class="public-contact">
               <HelpCircle :size="21" />
               <p>
                 Kontak resmi pengelola akan ditampilkan setelah ditetapkan oleh Universitas Jember.
@@ -238,7 +254,7 @@ const faqs = [
       </section>
     </main>
     <footer class="public-footer">
-      <span>© {{ new Date().getFullYear() }} Universitas Jember · Whistleblowing System</span>
+      <span>© {{ new Date().getFullYear() }} {{ site.institutionName }} · {{ site.tagline }}</span>
       <div>
         <a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a
         ><a href="/privacy" @click.prevent="$emit('section', 'privacy')">Kerahasiaan</a>

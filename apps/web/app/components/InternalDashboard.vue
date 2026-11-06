@@ -25,6 +25,7 @@ const roles = {
     'Administrator teknis',
     'Kelola operasional teknis sistem. Akun administrator tidak memiliki akses ke isi perkara.',
   ],
+  SUPER_ADMIN: ['Super admin', 'Kelola kategori laporan, logo, dan pengaturan layanan.'],
   REPORTER: ['Pelapor', ''],
 };
 const role = computed(() => roles[props.user.role]);

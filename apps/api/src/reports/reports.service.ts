@@ -182,6 +182,12 @@ export class ReportsService {
         } catch (e) {
           fail(422, (e as Error).message);
         }
+        const categoryName = object(report.payload).category as string;
+        const available = await tx.$queryRaw<
+          { id: string }[]
+        >`SELECT id FROM report_categories WHERE name=${categoryName} AND active=true FOR SHARE`;
+        if (!available.length)
+          fail(422, 'Kategori laporan tidak tersedia. Pilih kategori aktif sebelum mengirim.');
         const members = await tx.intakeMember.findMany({
           where: {
             active: true,

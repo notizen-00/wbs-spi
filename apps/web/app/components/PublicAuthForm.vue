@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ShieldCheck, LockKeyhole, ArrowRight, LoaderCircle } from '@lucide/vue';
+const { site } = useSiteConfiguration();
 const props = defineProps<{
   mode: string;
   credentials: { name: string; email: string; password: string };
@@ -23,8 +24,8 @@ watch(
 </script>
 <template>
   <section class="auth-modal public-auth-card" aria-labelledby="auth-title">
-    <span class="brand-icon"><ShieldCheck :size="28" /></span>
-    <div class="eyebrow">WBS UNIVERSITAS JEMBER</div>
+    <SiteBrand />
+    <div class="eyebrow">{{ site.tagline }}</div>
     <h2 id="auth-title">{{ mode === 'register' ? 'Buat akun pelapor' : 'Masuk ke akun' }}</h2>
     <p>
       {{

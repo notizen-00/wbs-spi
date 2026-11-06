@@ -12,6 +12,7 @@ Dokumen ini menjelaskan perilaku yang sudah diterapkan pada kode per 6 November 
 | `INVESTIGATOR` | Pemeriksa | Melakukan pemeriksaan dan menyerahkan hasil serta rekomendasi | Akses diberikan setelah persetujuan penugasan; penyerahan hasil memerlukan penugasan aktif |
 | `EXECUTOR` | Pelaksana tindak lanjut | Menjalankan instruksi, mengunggah bukti, serta menyerahkan catatan pelaksanaan | Akses diberikan setelah persetujuan hasil/tindak lanjut; hanya dapat menyerahkan tugas miliknya |
 | `ADMIN` | Admin teknis | Role teknis yang dikenali sistem; pengelolaan administratif lengkap belum tersedia | Filter akses tidak memberikan akses isi perkara kepada admin teknis |
+| `SUPER_ADMIN` | Super admin | CRUD kategori laporan; pengaturan logo, nama aplikasi/institusi, tagline, dan kontak bantuan; melihat audit administrasi | Tidak mendapat akses isi perkara; akun dibuat melalui `db:seed:admin`, terpisah dari lima akun demo |
 
 Registrasi publik menghasilkan akun pelapor. Pengguna tidak memilih role internal melalui formulir registrasi. Role internal saja tidak otomatis membuka seluruh laporan: sistem memeriksa akses per perkara, konflik kepentingan, serta syarat tindakan.
 

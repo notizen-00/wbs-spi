@@ -30,6 +30,8 @@ import {
   LoaderCircle,
 } from '@lucide/vue';
 import { stageLabels, type Report, type ReportPayload, type User } from '@wbs/contracts';
+const { site, reloadSite } = useSiteConfiguration();
+useHead({ title: () => `${site.value.appName} - ${site.value.institutionName}` });
 const user = ref<User | null>(null),
   page = ref('dashboard'),
   auth = ref(''),
@@ -50,6 +52,8 @@ const publicAuthPage = ref(false);
 const publicSection = ref('');
 const routePaths: Record<string, string> = {
   dashboard: '/dashboard',
+  adminCategories: '/admin/categories',
+  adminSettings: '/admin/settings',
   reports: '/reports',
   create: '/reports/new',
   guide: '/guide',
@@ -165,14 +169,7 @@ const form = reactive<ReportPayload>(empty());
 const confirmed = ref(false),
   response = ref(''),
   commandReason = ref('');
-const categories = [
-  'Penyalahgunaan wewenang',
-  'Korupsi & gratifikasi',
-  'Pelanggaran akademik',
-  'Pelanggaran etika',
-  'Pengadaan barang & jasa',
-  'Pelanggaran lainnya',
-];
+const categories = computed(() => site.value.categories);
 const steps = [
   'Informasi kejadian',
   'Kronologi & pihak terkait',
@@ -244,7 +241,12 @@ function navigate(p: string, replace = false) {
     return;
   }
   if (internal.value && ['create', 'guide', 'privacy', 'help'].includes(p)) p = 'dashboard';
-  if (user.value?.role === 'ADMIN' && ['reports', 'detail'].includes(p)) p = 'dashboard';
+  if (p.startsWith('admin') && user.value?.role !== 'SUPER_ADMIN') p = 'dashboard';
+  if (
+    ['ADMIN', 'SUPER_ADMIN'].includes(user.value?.role || '') &&
+    ['reports', 'detail'].includes(p)
+  )
+    p = 'dashboard';
   page.value = p;
   mobile.value = false;
   error.value = '';
@@ -409,6 +411,7 @@ async function toggleNotifications() {
   if (showNotifications.value && user.value) await refreshNotifications();
 }
 onMounted(async () => {
+  await reloadSite().catch(() => {});
   window.addEventListener('keydown', keydown);
   window.addEventListener('popstate', popstate);
   const query = new URLSearchParams(window.location.search);
@@ -471,10 +474,7 @@ onMounted(async () => {
     <template v-else>
       <div v-if="mobile" class="backdrop" @click="mobile = false"></div>
       <aside class="sidebar" :class="{ open: mobile }">
-        <a href="#" class="brand" @click.prevent="navigate('dashboard')"
-          ><span class="brand-icon"><ShieldCheck :size="28" /></span
-          ><span>WBS<span class="brand-sub">UNIVERSITAS JEMBER</span></span></a
-        >
+        <a href="#" class="brand" @click.prevent="navigate('dashboard')"><SiteBrand /></a>
         <button
           class="sidebar-close icon-button"
           aria-label="Tutup navigasi"
@@ -487,8 +487,21 @@ onMounted(async () => {
           <button :class="{ active: page === 'dashboard' }" @click="navigate('dashboard')">
             <LayoutDashboard :size="19" />Dashboard
           </button>
+          <template v-if="user?.role === 'SUPER_ADMIN'"
+            ><button
+              :class="{ active: page === 'adminCategories' }"
+              @click="navigate('adminCategories')"
+            >
+              <Files :size="19" />Kategori laporan</button
+            ><button
+              :class="{ active: page === 'adminSettings' }"
+              @click="navigate('adminSettings')"
+            >
+              <ShieldCheck :size="19" />Pengaturan situs
+            </button></template
+          >
           <button
-            v-if="user?.role !== 'ADMIN'"
+            v-if="!['ADMIN', 'SUPER_ADMIN'].includes(user?.role || '')"
             :class="{ active: ['reports', 'detail', 'create'].includes(page) }"
             @click="navigate('reports')"
           >
@@ -537,19 +550,23 @@ onMounted(async () => {
             ><ChevronRight :size="14" /><strong>{{
               page === 'dashboard'
                 ? 'Dashboard'
-                : page === 'create'
-                  ? 'Buat laporan'
-                  : page === 'detail'
-                    ? 'Detail laporan'
-                    : page === 'reports'
-                      ? internal
-                        ? 'Antrean perkara'
-                        : 'Laporan saya'
-                      : page === 'guide'
-                        ? 'Panduan'
-                        : page === 'privacy'
-                          ? 'Kerahasiaan'
-                          : 'Bantuan'
+                : page === 'adminCategories'
+                  ? 'Kategori laporan'
+                  : page === 'adminSettings'
+                    ? 'Pengaturan situs'
+                    : page === 'create'
+                      ? 'Buat laporan'
+                      : page === 'detail'
+                        ? 'Detail laporan'
+                        : page === 'reports'
+                          ? internal
+                            ? 'Antrean perkara'
+                            : 'Laporan saya'
+                          : page === 'guide'
+                            ? 'Panduan'
+                            : page === 'privacy'
+                              ? 'Kerahasiaan'
+                              : 'Bantuan'
             }}</strong>
           </div>
           <div class="header-right">
@@ -614,8 +631,22 @@ onMounted(async () => {
           <div v-if="notice" class="alert success" role="status">
             <CheckCircle2 :size="19" /><span>{{ notice }}</span>
           </div>
+          <SuperAdminPanel
+            v-if="
+              user?.role === 'SUPER_ADMIN' &&
+              ['dashboard', 'adminCategories', 'adminSettings'].includes(page)
+            "
+            :section="
+              page === 'adminCategories'
+                ? 'categories'
+                : page === 'adminSettings'
+                  ? 'settings'
+                  : 'overview'
+            "
+            @navigate="navigate"
+          />
           <InternalDashboard
-            v-if="internal && user && page === 'dashboard'"
+            v-else-if="internal && user && page === 'dashboard'"
             :user="user"
             :reports="reports"
             :loading="loading"

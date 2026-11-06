@@ -19,7 +19,8 @@ export const stages = [
   'CLOSED',
 ] as const;
 export type Stage = (typeof stages)[number];
-export type Role = 'REPORTER' | 'MANAGER' | 'INVESTIGATOR' | 'OFFICIAL' | 'EXECUTOR' | 'ADMIN';
+export type Role =
+  'REPORTER' | 'MANAGER' | 'INVESTIGATOR' | 'OFFICIAL' | 'EXECUTOR' | 'ADMIN' | 'SUPER_ADMIN';
 export const stageLabels: Record<Stage, string> = {
   DRAFT: 'Draf',
   SUBMITTED: 'Terkirim',

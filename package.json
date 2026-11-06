@@ -21,6 +21,8 @@
     "db:seed": "prisma db seed",
     "predb:seed:case": "npm run db:generate",
     "db:seed:case": "tsx apps/api/src/seed-completed-case.ts",
+    "predb:seed:admin": "npm run db:generate",
+    "db:seed:admin": "tsx apps/api/src/seed-super-admin.ts",
     "predb:seed": "npm run db:generate",
     "db:studio": "prisma studio",
     "predev": "npm run db:generate",

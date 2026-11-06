@@ -19,6 +19,8 @@ import { OutboxService } from '../apps/worker/src/outbox.service';
 import { ScannerService } from '../apps/worker/src/scanner.service';
 import { EvidenceService } from '../apps/api/src/evidence/evidence.service';
 import { TrackingService } from '../apps/api/src/reports/tracking.service';
+import { AdminService } from '../apps/api/src/admin/admin.service';
+import { createSuperAdmin } from '../apps/api/src/seed-super-admin';
 import { seedCompletedCase, completedCaseId } from '../apps/api/src/seed-completed-case';
 import type { MinioStorageService } from '../apps/api/src/storage/minio-storage.service';
 import { NotificationsGateway } from '../apps/api/src/notifications/notifications.gateway';
@@ -71,7 +73,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     assert.equal(
       (await db.query('SELECT * FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows
         .length,
-      7,
+      8,
     );
   });
   await t.test('schema Prisma sesuai dengan database hasil migrasi', async () => {
@@ -433,6 +435,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       assert.deepEqual(await (await fetch(url + '/api/v1/health')).json(), { status: 'ok' });
       assert.equal((await fetch(url + '/api/v1/me')).status, 401);
       assert.equal((await fetch(url + '/api/v1/reports')).status, 401);
+      assert.equal((await fetch(url + '/api/v1/admin/settings')).status, 401);
       assert.equal(
         (
           await fetch(url + '/api/v1/auth/register', {
@@ -466,6 +469,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       const config = await (await fetch(url + '/api/v1/public/captcha')).json();
       assert.deepEqual(Object.keys(config).sort(), ['configured', 'required', 'siteKey']);
       auth.session = async () => reporter;
+      assert.equal((await fetch(url + '/api/v1/admin/settings')).status, 403);
       const submitWithoutCaptcha = await fetch(url + `/api/v1/reports/${r.id}/commands`, {
         method: 'POST',
         headers: {
@@ -875,12 +879,150 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       assert.notEqual(second.trackingCode, draft.trackingCode);
     },
   );
+  await t.test(
+    'super admin mengelola kategori dan identitas situs tanpa memperoleh akses perkara',
+    async () => {
+      const account = await createSuperAdmin(
+        prisma,
+        'superadmin@example.test',
+        'Synthetic-Super-Admin-Password',
+      );
+      const stored = await prisma.user.findUniqueOrThrow({ where: { id: account.id } });
+      assert.equal(
+        (await createSuperAdmin(prisma, account.email, 'Other-Synthetic-Password')).created,
+        false,
+      );
+      assert.equal(
+        (await prisma.user.findUniqueOrThrow({ where: { id: account.id } })).passwordHash,
+        stored.passwordHash,
+      );
+      await assert.rejects(() =>
+        createSuperAdmin(prisma, reporter.email, 'Synthetic-Super-Admin-Password'),
+      );
+      const superAdmin = stored as User,
+        admin = new AdminService(prisma);
+      for (const person of [
+        reporter,
+        manager,
+        official,
+        investigator,
+        executor,
+        { ...manager, role: 'ADMIN' as const },
+      ]) {
+        assert.throws(
+          () => admin.categories(person),
+          (e: any) => e.getStatus() === 403,
+        );
+        await assert.rejects(
+          () => admin.saveSettings(person, {}),
+          (e: any) => e.getStatus() === 403,
+        );
+      }
+      let category = await admin.saveCategory(superAdmin, {
+        name: 'Kategori integrasi',
+        description: 'Deskripsi',
+        active: true,
+        sortOrder: 15,
+      });
+      await assert.rejects(() =>
+        admin.saveCategory(superAdmin, { name: 'KATEGORI INTEGRASI', active: true, sortOrder: 15 }),
+      );
+      category = await admin.saveCategory(
+        superAdmin,
+        { ...category, name: 'Kategori diperbarui', expectedVersion: category.version },
+        category.id,
+      );
+      await assert.rejects(() =>
+        admin.saveCategory(
+          superAdmin,
+          { ...category, expectedVersion: category.version - 1 },
+          category.id,
+        ),
+      );
+      await admin.deleteCategory(superAdmin, category.id, category.version);
+      const used = await admin.saveCategory(superAdmin, {
+        name: 'Kategori dipakai',
+        active: true,
+        sortOrder: 80,
+      });
+      const report = await prisma.report.create({
+        data: { ownerId: reporter.id, payload: { category: used.name } },
+      });
+      await prisma.caseAccess.create({ data: { reportId: report.id, userId: superAdmin.id } });
+      assert.equal(
+        await prisma.report.count({ where: { AND: [{ id: report.id }, caseScope(superAdmin)] } }),
+        0,
+      );
+      await assert.rejects(() => admin.deleteCategory(superAdmin, used.id, used.version));
+      await assert.rejects(() =>
+        admin.saveCategory(
+          superAdmin,
+          { ...used, name: 'Nama lain', expectedVersion: used.version },
+          used.id,
+        ),
+      );
+      await admin.saveCategory(
+        superAdmin,
+        { ...used, active: false, expectedVersion: used.version },
+        used.id,
+      );
+      assert.ok(!(await admin.publicSettings()).categories.includes(used.name));
+      const draft = await reports.create(reporter, {
+        payload: {
+          title: 'Uji kategori nonaktif',
+          category: used.name,
+          what: 'Kejadian',
+          who: 'Pihak',
+          when: '2026-11-01',
+          where: 'Lokasi',
+          why: 'Dasar',
+          how: 'Kronologi',
+          evidenceReason: 'Sumber',
+          confidentiality: 'PROTECTED',
+        },
+      });
+      await assert.rejects(
+        () =>
+          reports.command(
+            draft.id,
+            reporter,
+            { action: 'SUBMIT', expectedVersion: draft.version, reason: 'Uji kategori nonaktif' },
+            randomUUID(),
+          ),
+        (e: any) => e.getStatus() === 422,
+      );
+      const settings = await admin.settings(superAdmin);
+      const logo =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=';
+      const updated = await admin.saveSettings(superAdmin, {
+        ...settings,
+        appName: 'Portal Integrasi',
+        helpEmail: 'bantuan@example.test',
+        logoDataUrl: logo,
+        expectedVersion: settings.version,
+      });
+      assert.equal((await admin.publicSettings()).appName, 'Portal Integrasi');
+      assert.equal((await admin.publicSettings()).logoDataUrl, logo);
+      await assert.rejects(() =>
+        admin.saveSettings(superAdmin, {
+          ...updated,
+          expectedVersion: updated.version,
+          logoDataUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+        }),
+      );
+      await assert.rejects(() =>
+        admin.saveSettings(superAdmin, { ...updated, expectedVersion: settings.version }),
+      );
+      assert.ok((await admin.audits(superAdmin)).length >= 5);
+      await assert.rejects(db.query('DELETE FROM admin_audits'));
+    },
+  );
   await t.test('baseline database lama mempertahankan laporan dan riwayat', async () => {
     const count = await prisma.report.count();
     const snapshots = await prisma.reportVersion.count();
     // Only this disposable test database: simulate history from the previous SQL runner.
     await db.exec(
-      'DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; ALTER TABLE notifications DROP COLUMN title, DROP COLUMN subject; ALTER TABLE reports DROP COLUMN tracking_code; DELETE FROM _prisma_migrations',
+      'DROP TABLE admin_audits, site_settings, report_categories; DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; ALTER TABLE notifications DROP COLUMN title, DROP COLUMN subject; ALTER TABLE reports DROP COLUMN tracking_code; DELETE FROM _prisma_migrations',
     );
     const entries = [
       ['001_initial.sql', '20261106000100_initial'],
