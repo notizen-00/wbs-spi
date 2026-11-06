@@ -12,11 +12,14 @@ for (const role of ['MANAGER', 'INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'ADMIN'])
               role,
               verified: true,
             }
-          : [],
+          : path.endsWith('/reports') &&
+              new URL(route.request().url()).searchParams.get('paginated') === 'true'
+            ? { items: [], total: 0, page: 1, pageSize: 10, totalPages: 1 }
+            : [],
       });
     });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Ruang kerja internal' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     await expect(
       page.getByRole('button', { name: /Buat laporan|Panduan pelaporan|Pelajari alur/ }),
     ).toHaveCount(0);
@@ -38,6 +41,6 @@ for (const role of ['MANAGER', 'INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'ADMIN'])
     }
     await page.getByRole('button', { name: 'Buka navigasi' }).click();
     await expect(page.getByRole('button', { name: 'Panduan pelaporan' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Ruang kerja', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible();
   });
 }

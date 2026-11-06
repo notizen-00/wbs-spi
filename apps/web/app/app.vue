@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from './utils/date-time';
+import { formatDateTime } from "./utils/date-time";
 import {
   ShieldCheck,
   LayoutDashboard,
@@ -7,7 +7,6 @@ import {
   Plus,
   ArrowUpRight,
   ArrowRight,
-  Search,
   Bell,
   ChevronRight,
   ChevronLeft,
@@ -29,18 +28,21 @@ import {
   UserRound,
   Mail,
   LoaderCircle,
-} from '@lucide/vue';
-import { stageLabels, type Report, type ReportPayload, type User } from '@wbs/contracts';
+} from "@lucide/vue";
+import {
+  stageLabels,
+  type Report,
+  type ReportPayload,
+  type User,
+} from "@wbs/contracts";
 const user = ref<User | null>(null),
-  page = ref('dashboard'),
-  auth = ref(''),
+  page = ref("dashboard"),
+  auth = ref(""),
   busy = ref(false),
   loading = ref(false),
-  error = ref(''),
-  notice = ref(''),
+  error = ref(""),
+  notice = ref(""),
   mobile = ref(false),
-  query = ref(''),
-  filter = ref('Semua'),
   step = ref(0),
   reports = ref<Report[]>([]),
   selected = ref<Report | null>(null),
@@ -52,8 +54,8 @@ const {
   announcement,
   refresh: refreshNotifications,
 } = useRealtimeNotifications(user, showNotifications);
-const credentials = reactive({ name: '', email: '', password: '' });
-const resetToken = ref('');
+const credentials = reactive({ name: "", email: "", password: "" });
+const resetToken = ref("");
 const workspace = ref<{ refresh: () => Promise<void> } | null>(null);
 watch(auth, async (value) => {
   if (value) {
@@ -62,15 +64,17 @@ watch(auth, async (value) => {
   }
 });
 function keydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    auth.value = '';
+  if (event.key === "Escape") {
+    auth.value = "";
     mobile.value = false;
     showNotifications.value = false;
   }
-  if (event.key === 'Tab' && auth.value) {
+  if (event.key === "Tab" && auth.value) {
     const dialog = document.querySelector('[role="dialog"]');
     const elements = Array.from(
-      dialog?.querySelectorAll<HTMLElement>('button:not(:disabled),input,select,a[href]') || [],
+      dialog?.querySelectorAll<HTMLElement>(
+        "button:not(:disabled),input,select,a[href]",
+      ) || [],
     );
     const first = elements[0],
       last = elements[elements.length - 1];
@@ -83,76 +87,71 @@ function keydown(event: KeyboardEvent) {
     }
   }
 }
-onUnmounted(() => window.removeEventListener('keydown', keydown));
+onUnmounted(() => window.removeEventListener("keydown", keydown));
 const empty = (): ReportPayload => ({
-  title: '',
-  category: '',
-  what: '',
-  who: '',
-  when: '',
-  where: '',
-  why: '',
-  how: '',
-  confidentiality: 'PROTECTED',
-  evidenceReason: '',
+  title: "",
+  category: "",
+  what: "",
+  who: "",
+  when: "",
+  where: "",
+  why: "",
+  how: "",
+  confidentiality: "PROTECTED",
+  evidenceReason: "",
 });
 const form = reactive<ReportPayload>(empty());
 const confirmed = ref(false),
-  response = ref(''),
-  commandReason = ref('');
+  response = ref(""),
+  commandReason = ref("");
 const categories = [
-  'Penyalahgunaan wewenang',
-  'Korupsi & gratifikasi',
-  'Pelanggaran akademik',
-  'Pelanggaran etika',
-  'Pengadaan barang & jasa',
-  'Pelanggaran lainnya',
+  "Penyalahgunaan wewenang",
+  "Korupsi & gratifikasi",
+  "Pelanggaran akademik",
+  "Pelanggaran etika",
+  "Pengadaan barang & jasa",
+  "Pelanggaran lainnya",
 ];
 const steps = [
-  'Informasi kejadian',
-  'Kronologi & pihak terkait',
-  'Bukti & kerahasiaan',
-  'Pratinjau',
+  "Informasi kejadian",
+  "Kronologi & pihak terkait",
+  "Bukti & kerahasiaan",
+  "Pratinjau",
 ];
 const active = computed(() =>
-  reports.value.filter((r) => !['DRAFT', 'COMPLETED', 'CLOSED'].includes(r.stage)),
+  reports.value.filter(
+    (r) => !["DRAFT", "COMPLETED", "CLOSED"].includes(r.stage),
+  ),
 );
 const needsReply = computed(() =>
   reports.value.filter((r) => r.clarification && !r.clarification.response),
 );
-const shown = computed(() =>
-  reports.value.filter(
-    (r) =>
-      (filter.value === 'Semua' ||
-        (filter.value === 'Aktif' && !['DRAFT', 'COMPLETED', 'CLOSED'].includes(r.stage)) ||
-        (filter.value === 'Draf' && r.stage === 'DRAFT') ||
-        (filter.value === 'Selesai' && ['COMPLETED', 'CLOSED'].includes(r.stage))) &&
-      `${r.payload.title} ${r.number || ''}`.toLowerCase().includes(query.value.toLowerCase()),
-  ),
-);
-const internal = computed(() => user.value && user.value.role !== 'REPORTER');
+const internal = computed(() => user.value && user.value.role !== "REPORTER");
 const date = formatDateTime;
 const initials = computed(() =>
-  (user.value?.name || 'Tamu')
-    .split(' ')
+  (user.value?.name || "Tamu")
+    .split(" ")
     .slice(0, 2)
     .map((n) => n[0])
-    .join(''),
+    .join(""),
 );
 async function api<T = any>(path: string, options: any = {}): Promise<T> {
   return (await $fetch<T>(`/api/v1${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { "Content-Type": "application/json", ...options.headers },
   })) as T;
 }
 function message(e: any) {
-  return e?.data?.message || 'Tidak dapat terhubung ke layanan. Periksa koneksi dan coba lagi.';
+  return (
+    e?.data?.message ||
+    "Tidak dapat terhubung ke layanan. Periksa koneksi dan coba lagi."
+  );
 }
 async function run(fn: () => Promise<void>) {
   if (busy.value) return;
   busy.value = true;
-  error.value = '';
-  notice.value = '';
+  error.value = "";
+  notice.value = "";
   try {
     await fn();
   } catch (e) {
@@ -164,7 +163,7 @@ async function run(fn: () => Promise<void>) {
 async function load() {
   loading.value = true;
   try {
-    reports.value = await api<Report[]>('/reports');
+    reports.value = await api<Report[]>("/reports");
   } catch (e) {
     error.value = message(e);
   } finally {
@@ -175,68 +174,74 @@ watch(
   () => user.value?.role,
   () => {
     selected.value = null;
-    filter.value = 'Semua';
-    query.value = '';
     Object.assign(form, empty());
-    navigate('dashboard');
+    navigate("dashboard");
   },
 );
 function navigate(p: string) {
-  if (internal.value && ['create', 'guide', 'privacy', 'help'].includes(p)) p = 'dashboard';
-  if (user.value?.role === 'ADMIN' && ['reports', 'detail'].includes(p)) p = 'dashboard';
+  if (internal.value && ["create", "guide", "privacy", "help"].includes(p))
+    p = "dashboard";
+  if (user.value?.role === "ADMIN" && ["reports", "detail"].includes(p))
+    p = "dashboard";
   page.value = p;
   mobile.value = false;
-  error.value = '';
-  notice.value = '';
+  error.value = "";
+  notice.value = "";
 }
 function newReport() {
   if (!user.value) {
-    auth.value = 'login';
+    auth.value = "login";
     return;
   }
-  if (user.value.role !== 'REPORTER') return;
+  if (user.value.role !== "REPORTER") return;
   selected.value = null;
   Object.assign(form, empty());
   step.value = 0;
   confirmed.value = false;
-  navigate('create');
+  navigate("create");
 }
 async function login() {
   await run(async () => {
-    user.value = await api<User>('/auth/login', { method: 'POST', body: credentials });
-    credentials.password = '';
-    auth.value = '';
+    user.value = await api<User>("/auth/login", {
+      method: "POST",
+      body: credentials,
+    });
+    credentials.password = "";
+    auth.value = "";
     await load();
   });
 }
 async function register() {
   await run(async () => {
-    const result = await api('/auth/register', { method: 'POST', body: credentials });
+    const result = await api("/auth/register", {
+      method: "POST",
+      body: credentials,
+    });
     notice.value = result.message;
-    auth.value = 'login';
-    credentials.password = '';
+    auth.value = "login";
+    credentials.password = "";
   });
 }
 async function logout() {
   await run(async () => {
-    await api('/auth/logout', { method: 'POST', body: {} });
+    await api("/auth/logout", { method: "POST", body: {} });
     user.value = null;
     reports.value = [];
     selected.value = null;
     Object.assign(form, empty());
     notifications.value = [];
-    navigate('dashboard');
+    navigate("dashboard");
   });
 }
 async function saveDraft() {
-  if (selected.value?.stage === 'DRAFT') {
+  if (selected.value?.stage === "DRAFT") {
     selected.value = await api<Report>(`/reports/${selected.value.id}/draft`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: { payload: form, expectedVersion: selected.value.version },
     });
   } else {
-    selected.value = await api<Report>('/reports/drafts', {
-      method: 'POST',
+    selected.value = await api<Report>("/reports/drafts", {
+      method: "POST",
       body: { payload: form },
     });
   }
@@ -245,84 +250,89 @@ async function saveDraft() {
 async function save() {
   await run(async () => {
     await saveDraft();
-    notice.value = 'Draf berhasil disimpan. Hanya Anda yang dapat mengaksesnya.';
+    notice.value =
+      "Draf berhasil disimpan. Hanya Anda yang dapat mengaksesnya.";
   });
 }
 function next() {
-  error.value = '';
+  error.value = "";
   const fields =
     step.value === 0
-      ? ['title', 'category', 'when', 'where']
+      ? ["title", "category", "when", "where"]
       : step.value === 1
-        ? ['what', 'who', 'why', 'how']
-        : ['evidenceReason'];
+        ? ["what", "who", "why", "how"]
+        : ["evidenceReason"];
   if (fields.some((k) => !String(form[k as keyof ReportPayload]).trim())) {
-    error.value = 'Lengkapi semua kolom sebelum melanjutkan.';
+    error.value = "Lengkapi semua kolom sebelum melanjutkan.";
     return;
   }
   step.value++;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 async function submit() {
   await run(async () => {
     if (!confirmed.value)
-      throw { data: { message: 'Konfirmasi kebenaran laporan terlebih dahulu.' } };
+      throw {
+        data: { message: "Konfirmasi kebenaran laporan terlebih dahulu." },
+      };
     await saveDraft();
     await api(`/reports/${selected.value!.id}/commands`, {
-      method: 'POST',
-      headers: { 'Idempotency-Key': `submit-${selected.value!.id}-${selected.value!.version}` },
+      method: "POST",
+      headers: {
+        "Idempotency-Key": `submit-${selected.value!.id}-${selected.value!.version}`,
+      },
       body: {
-        action: 'SUBMIT',
+        action: "SUBMIT",
         expectedVersion: selected.value!.version,
-        reason: 'Laporan dikirim oleh pelapor.',
+        reason: "Laporan dikirim oleh pelapor.",
       },
     });
     selected.value = await api<Report>(`/reports/${selected.value!.id}`);
-    navigate('detail');
+    navigate("detail");
     await load();
-    notice.value = 'Laporan berhasil dikirim. Simpan nomor penerimaan Anda.';
+    notice.value = "Laporan berhasil dikirim. Simpan nomor penerimaan Anda.";
   });
 }
 async function openReport(r: Report) {
   await run(async () => {
     selected.value = await api<Report>(`/reports/${r.id}`);
-    if (selected.value.stage === 'DRAFT') {
+    if (selected.value.stage === "DRAFT") {
       Object.assign(form, selected.value.payload);
       step.value = 0;
       confirmed.value = false;
-      navigate('create');
-    } else navigate('detail');
+      navigate("create");
+    } else navigate("detail");
   });
 }
 async function refreshSelected() {
   if (selected.value) {
     try {
-      selected.value = await api<Report>('/reports/' + selected.value.id);
+      selected.value = await api<Report>("/reports/" + selected.value.id);
       await load();
     } catch {
       selected.value = null;
-      navigate('reports');
+      navigate("reports");
       await load();
-      notice.value = 'Akses perkara telah diperbarui.';
+      notice.value = "Akses perkara telah diperbarui.";
     }
   }
 }
 async function command(action: string) {
   await run(async () => {
     await api(`/reports/${selected.value!.id}/commands`, {
-      method: 'POST',
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
       body: {
         action,
         expectedVersion: selected.value!.version,
-        reason: action === 'RESPOND' ? response.value : commandReason.value,
+        reason: action === "RESPOND" ? response.value : commandReason.value,
       },
     });
     selected.value = await api<Report>(`/reports/${selected.value!.id}`);
-    response.value = '';
-    commandReason.value = '';
+    response.value = "";
+    commandReason.value = "";
     await load();
-    notice.value = 'Tindakan berhasil disimpan.';
+    notice.value = "Tindakan berhasil disimpan.";
   });
 }
 async function toggleNotifications() {
@@ -330,24 +340,27 @@ async function toggleNotifications() {
   if (showNotifications.value && user.value) await refreshNotifications();
 }
 onMounted(async () => {
-  window.addEventListener('keydown', keydown);
-  const reset = new URLSearchParams(window.location.search).get('reset');
+  window.addEventListener("keydown", keydown);
+  const reset = new URLSearchParams(window.location.search).get("reset");
   if (reset) {
     resetToken.value = reset;
-    auth.value = 'reset';
-    history.replaceState({}, '', window.location.pathname);
+    auth.value = "reset";
+    history.replaceState({}, "", window.location.pathname);
   }
-  const verify = new URLSearchParams(window.location.search).get('verify');
+  const verify = new URLSearchParams(window.location.search).get("verify");
   if (verify) {
     await run(async () => {
-      const r = await api('/auth/verify', { method: 'POST', body: { token: verify } });
+      const r = await api("/auth/verify", {
+        method: "POST",
+        body: { token: verify },
+      });
       notice.value = r.message;
-      auth.value = 'login';
-      history.replaceState({}, '', window.location.pathname);
+      auth.value = "login";
+      history.replaceState({}, "", window.location.pathname);
     });
   }
   try {
-    user.value = await api<User>('/me');
+    user.value = await api<User>("/me");
     await load();
   } catch (e: any) {
     if (e?.statusCode !== 401) error.value = message(e);
@@ -363,24 +376,40 @@ onMounted(async () => {
         ><span class="brand-icon"><ShieldCheck :size="28" /></span
         ><span>WBS<span class="brand-sub">UNIVERSITAS JEMBER</span></span></a
       >
-      <button class="sidebar-close icon-button" aria-label="Tutup navigasi" @click="mobile = false">
+      <button
+        class="sidebar-close icon-button"
+        aria-label="Tutup navigasi"
+        @click="mobile = false"
+      >
         <X />
       </button>
-      <div class="workspace-label">PORTAL {{ internal ? 'INTERNAL' : 'PELAPOR' }}</div>
+      <div class="workspace-label">
+        PORTAL {{ internal ? "INTERNAL" : "PELAPOR" }}
+      </div>
       <nav aria-label="Menu utama">
-        <button :class="{ active: page === 'dashboard' }" @click="navigate('dashboard')">
-          <LayoutDashboard :size="19" />{{ internal ? 'Ruang kerja' : 'Ringkasan' }}
+        <button
+          :class="{ active: page === 'dashboard' }"
+          @click="navigate('dashboard')"
+        >
+          <LayoutDashboard :size="19" />Dashboard
         </button>
         <button
           v-if="user?.role !== 'ADMIN'"
           :class="{ active: ['reports', 'detail', 'create'].includes(page) }"
           @click="navigate('reports')"
         >
-          <Files :size="19" />{{ internal ? 'Antrean perkara' : 'Laporan saya'
+          <Files :size="19" />{{ internal ? "Antrean perkara" : "Laporan saya"
           }}<span v-if="user" class="count">{{ reports.length }}</span>
         </button>
-        <button v-if="!internal" :class="{ active: page === 'guide' }" @click="navigate('guide')">
-          <BookOpen :size="19" />Panduan pelaporan<ArrowUpRight class="nav-arrow" :size="15" />
+        <button
+          v-if="!internal"
+          :class="{ active: page === 'guide' }"
+          @click="navigate('guide')"
+        >
+          <BookOpen :size="19" />Panduan pelaporan<ArrowUpRight
+            class="nav-arrow"
+            :size="15"
+          />
         </button>
       </nav>
       <div class="sidebar-bottom">
@@ -395,8 +424,8 @@ onMounted(async () => {
         <div v-if="internal" class="private-note">
           <strong>Akses sesuai kewenangan</strong>
           <p>
-            Perkara tersedia berdasarkan penugasan aktif. Jaga kerahasiaan informasi dan catat
-            setiap tindakan pada perkara.
+            Perkara tersedia berdasarkan penugasan aktif. Jaga kerahasiaan
+            informasi dan catat setiap tindakan pada perkara.
           </p>
         </div>
         <button v-if="!internal" class="help-link" @click="navigate('help')">
@@ -404,7 +433,9 @@ onMounted(async () => {
         </button>
         <div class="institution">
           <span class="uni-mark">U</span
-          ><span>Universitas Jember<small>Integritas untuk masa depan.</small></span>
+          ><span
+            >Universitas Jember<small>Integritas untuk masa depan.</small></span
+          >
         </div>
       </div>
     </aside>
@@ -417,44 +448,50 @@ onMounted(async () => {
             @click="mobile = true"
           >
             <Menu /></button
-          ><span>Portal {{ internal ? 'internal' : 'pelapor' }}</span
+          ><span>Portal {{ internal ? "internal" : "pelapor" }}</span
           ><ChevronRight :size="14" /><strong>{{
-            page === 'dashboard'
-              ? internal
-                ? 'Ruang kerja'
-                : 'Ringkasan'
-              : page === 'create'
-                ? 'Buat laporan'
-                : page === 'detail'
-                  ? 'Detail laporan'
-                  : page === 'reports'
+            page === "dashboard"
+              ? "Dashboard"
+              : page === "create"
+                ? "Buat laporan"
+                : page === "detail"
+                  ? "Detail laporan"
+                  : page === "reports"
                     ? internal
-                      ? 'Antrean perkara'
-                      : 'Laporan saya'
-                    : page === 'guide'
-                      ? 'Panduan'
-                      : page === 'privacy'
-                        ? 'Kerahasiaan'
-                        : 'Bantuan'
+                      ? "Antrean perkara"
+                      : "Laporan saya"
+                    : page === "guide"
+                      ? "Panduan"
+                      : page === "privacy"
+                        ? "Kerahasiaan"
+                        : "Bantuan"
           }}</strong>
         </div>
         <div class="header-right">
           <span class="secure-label"><span></span>Koneksi privat</span
           ><button
             class="icon-button notification-button"
-            :aria-label="unreadCount ? `Notifikasi, ${unreadCount} pembaruan baru` : 'Notifikasi'"
+            :aria-label="
+              unreadCount
+                ? `Notifikasi, ${unreadCount} pembaruan baru`
+                : 'Notifikasi'
+            "
             :aria-expanded="showNotifications"
             @click="toggleNotifications"
           >
-            <Bell :size="20" /><span v-if="unreadCount" class="notification-count">{{
-              unreadCount > 99 ? '99+' : unreadCount
-            }}</span></button
+            <Bell :size="20" /><span
+              v-if="unreadCount"
+              class="notification-count"
+              >{{ unreadCount > 99 ? "99+" : unreadCount }}</span
+            ></button
           ><span class="header-divider"></span
           ><template v-if="user"
             ><span class="avatar">{{ initials }}</span
             ><span class="profile-name"
               >{{ user.name
-              }}<small>{{ internal ? 'Petugas internal' : 'Pelapor terdaftar' }}</small></span
+              }}<small>{{
+                internal ? "Petugas internal" : "Pelapor terdaftar"
+              }}</small></span
             ><button class="icon-button" aria-label="Keluar" @click="logout">
               <LogOut :size="17" /></button></template
           ><button v-else class="button small" @click="auth = 'login'">
@@ -464,15 +501,15 @@ onMounted(async () => {
         <div v-if="showNotifications" class="notification-panel">
           <strong>Notifikasi</strong>
           <small class="notification-connection">{{
-            connectionStatus === 'connected'
-              ? 'Pembaruan langsung aktif'
-              : connectionStatus === 'connecting'
-                ? 'Menghubungkan pembaruan langsung…'
-                : 'Koneksi langsung terputus. Daftar tetap dapat dibuka.'
+            connectionStatus === "connected"
+              ? "Pembaruan langsung aktif"
+              : connectionStatus === "connecting"
+                ? "Menghubungkan pembaruan langsung…"
+                : "Koneksi langsung terputus. Daftar tetap dapat dibuka."
           }}</small>
           <p v-if="!notifications.length">Belum ada pemberitahuan baru.</p>
           <p v-for="n in notifications" :key="n.id">
-            <strong>{{ n.title || 'Pembaruan laporan WBS' }}</strong>
+            <strong>{{ n.title || "Pembaruan laporan WBS" }}</strong>
             <small v-if="n.subject">{{ n.subject }}</small>
             <span>{{ n.message }}</span
             ><small>{{ date(n.created_at) }}</small>
@@ -485,15 +522,22 @@ onMounted(async () => {
               navigate('reports');
             "
           >
-            {{ internal ? 'Lihat perkara' : 'Lihat laporan' }}<ArrowRight :size="14" />
+            {{ internal ? "Lihat perkara" : "Lihat laporan"
+            }}<ArrowRight :size="14" />
           </button>
         </div>
-        <span class="sr-only" role="status" aria-live="polite">{{ announcement }}</span>
+        <span class="sr-only" role="status" aria-live="polite">{{
+          announcement
+        }}</span>
       </header>
       <main id="main-content">
         <div v-if="error" class="alert error" role="alert">
           <AlertCircle :size="19" /><span>{{ error }}</span
-          ><button class="icon-button" aria-label="Tutup pesan" @click="error = ''">
+          ><button
+            class="icon-button"
+            aria-label="Tutup pesan"
+            @click="error = ''"
+          >
             <X :size="16" />
           </button>
         </div>
@@ -513,23 +557,34 @@ onMounted(async () => {
             <div>
               <div class="eyebrow">WHISTLEBLOWING SYSTEM</div>
               <h1>
-                {{ user ? `Selamat datang, ${user.name.split(' ')[0]}.` : 'Suara Anda berarti.' }}
+                {{
+                  user
+                    ? `Selamat datang, ${user.name.split(" ")[0]}.`
+                    : "Suara Anda berarti."
+                }}
               </h1>
-              <p>Sampaikan kepedulian Anda. Bersama, jaga integritas Universitas Jember.</p>
+              <p>
+                Sampaikan kepedulian Anda. Bersama, jaga integritas Universitas
+                Jember.
+              </p>
             </div>
             <span class="today">{{ date(new Date().toISOString()) }}</span>
           </div>
           <section class="hero">
             <div class="hero-content">
-              <span class="hero-tag"><span></span>BERANI JUJUR, BERSAMA MENJAGA</span>
+              <span class="hero-tag"
+                ><span></span>BERANI JUJUR, BERSAMA MENJAGA</span
+              >
               <h2>Lingkungan berintegritas<br />dimulai dari suara Anda.</h2>
               <p>
-                Laporkan dugaan pelanggaran dengan aman dan bertanggung jawab. Setiap laporan adalah
-                langkah menuju perubahan.
+                Laporkan dugaan pelanggaran dengan aman dan bertanggung jawab.
+                Setiap laporan adalah langkah menuju perubahan.
               </p>
               <div class="hero-actions">
                 <button class="button white" @click="newReport">
-                  <Plus :size="18" />Buat laporan<ArrowUpRight :size="17" /></button
+                  <Plus :size="18" />Buat laporan<ArrowUpRight
+                    :size="17"
+                  /></button
                 ><button class="text-button light" @click="navigate('guide')">
                   Pelajari alur pelaporan<ArrowRight :size="16" />
                 </button>
@@ -544,8 +599,12 @@ onMounted(async () => {
               <div class="orbit orbit-two"></div>
               <div class="art-dot dot-one"></div>
               <div class="art-dot dot-two"></div>
-              <div class="glass-card back-card"><span></span><span></span><span></span></div>
-              <div class="shield-art"><ShieldCheck :size="102" :stroke-width="1.1" /></div>
+              <div class="glass-card back-card">
+                <span></span><span></span><span></span>
+              </div>
+              <div class="shield-art">
+                <ShieldCheck :size="102" :stroke-width="1.1" />
+              </div>
               <div class="trust-chip">
                 <span><Check :size="14" /></span>Ruang aman untuk melapor
               </div>
@@ -554,26 +613,32 @@ onMounted(async () => {
           <div class="stats-grid">
             <article class="stat">
               <div><span>Total laporan</span><Files :size="19" /></div>
-              <strong>{{ reports.length.toString().padStart(2, '0') }}</strong
+              <strong>{{ reports.length.toString().padStart(2, "0") }}</strong
               ><small>Seluruh laporan Anda</small>
             </article>
             <article class="stat">
               <div><span>Sedang diproses</span><Clock :size="19" /></div>
-              <strong>{{ active.length.toString().padStart(2, '0') }}</strong
+              <strong>{{ active.length.toString().padStart(2, "0") }}</strong
               ><small><i class="mini-dot green"></i>Dalam penanganan</small>
             </article>
             <article class="stat">
-              <div><span>Perlu tanggapan</span><MessageSquare :size="19" /></div>
-              <strong>{{ needsReply.length.toString().padStart(2, '0') }}</strong
-              ><small><i class="mini-dot amber"></i>Permintaan klarifikasi</small>
+              <div>
+                <span>Perlu tanggapan</span><MessageSquare :size="19" />
+              </div>
+              <strong>{{
+                needsReply.length.toString().padStart(2, "0")
+              }}</strong
+              ><small
+                ><i class="mini-dot amber"></i>Permintaan klarifikasi</small
+              >
             </article>
             <article class="stat">
               <div><span>Laporan selesai</span><CheckCircle2 :size="19" /></div>
               <strong>{{
                 reports
-                  .filter((r) => ['COMPLETED', 'CLOSED'].includes(r.stage))
+                  .filter((r) => ["COMPLETED", "CLOSED"].includes(r.stage))
                   .length.toString()
-                  .padStart(2, '0')
+                  .padStart(2, "0")
               }}</strong
               ><small>Penanganan telah berakhir</small>
             </article>
@@ -583,7 +648,8 @@ onMounted(async () => {
               <div class="panel-title">
                 <div>
                   <h3>
-                    Laporan terbaru <span class="subtle-count">{{ reports.length }}</span>
+                    Laporan terbaru
+                    <span class="subtle-count">{{ reports.length }}</span>
                   </h3>
                   <p>Pantau perkembangan laporan yang Anda sampaikan.</p>
                 </div>
@@ -604,9 +670,10 @@ onMounted(async () => {
                 >
                   <span class="report-icon"><FileText :size="20" /></span
                   ><span class="report-copy"
-                    ><strong>{{ r.payload.title || 'Draf tanpa judul' }}</strong
+                    ><strong>{{ r.payload.title || "Draf tanpa judul" }}</strong
                     ><small
-                      >{{ r.number || 'Draf privat' }}<span>·</span>{{ date(r.updatedAt) }}</small
+                      >{{ r.number || "Draf privat" }}<span>·</span
+                      >{{ date(r.updatedAt) }}</small
                     ></span
                   ><span class="badge" :class="r.stage.toLowerCase()">{{
                     stageLabels[r.stage]
@@ -614,24 +681,36 @@ onMounted(async () => {
                   ><ChevronRight :size="17" /></button
               ></template>
               <div v-else class="empty">
-                <span class="empty-icon"><Files :size="29" :stroke-width="1.4" /></span>
-                <h4>{{ user ? 'Belum ada laporan' : 'Laporan Anda, dalam satu tempat' }}</h4>
+                <span class="empty-icon"
+                  ><Files :size="29" :stroke-width="1.4"
+                /></span>
+                <h4>
+                  {{
+                    user
+                      ? "Belum ada laporan"
+                      : "Laporan Anda, dalam satu tempat"
+                  }}
+                </h4>
                 <p>
                   {{
                     user
-                      ? 'Laporan yang Anda buat akan tampil di sini.'
-                      : 'Masuk untuk membuat laporan dan memantau perkembangannya.'
+                      ? "Laporan yang Anda buat akan tampil di sini."
+                      : "Masuk untuk membuat laporan dan memantau perkembangannya."
                   }}
                 </p>
-                <button class="text-button" @click="user ? newReport() : (auth = 'login')">
-                  {{ user ? 'Buat laporan pertama' : 'Masuk ke akun' }}<ArrowRight :size="16" />
+                <button
+                  class="text-button"
+                  @click="user ? newReport() : (auth = 'login')"
+                >
+                  {{ user ? "Buat laporan pertama" : "Masuk ke akun"
+                  }}<ArrowRight :size="16" />
                 </button>
               </div>
               <div class="panel-footer">
                 <LockKeyhole :size="13" />{{
                   internal
-                    ? 'Hanya perkara dengan akses aktif yang ditampilkan.'
-                    : 'Hanya Anda dan pihak berwenang yang dapat mengakses laporan.'
+                    ? "Hanya perkara dengan akses aktif yang ditampilkan."
+                    : "Hanya Anda dan pihak berwenang yang dapat mengakses laporan."
                 }}
               </div>
             </section>
@@ -641,8 +720,14 @@ onMounted(async () => {
               <div
                 v-for="(item, i) in [
                   ['Sampaikan laporan', 'Ceritakan kejadian dan sumber bukti.'],
-                  ['Verifikasi & pemeriksaan', 'Petugas menelaah dan menindaklanjuti.'],
-                  ['Pantau perkembangannya', 'Lihat status dan jawab klarifikasi.'],
+                  [
+                    'Verifikasi & pemeriksaan',
+                    'Petugas menelaah dan menindaklanjuti.',
+                  ],
+                  [
+                    'Pantau perkembangannya',
+                    'Lihat status dan jawab klarifikasi.',
+                  ],
                 ]"
                 :key="i"
                 class="how-step"
@@ -659,10 +744,15 @@ onMounted(async () => {
             </section>
           </div>
           <div class="support-strip">
-            <span class="support-icon"><HelpCircle :size="24" :stroke-width="1.5" /></span>
+            <span class="support-icon"
+              ><HelpCircle :size="24" :stroke-width="1.5"
+            /></span>
             <div>
               <strong>Masih ragu atau membutuhkan panduan?</strong>
-              <p>Kenali jenis pelanggaran, cara melapor, dan perlindungan identitas Anda.</p>
+              <p>
+                Kenali jenis pelanggaran, cara melapor, dan perlindungan
+                identitas Anda.
+              </p>
             </div>
             <button class="button secondary" @click="navigate('help')">
               Pusat bantuan<ArrowUpRight :size="16" />
@@ -672,13 +762,15 @@ onMounted(async () => {
         <template v-else-if="page === 'reports'"
           ><div class="page-heading">
             <div>
-              <div class="eyebrow">{{ internal ? 'PENANGANAN PERKARA' : 'RUANG PELAPORAN' }}</div>
-              <h1>{{ internal ? 'Antrean perkara' : 'Laporan saya' }}</h1>
+              <div class="eyebrow">
+                {{ internal ? "PENANGANAN PERKARA" : "RUANG PELAPORAN" }}
+              </div>
+              <h1>{{ internal ? "Antrean perkara" : "Laporan saya" }}</h1>
               <p>
                 {{
                   internal
-                    ? 'Perkara dalam lingkup penugasan dan kewenangan Anda.'
-                    : 'Laporan dan draf privat yang dapat Anda akses.'
+                    ? "Perkara dalam lingkup penugasan dan kewenangan Anda."
+                    : "Laporan dan draf privat yang dapat Anda akses."
                 }}
               </p>
             </div>
@@ -686,63 +778,19 @@ onMounted(async () => {
               <Plus :size="18" />Buat laporan
             </button>
           </div>
-          <div class="panel">
-            <div class="list-toolbar">
-              <div class="tabs">
-                <button
-                  v-for="f in internal
-                    ? ['Semua', 'Aktif', 'Selesai']
-                    : ['Semua', 'Aktif', 'Draf', 'Selesai']"
-                  :class="{ selected: filter === f }"
-                  @click="filter = f"
-                >
-                  {{ f }}
-                </button>
-              </div>
-              <label class="search"
-                ><Search :size="17" /><input
-                  v-model="query"
-                  placeholder="Cari judul atau nomor…"
-                  aria-label="Cari laporan"
-              /></label>
-            </div>
-            <div v-if="!user" class="empty">
-              <LockKeyhole />
-              <h4>Masuk untuk melihat laporan</h4>
-              <button class="button" @click="auth = 'login'">Masuk ke akun</button>
-            </div>
-            <div v-else-if="!shown.length" class="empty">
-              <Files />
-              <h4>
-                {{
-                  query
-                    ? 'Hasil tidak ditemukan'
-                    : internal
-                      ? 'Belum ada perkara dalam akses Anda'
-                      : 'Belum ada laporan'
-                }}
-              </h4>
-              <p>
-                {{
-                  internal
-                    ? 'Perkara muncul setelah Anda mendapat penugasan aktif. Coba sesuaikan pencarian atau filter.'
-                    : 'Coba filter lain atau buat laporan baru.'
-                }}
-              </p>
-            </div>
-            <button v-for="r in shown" :key="r.id" class="report-row" @click="openReport(r)">
-              <span class="report-icon"><FileText :size="20" /></span
-              ><span class="report-copy"
-                ><strong>{{ r.payload.title || 'Draf tanpa judul' }}</strong
-                ><small
-                  >{{ r.number || 'Draf privat' }}<span>·</span>{{ date(r.updatedAt) }}</small
-                ></span
-              ><span class="badge" :class="r.stage.toLowerCase()">{{ stageLabels[r.stage] }}</span
-              ><ChevronRight :size="17" />
+          <ReportList
+            v-if="user"
+            :key="user.id"
+            :user="user"
+            :categories="categories"
+            @open="openReport"
+          />
+          <div v-else class="panel empty">
+            <LockKeyhole />
+            <h4>Masuk untuk melihat laporan</h4>
+            <button class="button" @click="auth = 'login'">
+              Masuk ke akun
             </button>
-            <div v-if="reports.length === 50" class="panel-footer">
-              Menampilkan 50 laporan terbaru. Gunakan pencarian untuk mempersempit hasil.
-            </div>
           </div></template
         >
         <template v-else-if="page === 'create' && user?.role === 'REPORTER'"
@@ -754,12 +802,17 @@ onMounted(async () => {
               <h1>Sampaikan laporan Anda.</h1>
               <p>Isi dengan jelas dan sesuai fakta yang Anda ketahui.</p>
             </div>
-            <span class="badge draft"><LockKeyhole :size="13" />Draf privat</span>
+            <span class="badge draft"
+              ><LockKeyhole :size="13" />Draf privat</span
+            >
           </div>
           <div class="form-layout">
             <section class="panel form-panel">
               <div class="steps">
-                <div v-for="(s, i) in steps" :class="{ current: step === i, done: step > i }">
+                <div
+                  v-for="(s, i) in steps"
+                  :class="{ current: step === i, done: step > i }"
+                >
                   <span
                     ><Check v-if="step > i" :size="15" /><template v-else>{{
                       i + 1
@@ -773,10 +826,10 @@ onMounted(async () => {
                 <p class="form-intro">
                   {{
                     [
-                      'Mulai dengan gambaran umum kejadian yang ingin dilaporkan.',
-                      'Ceritakan apa yang terjadi. Hindari dugaan yang tidak berdasar.',
-                      'Jelaskan sumber bukti dan pilih kerahasiaan laporan.',
-                      'Periksa kembali seluruh informasi sebelum mengirim.',
+                      "Mulai dengan gambaran umum kejadian yang ingin dilaporkan.",
+                      "Ceritakan apa yang terjadi. Hindari dugaan yang tidak berdasar.",
+                      "Jelaskan sumber bukti dan pilih kerahasiaan laporan.",
+                      "Periksa kembali seluruh informasi sebelum mengirim.",
                     ][step]
                   }}
                 </p>
@@ -800,7 +853,9 @@ onMounted(async () => {
                       ><input v-model="form.when" type="date" /></label
                     ><label
                       >Lokasi kejadian <span>*</span
-                      ><input v-model="form.where" placeholder="Unit, gedung, atau lokasi"
+                      ><input
+                        v-model="form.where"
+                        placeholder="Unit, gedung, atau lokasi"
                     /></label>
                   </div>
                 </div>
@@ -841,23 +896,30 @@ onMounted(async () => {
                     <div>
                       <strong>Bukti Anda disimpan secara privat</strong>
                       <p>
-                        Unggah bukti pendukung atau jelaskan sumber bukti yang tersedia. Berkas
-                        hanya dapat dibuka setelah lolos pemindaian keamanan.
+                        Unggah bukti pendukung atau jelaskan sumber bukti yang
+                        tersedia. Berkas hanya dapat dibuka setelah lolos
+                        pemindaian keamanan.
                       </p>
                     </div>
                   </div>
                   <EvidencePanel v-if="selected" :report-id="selected.id" />
                   <div v-else class="info-box">
                     <p>
-                      Simpan draf terlebih dahulu untuk mengunggah bukti, atau lanjutkan dengan
-                      menjelaskan sumber bukti.
+                      Simpan draf terlebih dahulu untuk mengunggah bukti, atau
+                      lanjutkan dengan menjelaskan sumber bukti.
                     </p>
-                    <button type="button" class="button secondary" :disabled="busy" @click="save">
+                    <button
+                      type="button"
+                      class="button secondary"
+                      :disabled="busy"
+                      @click="save"
+                    >
                       Simpan draf
                     </button>
                   </div>
                   <label
-                    >Sumber bukti atau alasan belum menyertakan bukti <span>*</span
+                    >Sumber bukti atau alasan belum menyertakan bukti
+                    <span>*</span
                     ><textarea
                       v-model="form.evidenceReason"
                       rows="4"
@@ -867,14 +929,26 @@ onMounted(async () => {
                   <fieldset>
                     <legend>Kerahasiaan laporan</legend>
                     <label class="radio-card"
-                      ><input v-model="form.confidentiality" type="radio" value="PROTECTED" /><span
+                      ><input
+                        v-model="form.confidentiality"
+                        type="radio"
+                        value="PROTECTED" /><span
                         ><strong>Identitas terlindungi</strong
-                        ><small>Identitas tidak ditampilkan dalam ringkasan perkara.</small></span
+                        ><small
+                          >Identitas tidak ditampilkan dalam ringkasan
+                          perkara.</small
+                        ></span
                       ><LockKeyhole :size="19" /></label
                     ><label class="radio-card"
-                      ><input v-model="form.confidentiality" type="radio" value="IDENTIFIED" /><span
+                      ><input
+                        v-model="form.confidentiality"
+                        type="radio"
+                        value="IDENTIFIED" /><span
                         ><strong>Bersedia dihubungi</strong
-                        ><small>Kontak tetap terbatas; bukan laporan tanpa akun.</small></span
+                        ><small
+                          >Kontak tetap terbatas; bukan laporan tanpa
+                          akun.</small
+                        ></span
                       ><UserRound :size="19"
                     /></label>
                   </fieldset>
@@ -901,20 +975,21 @@ onMounted(async () => {
                     <small>Kerahasiaan</small>
                     <p>
                       {{
-                        form.confidentiality === 'PROTECTED'
-                          ? 'Identitas terlindungi'
-                          : 'Bersedia dihubungi'
+                        form.confidentiality === "PROTECTED"
+                          ? "Identitas terlindungi"
+                          : "Bersedia dihubungi"
                       }}
                     </p>
                   </div>
                   <label class="confirmation"
                     ><input v-model="confirmed" type="checkbox" /><span
-                      >Saya menyatakan informasi yang disampaikan sesuai pengetahuan saya dan dibuat
-                      dengan itikad baik.</span
+                      >Saya menyatakan informasi yang disampaikan sesuai
+                      pengetahuan saya dan dibuat dengan itikad baik.</span
                     ></label
                   >
                   <p v-if="!user?.verified" class="warning-text">
-                    Verifikasi email diperlukan sebelum mengirim. Anda tetap dapat menyimpan draf.
+                    Verifikasi email diperlukan sebelum mengirim. Anda tetap
+                    dapat menyimpan draf.
                   </p>
                 </div>
               </div>
@@ -933,7 +1008,9 @@ onMounted(async () => {
                     :disabled="busy || !confirmed || !user?.verified"
                     @click="submit"
                   >
-                    <Send :size="16" />{{ busy ? 'Mengirim…' : 'Kirim laporan' }}
+                    <Send :size="16" />{{
+                      busy ? "Mengirim…" : "Kirim laporan"
+                    }}
                   </button>
                 </div>
               </div>
@@ -942,8 +1019,8 @@ onMounted(async () => {
               <span class="aside-shield"><ShieldCheck :size="28" /></span>
               <h3>Anda berada di ruang yang aman.</h3>
               <p>
-                Draf hanya dapat dibaca oleh Anda. Laporan baru masuk ke proses verifikasi setelah
-                dikirim.
+                Draf hanya dapat dibaca oleh Anda. Laporan baru masuk ke proses
+                verifikasi setelah dikirim.
               </p>
               <hr />
               <strong>Laporan yang baik memuat:</strong>
@@ -966,7 +1043,10 @@ onMounted(async () => {
               </button>
               <div class="eyebrow">{{ selected.number }}</div>
               <h1>{{ selected.payload.title }}</h1>
-              <p>Dikirim {{ date(selected.createdAt) }} · Versi {{ selected.version }}</p>
+              <p>
+                Dikirim {{ date(selected.createdAt) }} · Versi
+                {{ selected.version }}
+              </p>
             </div>
             <span class="badge" :class="selected.stage.toLowerCase()">{{
               stageLabels[selected.stage]
@@ -1017,7 +1097,10 @@ onMounted(async () => {
                 <h3>Tindakan petugas</h3>
                 <p>Akses dan tahap diperiksa ulang oleh server.</p>
                 <label class="fields"
-                  >Catatan tindakan<textarea v-model="commandReason" rows="3"></textarea>
+                  >Catatan tindakan<textarea
+                    v-model="commandReason"
+                    rows="3"
+                  ></textarea>
                 </label>
                 <div class="hero-actions">
                   <button
@@ -1028,7 +1111,9 @@ onMounted(async () => {
                   >
                     Minta klarifikasi</button
                   ><button
-                    v-if="selected.stage === 'SUBMITTED' && user?.role === 'MANAGER'"
+                    v-if="
+                      selected.stage === 'SUBMITTED' && user?.role === 'MANAGER'
+                    "
                     class="button"
                     :disabled="busy || !commandReason.trim()"
                     @click="command('ADVANCE')"
@@ -1068,14 +1153,16 @@ onMounted(async () => {
               <div class="eyebrow">INFORMASI & DUKUNGAN</div>
               <h1>
                 {{
-                  page === 'guide'
-                    ? 'Panduan pelaporan'
-                    : page === 'privacy'
-                      ? 'Kerahasiaan Anda.'
-                      : 'Kami membantu Anda melapor.'
+                  page === "guide"
+                    ? "Panduan pelaporan"
+                    : page === "privacy"
+                      ? "Kerahasiaan Anda."
+                      : "Kami membantu Anda melapor."
                 }}
               </h1>
-              <p>Kenali prosesnya agar Anda dapat melapor dengan lebih yakin.</p>
+              <p>
+                Kenali prosesnya agar Anda dapat melapor dengan lebih yakin.
+              </p>
             </div>
           </div>
           <div class="info-layout">
@@ -1083,8 +1170,9 @@ onMounted(async () => {
               <template v-if="page === 'guide'"
                 ><h2>Setiap laporan dimulai dari fakta.</h2>
                 <p>
-                  WBS Universitas Jember menerima dugaan pelanggaran yang berkaitan dengan
-                  lingkungan universitas. Sistem ini menggunakan akun terverifikasi.
+                  WBS Universitas Jember menerima dugaan pelanggaran yang
+                  berkaitan dengan lingkungan universitas. Sistem ini
+                  menggunakan akun terverifikasi.
                 </p>
                 <div
                   v-for="(s, i) in [
@@ -1123,25 +1211,27 @@ onMounted(async () => {
                 ><ShieldCheck :size="36" class="green-text" />
                 <h2>Identitas dibatasi sesuai kewenangan.</h2>
                 <p>
-                  Pelaporan menggunakan akun terverifikasi. Draf hanya dapat diakses pemilik.
-                  Setelah dikirim, perkara hanya tersedia bagi petugas dengan akses perkara aktif.
+                  Pelaporan menggunakan akun terverifikasi. Draf hanya dapat
+                  diakses pemilik. Setelah dikirim, perkara hanya tersedia bagi
+                  petugas dengan akses perkara aktif.
                 </p>
                 <h3>Jaga informasi sensitif</h3>
                 <p>
-                  Hindari menyebarkan nomor laporan, kronologi, dan bukti melalui kanal publik.
-                  Akses khusus identitas dan pengelolaan bukti masih memerlukan penyelesaian kendali
-                  keamanan sebelum penggunaan operasional.
+                  Hindari menyebarkan nomor laporan, kronologi, dan bukti
+                  melalui kanal publik. Akses khusus identitas dan pengelolaan
+                  bukti masih memerlukan penyelesaian kendali keamanan sebelum
+                  penggunaan operasional.
                 </p>
                 <h3>Riwayat tetap tercatat</h3>
                 <p>
-                  Pengiriman dan tanggapan menyimpan versi dan jejak audit. Laporan tidak dihapus
-                  melalui permintaan penarikan biasa.
+                  Pengiriman dan tanggapan menyimpan versi dan jejak audit.
+                  Laporan tidak dihapus melalui permintaan penarikan biasa.
                 </p>
                 <div class="info-box">
                   <LockKeyhole :size="22" />
                   <p>
-                    Versi pengembangan ini digunakan dengan data sintetis. Kebijakan resmi dan
-                    kesiapan operasional belum ditetapkan.
+                    Versi pengembangan ini digunakan dengan data sintetis.
+                    Kebijakan resmi dan kesiapan operasional belum ditetapkan.
                   </p>
                 </div></template
               ><template v-else
@@ -1177,8 +1267,8 @@ onMounted(async () => {
                 <div class="info-box">
                   <HelpCircle :size="22" />
                   <p>
-                    Kontak resmi pengelola akan ditampilkan setelah ditetapkan oleh Universitas
-                    Jember.
+                    Kontak resmi pengelola akan ditampilkan setelah ditetapkan
+                    oleh Universitas Jember.
                   </p>
                 </div></template
               >
@@ -1186,12 +1276,18 @@ onMounted(async () => {
             <aside class="form-aside">
               <BookOpen :size="28" />
               <h3>Sampaikan dengan itikad baik.</h3>
-              <p>Laporan yang jelas membantu petugas menelaah informasi dengan cermat.</p>
+              <p>
+                Laporan yang jelas membantu petugas menelaah informasi dengan
+                cermat.
+              </p>
               <button
                 class="text-button"
                 @click="navigate(page === 'privacy' ? 'guide' : 'privacy')"
               >
-                {{ page === 'privacy' ? 'Panduan pelaporan' : 'Tentang kerahasiaan'
+                {{
+                  page === "privacy"
+                    ? "Panduan pelaporan"
+                    : "Tentang kerahasiaan"
                 }}<ArrowRight :size="16" />
               </button>
             </aside></div
@@ -1220,25 +1316,47 @@ onMounted(async () => {
       "
     />
     <div v-else-if="auth" class="modal-backdrop" @click.self="auth = ''">
-      <section role="dialog" aria-modal="true" aria-labelledby="auth-title" class="auth-modal">
-        <button class="modal-close icon-button" aria-label="Tutup" @click="auth = ''"><X /></button
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-title"
+        class="auth-modal"
+      >
+        <button
+          class="modal-close icon-button"
+          aria-label="Tutup"
+          @click="auth = ''"
+        >
+          <X /></button
         ><span class="brand-icon"><ShieldCheck :size="28" /></span>
         <div class="eyebrow">WBS UNIVERSITAS JEMBER</div>
         <h2 id="auth-title">
-          {{ auth === 'register' ? 'Mulai dari keberanian Anda.' : 'Selamat datang kembali.' }}
+          {{
+            auth === "register"
+              ? "Mulai dari keberanian Anda."
+              : "Selamat datang kembali."
+          }}
         </h2>
         <p>
           {{
-            auth === 'register'
-              ? 'Buat akun untuk menyampaikan laporan dengan aman.'
-              : 'Masuk untuk melanjutkan dan memantau laporan Anda.'
+            auth === "register"
+              ? "Buat akun untuk menyampaikan laporan dengan aman."
+              : "Masuk untuk melanjutkan dan memantau laporan Anda."
           }}
         </p>
         <div v-if="error" class="alert error" role="alert">{{ error }}</div>
-        <div v-if="notice" class="alert success" role="status">{{ notice }}</div>
-        <form class="fields" @submit.prevent="auth === 'register' ? register() : login()">
+        <div v-if="notice" class="alert success" role="status">
+          {{ notice }}
+        </div>
+        <form
+          class="fields"
+          @submit.prevent="auth === 'register' ? register() : login()"
+        >
           <label v-if="auth === 'register'"
-            >Nama lengkap<input v-model="credentials.name" autocomplete="name" required /></label
+            >Nama lengkap<input
+              v-model="credentials.name"
+              autocomplete="name"
+              required /></label
           ><label
             >Email<input
               v-model="credentials.email"
@@ -1250,14 +1368,24 @@ onMounted(async () => {
             >Kata sandi<input
               v-model="credentials.password"
               type="password"
-              :autocomplete="auth === 'register' ? 'new-password' : 'current-password'"
+              :autocomplete="
+                auth === 'register' ? 'new-password' : 'current-password'
+              "
               :minlength="auth === 'register' ? 12 : 1"
               maxlength="128"
-              :placeholder="auth === 'register' ? 'Minimal 12 karakter' : 'Masukkan kata sandi'"
+              :placeholder="
+                auth === 'register'
+                  ? 'Minimal 12 karakter'
+                  : 'Masukkan kata sandi'
+              "
               required /></label
           ><button class="button full" :disabled="busy" type="submit">
             <LoaderCircle v-if="busy" class="spin" :size="18" />{{
-              busy ? 'Memproses…' : auth === 'register' ? 'Buat akun' : 'Masuk ke akun'
+              busy
+                ? "Memproses…"
+                : auth === "register"
+                  ? "Buat akun"
+                  : "Masuk ke akun"
             }}<ArrowRight :size="17" />
           </button>
         </form>
@@ -1273,7 +1401,7 @@ onMounted(async () => {
           </button>
         </p>
         <p class="auth-switch">
-          {{ auth === 'register' ? 'Sudah punya akun?' : 'Belum punya akun?' }}
+          {{ auth === "register" ? "Sudah punya akun?" : "Belum punya akun?" }}
           <button
             @click="
               auth = auth === 'register' ? 'login' : 'register';
@@ -1281,11 +1409,12 @@ onMounted(async () => {
               notice = '';
             "
           >
-            {{ auth === 'register' ? 'Masuk' : 'Daftar sekarang' }}
+            {{ auth === "register" ? "Masuk" : "Daftar sekarang" }}
           </button>
         </p>
         <div class="auth-foot">
-          <LockKeyhole :size="13" />Gunakan data sintetis pada versi pengembangan ini.
+          <LockKeyhole :size="13" />Gunakan data sintetis pada versi
+          pengembangan ini.
         </div>
       </section>
     </div>

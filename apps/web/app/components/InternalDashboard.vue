@@ -37,7 +37,7 @@ const active = computed(() =>
   <div class="page-heading">
     <div>
       <div class="eyebrow">PORTAL INTERNAL ? {{ role[0] }}</div>
-      <h1>Ruang kerja internal</h1>
+      <h1>Dashboard</h1>
       <p>{{ role[1] }}</p>
     </div>
     <button v-if="user.role !== 'ADMIN'" class="button" @click="$emit('queue')">

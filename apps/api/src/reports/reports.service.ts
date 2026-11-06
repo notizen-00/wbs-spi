@@ -1,7 +1,7 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { NotificationPublisher } from '../notifications/notification-publisher';
 import { caseNotification, outboxNotification } from '../notifications/notification-content';
-import { stageLabels, type Stage, type User, type ReportPayload } from '@wbs/contracts';
+import { stageLabels, stages, type Stage, type User, type ReportPayload } from '@wbs/contracts';
 import { nextStage, validateSubmission } from '@wbs/domain';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
@@ -36,6 +36,63 @@ export class ReportsService {
       skip: (page - 1) * 50,
     });
     return rows.map((r) => serializeReport(r, user));
+  }
+  async listPage(user: User, query: Record<string, unknown>) {
+    const pageSize = Number(query.pageSize ?? 10);
+    if (![10, 25, 50].includes(pageSize)) fail(422, 'Jumlah laporan per halaman tidak valid.');
+    const requestedPage = Math.max(1, Math.min(100000, Math.trunc(Number(query.page) || 1)));
+    const q = String(query.q ?? '')
+      .trim()
+      .slice(0, 200);
+    const group = String(query.group ?? 'ALL');
+    const stage = String(query.stage ?? '');
+    const lifecycle = String(query.lifecycle ?? '');
+    const category = String(query.category ?? '').slice(0, 200);
+    const sort = String(query.sort ?? 'newest');
+    if (
+      !['ALL', 'ACTIVE', 'DRAFT', 'FINISHED'].includes(group) ||
+      (stage && !stages.includes(stage as Stage)) ||
+      (lifecycle && !['ACTIVE', 'SUSPENDED', 'COMPLETED', 'CLOSED'].includes(lifecycle)) ||
+      !['newest', 'oldest'].includes(sort)
+    )
+      fail(422, 'Filter laporan tidak valid.');
+    const constraints: Prisma.ReportWhereInput[] = [caseScope(user)];
+    if (group === 'ACTIVE')
+      constraints.push({ stage: { notIn: ['DRAFT', 'COMPLETED', 'CLOSED'] } });
+    if (group === 'DRAFT') constraints.push({ stage: 'DRAFT' });
+    if (group === 'FINISHED') constraints.push({ stage: { in: ['COMPLETED', 'CLOSED'] } });
+    if (stage) constraints.push({ stage });
+    if (lifecycle) constraints.push({ lifecycle });
+    if (category) constraints.push({ payload: { path: ['category'], equals: category } });
+    if (q)
+      constraints.push({
+        OR: [
+          { number: { contains: q, mode: 'insensitive' } },
+          ...(['EXECUTOR', 'OFFICIAL'].includes(user.role)
+            ? []
+            : [{ payload: { path: ['title'], string_contains: q, mode: 'insensitive' as const } }]),
+        ],
+      });
+    const where: Prisma.ReportWhereInput = { AND: constraints };
+    return this.prisma.$transaction(async (tx) => {
+      const total = await tx.report.count({ where });
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const page = Math.min(requestedPage, totalPages);
+      const direction = sort === 'oldest' ? ('asc' as const) : ('desc' as const);
+      const rows = await tx.report.findMany({
+        where,
+        orderBy: [{ updatedAt: direction }, { id: direction }],
+        take: pageSize,
+        skip: (page - 1) * pageSize,
+      });
+      return {
+        items: rows.map((row) => serializeReport(row, user)),
+        page,
+        pageSize,
+        total,
+        totalPages,
+      };
+    });
   }
   async create(user: User, input: unknown) {
     if (user.role !== 'REPORTER') fail(403, 'Hanya pelapor yang dapat membuat aduan.');

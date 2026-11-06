@@ -116,7 +116,7 @@ const actions = computed(() => {
   <section class="case-workspace">
     <h3>
       <ShieldCheck :size="19" />{{
-        user.role === 'REPORTER' ? 'Jawaban & tindak lanjut' : 'Ruang kerja perkara'
+        user.role === 'REPORTER' ? 'Jawaban & tindak lanjut' : 'Dashboard perkara'
       }}
     </h3>
     <div v-if="report.lifecycle === 'SUSPENDED'" class="info-box">
