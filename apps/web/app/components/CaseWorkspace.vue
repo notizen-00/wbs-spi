@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowRight, ShieldCheck, AlertCircle, History, CheckCircle2 } from '@lucide/vue';
 import type { Report, User } from '@wbs/contracts';
+import { formatDateTime } from '../utils/date-time';
 const props = defineProps<{ report: Report; user: User }>();
 const emit = defineEmits<{ updated: [] }>();
 const evidence = ref<any[]>([]);
@@ -125,6 +126,7 @@ const actions = computed(() => {
     <article v-for="r in data.officialResponses" class="workspace-card">
       <strong>Jawaban resmi · {{ r.outcome === 'COMPLETED' ? 'Selesai' : 'Ditutup' }}</strong>
       <p>{{ r.content }}</p>
+      <time v-if="r.created_at" :datetime="r.created_at">{{ formatDateTime(r.created_at) }}</time>
     </article>
     <article v-for="r in data.reopenRequests" class="workspace-card">
       <strong>Permintaan pembukaan kembali · {{ r.status }}</strong>
@@ -134,6 +136,7 @@ const actions = computed(() => {
       <article v-for="f in data.findings" class="workspace-card">
         <strong>Hasil pemeriksaan</strong>
         <p>{{ f.content }}</p>
+        <time v-if="f.created_at" :datetime="f.created_at">{{ formatDateTime(f.created_at) }}</time>
       </article>
       <article v-for="t in data.tasks" class="workspace-card">
         <strong>Tugas tindak lanjut · {{ t.status }}</strong>

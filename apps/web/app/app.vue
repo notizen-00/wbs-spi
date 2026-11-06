@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from './utils/date-time';
 import {
   ShieldCheck,
   LayoutDashboard,
@@ -99,13 +100,6 @@ const form = reactive<ReportPayload>(empty());
 const confirmed = ref(false),
   response = ref(''),
   commandReason = ref('');
-const eventLabels: Record<string, string> = {
-  SUBMIT: 'Laporan diterima',
-  CLARIFY: 'Klarifikasi diminta',
-  RESPOND: 'Tanggapan diterima',
-  ADVANCE: 'Tahap diperbarui',
-  STATUS_UPDATED: 'Perkembangan terbaru',
-};
 const categories = [
   'Penyalahgunaan wewenang',
   'Korupsi & gratifikasi',
@@ -137,13 +131,7 @@ const shown = computed(() =>
   ),
 );
 const internal = computed(() => user.value && user.value.role !== 'REPORTER');
-const date = (s: string) =>
-  new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta',
-  }).format(new Date(s));
+const date = formatDateTime;
 const initials = computed(() =>
   (user.value?.name || 'Tamu')
     .split(' ')
@@ -1064,23 +1052,8 @@ onMounted(async () => {
                 @updated="refreshSelected"
               />
             </section>
-            <aside class="panel timeline">
-              <h3>Perkembangan laporan</h3>
-              <div v-for="(e, i) in selected.events" :key="i" class="timeline-item">
-                <span><Check :size="13" /></span>
-                <div>
-                  <strong>{{ eventLabels[e.action] || e.action }}</strong
-                  ><small>{{ date(e.createdAt) }}</small>
-                  <p>{{ e.reason }}</p>
-                </div>
-              </div>
-              <div class="timeline-note">
-                <LockKeyhole :size="16" />
-                <p>Timeline menampilkan informasi yang sesuai dengan hak akses Anda.</p>
-              </div>
-            </aside>
-          </div></template
-        >
+            <ReportTimeline :report="selected" /></div
+        ></template>
         <InternalDashboard
           v-else-if="internal && user"
           :user="user"
