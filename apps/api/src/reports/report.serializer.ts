@@ -6,6 +6,7 @@ export function serializeReport(report: Report, user: User) {
   return {
     id: report.id,
     number: report.number,
+    trackingCode: user.id === report.ownerId ? report.trackingCode : undefined,
     stage: report.stage,
     lifecycle: report.lifecycle,
     version: report.version,

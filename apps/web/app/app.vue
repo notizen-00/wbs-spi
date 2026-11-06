@@ -47,6 +47,7 @@ const submissionToken = ref('');
 const submissionCaptcha = ref<{ reset: () => void } | null>(null);
 const sessionReady = ref(false);
 const publicAuthPage = ref(false);
+const publicSection = ref('');
 const routePaths: Record<string, string> = {
   dashboard: '/dashboard',
   reports: '/reports',
@@ -70,17 +71,19 @@ function openAuth(mode = 'login', replace = false) {
 async function openPublic(section = '', replace = false) {
   auth.value = '';
   publicAuthPage.value = false;
+  publicSection.value = section;
   error.value = '';
   setPath(section ? `/${section}` : '/', replace);
   await nextTick();
-  if (section) document.getElementById(section)?.scrollIntoView({ block: 'start' });
+  if (section && section !== 'tracking')
+    document.getElementById(section)?.scrollIntoView({ block: 'start' });
   else window.scrollTo(0, 0);
 }
 async function applyPath(replace = true) {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   if (!user.value) {
     if (path === '/login' || path === '/register') openAuth(path.slice(1), replace);
-    else if (['/', '/guide', '/privacy', '/help'].includes(path))
+    else if (['/', '/guide', '/privacy', '/help', '/tracking'].includes(path))
       await openPublic(path === '/' ? '' : path.slice(1), replace);
     else openAuth('login', replace);
     return;
@@ -441,6 +444,7 @@ onMounted(async () => {
     <PublicLanding
       v-else-if="!user"
       :auth-page="publicAuthPage"
+      :tracking-page="!publicAuthPage && publicSection === 'tracking'"
       @login="openAuth()"
       @report="openAuth()"
       @home="openPublic()"
@@ -1058,6 +1062,10 @@ onMounted(async () => {
             </div>
             <div class="detail-layout" :class="{ 'timeline-hidden': !showTimeline }">
               <section class="panel detail-body">
+                <ReportTrackingCode
+                  v-if="user?.role === 'REPORTER' && selected.trackingCode"
+                  :code="selected.trackingCode"
+                />
                 <h3>Informasi laporan</h3>
                 <div class="preview">
                   <div

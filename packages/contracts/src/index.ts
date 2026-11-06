@@ -48,6 +48,7 @@ export interface ReportPayload {
 export interface Report {
   id: string;
   number: string | null;
+  trackingCode?: string;
   stage: Stage;
   lifecycle: string;
   version: number;

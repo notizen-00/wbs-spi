@@ -18,6 +18,7 @@ import { WorkerModule } from '../apps/worker/src/worker.module';
 import { OutboxService } from '../apps/worker/src/outbox.service';
 import { ScannerService } from '../apps/worker/src/scanner.service';
 import { EvidenceService } from '../apps/api/src/evidence/evidence.service';
+import { TrackingService } from '../apps/api/src/reports/tracking.service';
 import { seedCompletedCase, completedCaseId } from '../apps/api/src/seed-completed-case';
 import type { MinioStorageService } from '../apps/api/src/storage/minio-storage.service';
 import { NotificationsGateway } from '../apps/api/src/notifications/notifications.gateway';
@@ -70,7 +71,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     assert.equal(
       (await db.query('SELECT * FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows
         .length,
-      6,
+      7,
     );
   });
   await t.test('schema Prisma sesuai dengan database hasil migrasi', async () => {
@@ -447,6 +448,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
         '/auth/login',
         '/auth/recovery',
         '/auth/reset-password',
+        '/public/reports/status',
       ]) {
         const response = await fetch(url + '/api/v1' + path, {
           method: 'POST',
@@ -848,12 +850,33 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       await assert.rejects(() => reports.listPage(reporter, { stage: 'INVALID' }));
     },
   );
+  await t.test(
+    'kode pelacakan unik, hanya pemilik melihat kode, status publik tidak membocorkan isi',
+    async () => {
+      const draft = await reports.create(reporter, {
+        payload: { title: 'Judul rahasia pelacakan' },
+      });
+      assert.match(draft.trackingCode!, /^WBS-[A-F0-9]{32}$/);
+      const tracking = new TrackingService(prisma);
+      await assert.rejects(() => tracking.status(draft.trackingCode));
+      await prisma.report.update({ where: { id: draft.id }, data: { stage: 'SUBMITTED' } });
+      await prisma.caseAccess.create({ data: { reportId: draft.id, userId: manager.id } });
+      assert.equal((await reports.detail(draft.id, manager)).trackingCode, undefined);
+      const status = await tracking.status(draft.trackingCode!.toLowerCase());
+      assert.deepEqual(Object.keys(status).sort(), ['label', 'lifecycle', 'stage', 'updatedAt']);
+      assert.equal(status.stage, 'SUBMITTED');
+      await assert.rejects(() => tracking.status('WBS/2026/00001'));
+      await assert.rejects(() => tracking.status('WBS-' + '0'.repeat(32)));
+      const second = await reports.create(reporter, { payload: {} });
+      assert.notEqual(second.trackingCode, draft.trackingCode);
+    },
+  );
   await t.test('baseline database lama mempertahankan laporan dan riwayat', async () => {
     const count = await prisma.report.count();
     const snapshots = await prisma.reportVersion.count();
     // Only this disposable test database: simulate history from the previous SQL runner.
     await db.exec(
-      'DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; ALTER TABLE notifications DROP COLUMN title, DROP COLUMN subject; DELETE FROM _prisma_migrations',
+      'DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; ALTER TABLE notifications DROP COLUMN title, DROP COLUMN subject; ALTER TABLE reports DROP COLUMN tracking_code; DELETE FROM _prisma_migrations',
     );
     const entries = [
       ['001_initial.sql', '20261106000100_initial'],

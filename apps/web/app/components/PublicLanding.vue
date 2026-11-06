@@ -7,7 +7,7 @@ import {
   HelpCircle,
   CheckCircle2,
 } from '@lucide/vue';
-defineProps<{ authPage: boolean }>();
+defineProps<{ authPage: boolean; trackingPage?: boolean }>();
 defineEmits<{ login: []; report: []; home: []; section: [section: string] }>();
 const steps = [
   [
@@ -63,13 +63,24 @@ const faqs = [
         <a href="/guide" @click.prevent="$emit('section', 'guide')">Alur pelaporan</a
         ><a href="/privacy" @click.prevent="$emit('section', 'privacy')">Kerahasiaan</a
         ><a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a>
+        <a href="/tracking" @click.prevent="$emit('section', 'tracking')">Cek status</a>
       </nav>
       <a href="/login" class="button secondary public-login" @click.prevent="$emit('login')"
         >Masuk<ArrowRight :size="16"
       /></a>
     </header>
     <main id="public-content" class="public-main">
-      <template v-if="!authPage">
+      <section
+        v-if="trackingPage"
+        class="public-tracking-page"
+        aria-label="Halaman pelacakan laporan"
+      >
+        <a href="/" class="public-text-link" @click.prevent="$emit('home')"
+          >Kembali ke beranda<ArrowRight :size="16"
+        /></a>
+        <PublicTracking />
+      </section>
+      <template v-else-if="!authPage">
         <section class="public-hero" aria-labelledby="public-title">
           <div class="public-hero-copy">
             <div class="public-kicker"><span>01 / KANAL PELAPORAN</span> WHISTLEBLOWING SYSTEM</div>

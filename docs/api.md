@@ -29,20 +29,22 @@ Notifikasi baru juga dikirim melalui Socket.IO, namespace `/notifications`, engi
 
 Daftar pada website menggunakan `GET /reports?paginated=true&page=1&pageSize=10`. Respons berbentuk `{items,page,pageSize,total,totalPages}`; `total` menghitung seluruh hasil yang memenuhi filter dan hak akses, bukan hanya halaman saat ini. Permintaan tanpa `paginated=true` tetap mengembalikan array maksimal 50 laporan untuk kompatibilitas dashboard.
 
-| Parameter   | Nilai                                                                                                                |
-| ----------- | -------------------------------------------------------------------------------------------------------------------- |
-| `page`      | Nomor halaman mulai 1; halaman di luar jangkauan diarahkan ke halaman terakhir                                       |
-| `pageSize`  | `10`, `25`, atau `50`                                                                                                |
-| `q`         | Cari nomor/judul tanpa membedakan huruf besar-kecil; pejabat/pelaksana hanya dapat mencari nomor                     |
-| `group`     | `ALL`, `ACTIVE`, `DRAFT`, `FINISHED`; ACTIVE mengecualikan draf dan status final, FINISHED mencakup COMPLETED/CLOSED |
-| `stage`     | Salah satu status perkara, misalnya `INITIAL_REVIEW` atau `COMPLETED`                                                |
-| `lifecycle` | `ACTIVE`, `SUSPENDED`, `COMPLETED`, atau `CLOSED`                                                                    |
-| `category`  | Nama kategori yang harus sama persis                                                                                 |
-| `sort`      | `newest` (default) atau `oldest`, berdasarkan waktu pembaruan dan ID untuk urutan stabil                             |
+| Parameter | Nilai |
+| --- | --- |
+| `page` | Nomor halaman mulai 1; halaman di luar jangkauan diarahkan ke halaman terakhir |
+| `pageSize` | `10`, `25`, atau `50` |
+| `q` | Cari nomor/judul tanpa membedakan huruf besar-kecil; pejabat/pelaksana hanya dapat mencari nomor |
+| `group` | `ALL`, `ACTIVE`, `DRAFT`, `FINISHED`; ACTIVE mengecualikan draf dan status final, FINISHED mencakup COMPLETED/CLOSED |
+| `stage` | Salah satu status perkara, misalnya `INITIAL_REVIEW` atau `COMPLETED` |
+| `lifecycle` | `ACTIVE`, `SUSPENDED`, `COMPLETED`, atau `CLOSED` |
+| `category` | Nama kategori yang harus sama persis |
+| `sort` | `newest` (default) atau `oldest`, berdasarkan waktu pembaruan dan ID untuk urutan stabil |
 
 Filter digabungkan, dan seluruh query tetap dibatasi scope perkara pengguna. Website mengembalikan halaman ke 1 saat filter/jumlah per halaman berubah, menyediakan reset filter, indikator jumlah hasil, dan navigasi halaman.
 
 ## Payload laporan
+
+`Report` yang dikirim kepada pemilik juga memiliki `trackingCode`. Field ini tidak diberikan kepada petugas. Endpoint publik `GET /public/captcha` memberikan `{siteKey,configured}`, dan `POST /public/reports/status` menerima `{code,captchaToken}` lalu mengembalikan `{stage,label,lifecycle,updatedAt}`. Draf tidak tersedia untuk pelacakan publik. Detail: [CAPTCHA dan pelacakan](captcha-dan-pelacakan.md).
 
 Body login, register, recovery, reset-password, dan command `SUBMIT` wajib menyertakan `captchaToken` valid. Token diperiksa server melalui Google reCAPTCHA v2. Permintaan tanpa token, token gagal, atau hostname yang tidak sesuai ditolak; layanan verifikasi yang belum dikonfigurasi/tidak tersedia menghasilkan 503.
 

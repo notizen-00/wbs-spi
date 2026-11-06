@@ -112,23 +112,23 @@ npm.cmd run native:status
 
 Buka tiga terminal terpisah dan biarkan prosesnya berjalan:
 
-| Terminal | Perintah                                                | Fungsi                                               |
-| -------- | ------------------------------------------------------- | ---------------------------------------------------- |
-| 1        | `mailpit --listen 127.0.0.1:8025 --smtp 127.0.0.1:1025` | SMTP lokal dan inbox email pengembangan              |
-| 2        | `npm.cmd run dev`                                       | API NestJS dan web Nuxt                              |
-| 3        | `npm.cmd run worker`                                    | Outbox email/notifikasi dan antrean pemindaian bukti |
+| Terminal | Perintah | Fungsi |
+| --- | --- | --- |
+| 1 | `mailpit --listen 127.0.0.1:8025 --smtp 127.0.0.1:1025` | SMTP lokal dan inbox email pengembangan |
+| 2 | `npm.cmd run dev` | API NestJS dan web Nuxt |
+| 3 | `npm.cmd run worker` | Outbox email/notifikasi dan antrean pemindaian bukti |
 
 Scanner **ClamAV/clamd** menyediakan mesin antivirus pada port 3310. **Worker** mengambil pekerjaan dari database dan mengirim berkas ke scanner; keduanya harus aktif agar bukti dapat lolos pemindaian. `npm.cmd run dev` hanya menjalankan API dan web. Untuk menjalankan keduanya secara terpisah, gunakan `npm.cmd run dev -w @wbs/api` dan `npm.cmd run dev -w @wbs/web` pada terminal masing-masing.
 
-| Layanan                        | Alamat / pemeriksaan                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------ |
-| Web                            | http://localhost:3000                                                          |
-| API liveness                   | http://localhost:3001/api/v1/health                                            |
-| API readiness PostgreSQL/Redis | http://localhost:3001/api/v1/ready                                             |
-| Inbox Mailpit                  | http://localhost:8025                                                          |
-| MinIO API                      | http://localhost:9000 — `npm.cmd run storage:check`                            |
-| MinIO console                  | http://localhost:9001 — login dengan `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` |
-| ClamAV                         | `127.0.0.1:3310` — `npm.cmd run scanner:check`                                 |
+| Layanan | Alamat / pemeriksaan |
+| --- | --- |
+| Web | http://localhost:3000 |
+| API liveness | http://localhost:3001/api/v1/health |
+| API readiness PostgreSQL/Redis | http://localhost:3001/api/v1/ready |
+| Inbox Mailpit | http://localhost:8025 |
+| MinIO API | http://localhost:9000 — `npm.cmd run storage:check` |
+| MinIO console | http://localhost:9001 — login dengan `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` |
+| ClamAV | `127.0.0.1:3310` — `npm.cmd run scanner:check` |
 
 `native:status` memeriksa listener port default; gunakan pemeriksaan storage, scanner, dan API readiness untuk memeriksa protokol/koneksi. Verifikasi email pendaftaran melalui inbox Mailpit.
 
@@ -188,13 +188,13 @@ Untuk langsung melihat **satu kasus lengkap sampai Selesai**, gunakan `npm.cmd r
 
 Semua memakai kata sandi `SEED_PASSWORD` yang ditentukan saat seed. Seed tidak mengganti kata sandi akun yang sudah ada dan ditolak pada `NODE_ENV=production`.
 
-| Email                    | Peran                              |
-| ------------------------ | ---------------------------------- |
-| `pelapor@example.test`   | Pelapor                            |
-| `pengelola@example.test` | Pengelola penerimaan               |
-| `pejabat@example.test`   | Pejabat dengan mandat demo 30 hari |
-| `pemeriksa@example.test` | Tim pemeriksa                      |
-| `pelaksana@example.test` | Pelaksana tindak lanjut            |
+| Email | Peran |
+| --- | --- |
+| `pelapor@example.test` | Pelapor |
+| `pengelola@example.test` | Pengelola penerimaan |
+| `pejabat@example.test` | Pejabat dengan mandat demo 30 hari |
+| `pemeriksa@example.test` | Tim pemeriksa |
+| `pelaksana@example.test` | Pelaksana tindak lanjut |
 
 Pengelola demo terdaftar sebagai penerima intake. Akun internal lain tidak otomatis memiliki akses perkara. Tidak ada pemilih role di frontend atau header yang dapat digunakan untuk menyamar sebagai pengguna lain.
 
@@ -252,6 +252,8 @@ Setelah mengubah schema/membuat migrasi, jalankan `db:generate`. Perintah dev, t
 Hasil pemeriksaan, batas implementasi dan kebutuhan operasional tercatat di [status implementasi](docs/implementation-status.md). Kontrak command ada di [API](docs/api.md) dan petunjuk operasi di [runbook](docs/runbook.md).
 
 ## Prinsip UI
+
+Kode pelacakan per laporan tersedia bagi pelapor di halaman detail. Pengecekan status publik pada `/tracking` serta formulir publik dilindungi Google reCAPTCHA v2. Isi site key dan secret di `.env`, restart API, lalu reload browser. Detail konfigurasi, migrasi, dan batas informasi publik ada di [CAPTCHA dan pelacakan](docs/captcha-dan-pelacakan.md).
 
 Pengunjung tanpa sesi membuka landing page publik pada `/`, berisi informasi WBS, alur pelaporan, kerahasiaan, dan pusat bantuan. Tombol Masuk/Laporkan membuka `/login`, pendaftaran berada di `/register`, dan login berhasil mengarah ke `/dashboard`. Dashboard serta daftar/detail laporan memerlukan sesi; akses langsung tanpa login diarahkan ke halaman masuk. Logout kembali ke landing page. Informasi publik juga dapat dibuka melalui `/guide`, `/privacy`, dan `/help`.
 

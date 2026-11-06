@@ -65,6 +65,7 @@ model Report {
   id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerId               String                 @map("owner_id") @db.Uuid
   number                String?                @unique
+  trackingCode          String                 @unique @default(dbgenerated("('WBS-'::text || upper(replace((gen_random_uuid())::text, '-'::text, ''::text)))")) @map("tracking_code")
   stage                 String                 @default("DRAFT")
   lifecycle             String                 @default("ACTIVE")
   version               Int                    @default(1)
