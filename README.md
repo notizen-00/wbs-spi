@@ -17,9 +17,131 @@ tests                  Integrasi PostgreSQL tertanam dan pengujian browser
 artifacts              Screenshot desktop/mobile hasil uji browser
 ```
 
-## Menjalankan di Windows
+## Menjalankan native di Windows (tanpa Docker/WSL)
 
-Untuk **MinIO native tanpa Docker**, gunakan [installer Windows/local](docs/windows-native.md): `npm.cmd run native:install`, kemudian `npm.cmd run native:start`. Script opsional pemasangan prasyarat native juga tersedia di panduan tersebut.
+Jalankan semua perintah dari root proyek melalui PowerShell. Gunakan `npm.cmd` bila PowerShell memblokir `npm.ps1`. Panduan installer lebih rinci tersedia di [Windows native](docs/windows-native.md).
+
+### 1. Siapkan prasyarat dan konfigurasi
+
+Pasang Node.js **24.15+**, PostgreSQL, Redis-compatible server (**Memurai Developer** untuk development Windows), Mailpit, serta **Go 1.24+** untuk membangun MinIO. Go hanya diperlukan saat instalasi MinIO. Installer vendor opsional tersedia melalui script berikut; jalankan hanya komponen yang belum terpasang dan selesaikan dialognya:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy/windows/Install-Prerequisites.ps1 -Component Node
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy/windows/Install-Prerequisites.ps1 -Component Go
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy/windows/Install-Prerequisites.ps1 -Component PostgreSQL
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy/windows/Install-Prerequisites.ps1 -Component Redis
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy/windows/Install-Prerequisites.ps1 -Component Mailpit
+```
+
+Buka terminal baru setelah instalasi agar PATH diperbarui, lalu:
+
+```powershell
+# Hanya jika .env belum ada; pertahankan konfigurasi lokal yang sudah ada.
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npm.cmd ci
+```
+
+Pastikan service PostgreSQL dan Memurai berjalan melalui **Services Windows** (`services.msc`). Untuk database baru, buat database `wbs` melalui pgAdmin atau `createdb -h localhost -p 5432 -U postgres -W wbs` jika CLI PostgreSQL tersedia pada PATH. Sesuaikan `.env` dengan user/password instalasi Anda; karakter khusus dalam user/password URL perlu di-percent-encode.
+
+```dotenv
+DATABASE_URL=postgres://postgres:password_lokal_anda@localhost:5432/wbs
+REDIS_URL=redis://localhost:6379
+APP_ORIGIN=http://localhost:3000
+PORT=3001
+NODE_ENV=development
+SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_FROM=WBS UNEJ <noreply@wbs.local>
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_REGION=us-east-1
+MINIO_BUCKET=wbs-private
+MINIO_ACCESS_KEY=wbs_app
+MINIO_SECRET_KEY=wbs_app_secret_local_only
+MINIO_ROOT_USER=wbs_local
+MINIO_ROOT_PASSWORD=wbs_local_secret_only
+CLAMAV_HOST=127.0.0.1
+CLAMAV_PORT=3310
+```
+
+Kredensial contoh hanya untuk development lokal. API dan worker membaca `.env` yang sama; restart keduanya setelah konfigurasi berubah.
+
+### 2. Pasang MinIO dan scanner (pertama kali)
+
+```powershell
+# Membangun minio.exe dan mc.exe; membutuhkan Go dan akses internet.
+npm.cmd run native:install
+# Menjalankan MinIO sekaligus membuat bucket privat dan user aplikasi.
+npm.cmd run native:start
+npm.cmd run storage:check
+
+# Mengunduh ClamAV portable, mengambil definisi antivirus, lalu memulai clamd.
+npm.cmd run native:scanner:install
+# Tunggu pemuatan definisi selesai sebelum pengecekan ini.
+npm.cmd run scanner:check
+```
+
+Instalasi awal dapat memerlukan beberapa menit. MinIO dan ClamAV berjalan di background dengan jendela tersembunyi. `native:start` hanya menjalankan MinIO; scanner memiliki perintah start sendiri. Jika pengecekan scanner belum berhasil, periksa log dan ulangi setelah definisi selesai dimuat.
+
+### 3. Siapkan database
+
+```powershell
+npm.cmd run db:generate
+npm.cmd run db:migrate
+
+# Opsional: buat akun UAT sintetis, password minimal 12 karakter.
+$env:SEED_PASSWORD = 'Ganti-Dengan-Sandi-Uji-Anda'
+npm.cmd run db:seed
+Remove-Item Env:SEED_PASSWORD
+```
+
+Untuk database lama dari runner SQL, ikuti [panduan baseline Prisma](docs/prisma.md#database-lama-dari-runner-sql) sebelum migrasi. Daftar akun seed tersedia pada bagian **Akun UAT sintetis** di bawah.
+
+### 4. Start harian / setelah restart Windows
+
+Pastikan service PostgreSQL dan Memurai sudah aktif. Jalankan infrastruktur berikut dari terminal persiapan:
+
+```powershell
+npm.cmd run native:start
+npm.cmd run native:scanner:start
+npm.cmd run storage:check
+npm.cmd run scanner:check
+npm.cmd run native:status
+```
+
+Buka tiga terminal terpisah dan biarkan prosesnya berjalan:
+
+| Terminal | Perintah | Fungsi |
+| --- | --- | --- |
+| 1 | `mailpit --listen 127.0.0.1:8025 --smtp 127.0.0.1:1025` | SMTP lokal dan inbox email pengembangan |
+| 2 | `npm.cmd run dev` | API NestJS dan web Nuxt |
+| 3 | `npm.cmd run worker` | Outbox email/notifikasi dan antrean pemindaian bukti |
+
+Scanner **ClamAV/clamd** menyediakan mesin antivirus pada port 3310. **Worker** mengambil pekerjaan dari database dan mengirim berkas ke scanner; keduanya harus aktif agar bukti dapat lolos pemindaian. `npm.cmd run dev` hanya menjalankan API dan web. Untuk menjalankan keduanya secara terpisah, gunakan `npm.cmd run dev -w @wbs/api` dan `npm.cmd run dev -w @wbs/web` pada terminal masing-masing.
+
+| Layanan | Alamat / pemeriksaan |
+| --- | --- |
+| Web | http://localhost:3000 |
+| API liveness | http://localhost:3001/api/v1/health |
+| API readiness PostgreSQL/Redis | http://localhost:3001/api/v1/ready |
+| Inbox Mailpit | http://localhost:8025 |
+| MinIO API | http://localhost:9000 — `npm.cmd run storage:check` |
+| MinIO console | http://localhost:9001 — login dengan `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` |
+| ClamAV | `127.0.0.1:3310` — `npm.cmd run scanner:check` |
+
+`native:status` memeriksa listener port default; gunakan pemeriksaan storage, scanner, dan API readiness untuk memeriksa protokol/koneksi. Verifikasi email pendaftaran melalui inbox Mailpit.
+
+### 5. Stop, log, dan masalah umum
+
+Hentikan terminal Mailpit, aplikasi, dan worker dengan **Ctrl+C**. Hentikan MinIO dengan `npm.cmd run native:stop`; perintah ini hanya menghentikan MinIO. Untuk ClamAV yang dimulai launcher, lihat PID pada keluaran `native:scanner:start`, periksa proses tersebut melalui Task Manager, lalu hentikan `clamd.exe` milik proyek. PostgreSQL dan Memurai dikelola melalui Services Windows bila perlu dihentikan.
+
+- Data MinIO: `.local/windows/minio-data`; konfigurasi dan definisi ClamAV: `.local/windows/clamav`; log: `.local/windows/logs`. Stop/start mempertahankan data. Data dari volume Docker tidak otomatis dipindahkan ke native.
+- **Port sudah digunakan:** periksa proses pemiliknya; gunakan layanan yang sudah ada atau hentikan proses yang sesuai sebelum start. Launcher MinIO tidak mematikan proses lain.
+- **Storage ditolak:** periksa `MINIO_*` pada `.env`, jalankan ulang `native:start` untuk menerapkan bucket/user aplikasi, lalu restart API dan worker.
+- **Bukti tetap PENDING/ERROR:** pastikan worker aktif dan `scanner:check` berhasil. Lihat `clamd.log`, `clamd.stderr.log`, serta keluaran worker. Setelah layanan pulih, gunakan **Coba ulang** pada berkas ERROR; berkas tetap terkunci sampai scan berhasil.
+- **Email tidak masuk:** pastikan Mailpit dan worker aktif serta `SMTP_HOST`/`SMTP_PORT` sesuai.
+- **Perbarui definisi antivirus:** jalankan ulang `npm.cmd run native:scanner:install`. Launcher tidak memasang pembaruan definisi terjadwal atau autostart Windows.
+
+## Alternatif: aplikasi native dengan infrastruktur Docker
 
 Prasyarat: Node.js 24.15+ dan Docker Desktop dengan Linux containers berjalan. Gunakan `npm.cmd` bila PowerShell memblokir `npm.ps1`.
 
