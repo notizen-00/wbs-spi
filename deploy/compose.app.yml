@@ -1,9 +1,13 @@
 # Local integration environment. Production requires TLS and institution-approved secrets/policies.
 include:
   - path: compose.yml
+x-app-build: &app-build
+  context: ..
+  dockerfile: deploy/Dockerfile
 services:
   migrate:
-    build: {context: .., dockerfile: deploy/Dockerfile}
+    build: *app-build
+    pull_policy: build
     image: wbs-local:dev
     command: ["npm", "run", "db:migrate"]
     environment:
@@ -11,6 +15,8 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
   api:
+    build: *app-build
+    pull_policy: build
     image: wbs-local:dev
     command: ["node", "apps/api/dist/apps/api/src/main.js"]
     environment: &app-env
@@ -42,11 +48,15 @@ services:
       redis: {condition: service_started}
       storage-init: {condition: service_completed_successfully}
   worker:
+    build: *app-build
+    pull_policy: build
     image: wbs-local:dev
     command: ["node", "apps/api/dist/apps/worker/src/main.js"]
     environment: *app-env
     depends_on: [api, scanner]
   web:
+    build: *app-build
+    pull_policy: build
     image: wbs-local:dev
     command: ["node", "apps/web/.output/server/index.mjs"]
     environment:

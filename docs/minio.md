@@ -9,9 +9,13 @@ Aplikasi menyimpan bukti pada **MinIO**, menggunakan protokol S3 melalui `MinioS
 Dari root proyek, dengan Docker Desktop berjalan:
 
 ```powershell
-docker compose --env-file .env -f deploy/compose.yml up -d minio storage-init
+docker compose --env-file .env -f deploy/compose.yml up --build -d minio storage-init
 npm.cmd run storage:check
 ```
+
+Image MinIO dan `mc` dibangun lokal dari source resmi yang dikunci, melalui [deploy/minio.Dockerfile](../deploy/minio.Dockerfile). Compose tidak lagi menarik `minio/minio` atau `minio/mc` dari Docker Hub. Tag source sama dengan installer native Windows. Build pertama perlu mengunduh image dasar Go/Alpine serta dependency Go dan dapat memerlukan beberapa menit; build berikutnya memakai cache. Volume `evidence` dan kredensial tetap digunakan, tanpa penghapusan data. Pendekatan source mengikuti [panduan repository resmi MinIO](https://github.com/minio/minio#installation).
+
+Jika muncul `pull access denied for minio/minio` pada konfigurasi lama, gunakan Compose terbaru di repository ini lalu ulangi perintah di atas. Tidak perlu `docker login` untuk mengganti image MinIO yang sudah tidak tersedia. Jangan memakai `docker compose down -v` untuk memperbaiki masalah pull karena perintah itu menghapus volume.
 
 - API MinIO: `http://localhost:9000`.
 - Console MinIO: `http://localhost:9001`, masuk menggunakan `MINIO_ROOT_USER` dan `MINIO_ROOT_PASSWORD` di `.env`.

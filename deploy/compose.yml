@@ -18,7 +18,12 @@ services:
     image: axllent/mailpit:v1.27
     ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: wbs-minio:source-2025-09-07
+    build:
+      context: ..
+      dockerfile: deploy/minio.Dockerfile
+      target: server
+    pull_policy: build
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-wbs_local}
@@ -26,7 +31,12 @@ services:
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: ["evidence:/data"]
   storage-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: wbs-minio-mc:source-2025-08-13
+    build:
+      context: ..
+      dockerfile: deploy/minio.Dockerfile
+      target: client
+    pull_policy: build
     depends_on: [minio]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-wbs_local}

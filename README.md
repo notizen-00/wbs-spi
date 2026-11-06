@@ -233,6 +233,8 @@ Remove-Item Env:SUPER_ADMIN_PASSWORD
 
 Buka http://localhost:8080. Compose ini khusus integrasi lokal, menggunakan cookie development pada HTTP dan kredensial contoh. Image dibangun sekali, dipakai API, worker, web, serta proses migrasi. Ubah `POSTGRES_PASSWORD` bersama kredensial pada `DOCKER_DATABASE_URL`; URL yang sama diteruskan ke migrator, API, dan worker. Inisialisasi password PostgreSQL hanya berlaku pada volume baru; mengedit env tidak mengganti password database yang sudah ada.
 
+MinIO dan client `mc` juga dibangun lokal dari tag source resmi melalui `deploy/minio.Dockerfile`, sehingga tidak bergantung pada image `minio/minio`/`minio/mc` yang gagal di-pull. Build pertama lebih lama karena kompilasi Go. Semua service yang memakai image lokal diberi konfigurasi build agar Compose tidak mencoba menarik `wbs-local:dev` dari registry. Detail: [storage MinIO](docs/minio.md).
+
 `DOCKER_NODE_ENV=development` melewati CAPTCHA; production memerlukannya. `DOCKER_APP_ORIGIN` harus sesuai alamat browser. Hostname Redis/MinIO/ClamAV di dalam stack ditetapkan Compose; SMTP default memakai `mailpit:1025`. Untuk SMTP eksternal, isi `DOCKER_SMTP_HOST`, `DOCKER_SMTP_PORT`, dan kredensial `SMTP_*`. `.env.docker` diabaikan Git dan tidak disalin ke image. Detail mekanisme `--env-file`: [dokumentasi Docker](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/).
 
 Jika layanan native masih berjalan, hentikan layanan yang memakai port 5432, 6379, 9000/9001, 3310, atau 1025/8025 sebelum menjalankan stack. Data database dan MinIO native tidak otomatis dipindahkan ke volume Docker. Perubahan ini tidak menjalankan container atau memigrasikan data native.
