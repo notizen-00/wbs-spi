@@ -422,6 +422,8 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
   await t.test('modul Nest, dependency injection, lifecycle Prisma dan guard HTTP', async () => {
     const previous = process.env.DATABASE_URL;
     const previousSecret = process.env.RECAPTCHA_SECRET_KEY;
+    const previousMode = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
     process.env.RECAPTCHA_SECRET_KEY = 'synthetic-captcha-secret';
     process.env.DATABASE_URL = connectionString;
     const app = await createApplication();
@@ -462,7 +464,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
         assert.match((await response.json()).message, /reCAPTCHA/);
       }
       const config = await (await fetch(url + '/api/v1/public/captcha')).json();
-      assert.deepEqual(Object.keys(config).sort(), ['configured', 'siteKey']);
+      assert.deepEqual(Object.keys(config).sort(), ['configured', 'required', 'siteKey']);
       auth.session = async () => reporter;
       const submitWithoutCaptcha = await fetch(url + `/api/v1/reports/${r.id}/commands`, {
         method: 'POST',
@@ -480,6 +482,8 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       else process.env.DATABASE_URL = previous;
       if (previousSecret === undefined) delete process.env.RECAPTCHA_SECRET_KEY;
       else process.env.RECAPTCHA_SECRET_KEY = previousSecret;
+      if (previousMode === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousMode;
     }
   });
   await t.test('worker Nest memakai PrismaService yang dikelola lifecycle', async () => {

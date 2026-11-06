@@ -13,11 +13,13 @@ RECAPTCHA_SECRET_KEY=secret_key_anda
 RECAPTCHA_ALLOWED_HOSTNAMES=localhost,127.0.0.1
 ```
 
-Restart API setelah mengisi/mengubah konfigurasi, lalu reload browser. `GET /api/v1/public/captcha` hanya menyediakan site key dan status konfigurasi; secret key tetap di server. Tidak perlu menaruh secret pada konfigurasi publik Nuxt. Compose aplikasi meneruskan ketiga variabel dari environment/root `.env`.
+Restart API setelah mengisi/mengubah konfigurasi, lalu reload browser. `GET /api/v1/public/captcha` menyediakan site key, status konfigurasi, dan flag `required`; secret key tetap di server. Tidak perlu menaruh secret pada konfigurasi publik Nuxt. Compose aplikasi meneruskan ketiga variabel dari environment/root `.env`.
 
-Tanpa secret/key yang lengkap, formulir menunjukkan verifikasi belum tersedia. Backend tidak memiliki bypass development; permintaan tanpa token valid ditolak. Tes memakai transport Google dan widget fixture secara eksplisit, bukan bypass runtime.
+Saat `NODE_ENV=development`, CAPTCHA dilewati oleh server dan widget tidak ditampilkan atau memuat script Google. Formulir tetap dapat digunakan tanpa site key/secret key. Rate limit, autentikasi, dan pemeriksaan akses tetap berlaku.
 
-reCAPTCHA dipakai pada login, pendaftaran, permintaan reset sandi/kirim ulang verifikasi, penyimpanan kata sandi baru, pengiriman laporan (`SUBMIT`), dan pengecekan status publik. Penyimpanan draf, pembacaan dashboard, upload oleh pengguna terautentikasi, dan tindakan internal tetap memakai sesi, otorisasi, dan rate limit yang sudah ada. Tautan verifikasi email sekali pakai tidak ditambah tantangan interaktif.
+Saat `NODE_ENV=production` (atau nilai lain selain `development`), CAPTCHA wajib. Tanpa secret/key yang lengkap, formulir menunjukkan verifikasi belum tersedia dan backend menolak permintaan. Token penanda development tidak diterima sebagai bypass di production. Pengaturan ditentukan API, bukan parameter dari browser.
+
+Pada production, reCAPTCHA dipakai pada login, pendaftaran, permintaan reset sandi/kirim ulang verifikasi, penyimpanan kata sandi baru, pengiriman laporan (`SUBMIT`), dan pengecekan status publik. Penyimpanan draf, pembacaan dashboard, upload oleh pengguna terautentikasi, dan tindakan internal tetap memakai sesi, otorisasi, dan rate limit yang sudah ada. Tautan verifikasi email sekali pakai tidak ditambah tantangan interaktif.
 
 Frontend mengirim `captchaToken` dalam body JSON. API mengirim token ke endpoint Google `siteverify`, memeriksa keberhasilan serta hostname, dan menolak kegagalan atau layanan yang tidak tersedia. Token bersifat sekali pakai dan berlaku dua menit menurut Google; widget di-reset setelah percobaan, sehingga pengguna perlu melakukan verifikasi ulang ketika mengirim lagi. Isi laporan dan kredensial akun tidak dikirim bersama permintaan `siteverify`.
 
@@ -36,6 +38,6 @@ Pelapor dapat melihat dan menyalin kode di detail laporan setelah pengiriman. Ko
 
 Buka **Cek status** pada landing page (`/tracking`), masukkan kode, selesaikan CAPTCHA, lalu tekan Cek status. Sistem hanya mengembalikan tahap, label tahap, lifecycle, dan waktu pembaruan. Tidak ada judul, nomor perkara, identitas, kronologi, bukti, pertanyaan klarifikasi, alasan keputusan, atau jawaban resmi dalam hasil publik. Untuk informasi tersebut, masuk ke akun.
 
-Endpoint `POST /api/v1/public/reports/status` menerima `{code,captchaToken}`. Rate limit adalah 10 percobaan per IP per 15 menit dan CAPTCHA selalu diverifikasi sebelum pencarian. Huruf kecil/besar pada kode dinormalisasi. Kode salah, kode tidak ditemukan, dan kode draf menghasilkan pesan tidak ditemukan yang sama. Draf tidak dapat dilacak secara publik.
+Endpoint `POST /api/v1/public/reports/status` menerima `{code,captchaToken}`. Rate limit adalah 10 percobaan per IP per 15 menit dan CAPTCHA diverifikasi sebelum pencarian kecuali pada mode development. Huruf kecil/besar pada kode dinormalisasi. Kode salah, kode tidak ditemukan, dan kode draf menghasilkan pesan tidak ditemukan yang sama. Draf tidak dapat dilacak secara publik.
 
 Seeder kasus lengkap otomatis mendapat kode dari default database. Menjalankan seed ulang pada kasus yang sudah selesai tidak mengganti kode. Pelacakan tidak membuka perkara atau mengubah status laporan.

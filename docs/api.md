@@ -44,9 +44,9 @@ Filter digabungkan, dan seluruh query tetap dibatasi scope perkara pengguna. Web
 
 ## Payload laporan
 
-`Report` yang dikirim kepada pemilik juga memiliki `trackingCode`. Field ini tidak diberikan kepada petugas. Endpoint publik `GET /public/captcha` memberikan `{siteKey,configured}`, dan `POST /public/reports/status` menerima `{code,captchaToken}` lalu mengembalikan `{stage,label,lifecycle,updatedAt}`. Draf tidak tersedia untuk pelacakan publik. Detail: [CAPTCHA dan pelacakan](captcha-dan-pelacakan.md).
+`Report` yang dikirim kepada pemilik juga memiliki `trackingCode`. Field ini tidak diberikan kepada petugas. Endpoint publik `GET /public/captcha` memberikan `{siteKey,configured,required}`, dan `POST /public/reports/status` menerima `{code,captchaToken}` lalu mengembalikan `{stage,label,lifecycle,updatedAt}`. Draf tidak tersedia untuk pelacakan publik. Detail: [CAPTCHA dan pelacakan](captcha-dan-pelacakan.md).
 
-Body login, register, recovery, reset-password, dan command `SUBMIT` wajib menyertakan `captchaToken` valid. Token diperiksa server melalui Google reCAPTCHA v2. Permintaan tanpa token, token gagal, atau hostname yang tidak sesuai ditolak; layanan verifikasi yang belum dikonfigurasi/tidak tersedia menghasilkan 503.
+Pada production, body login, register, recovery, reset-password, dan command `SUBMIT` wajib menyertakan `captchaToken` valid. Saat `NODE_ENV=development`, pemeriksaan CAPTCHA dilewati di server dan widget disembunyikan; rate limit dan otorisasi tetap berlaku. Token diperiksa server melalui Google reCAPTCHA v2. Permintaan tanpa token, token gagal, atau hostname yang tidak sesuai ditolak; layanan verifikasi yang belum dikonfigurasi/tidak tersedia menghasilkan 503.
 
 `title, category, what, who, when (YYYY-MM-DD), where, why, how, evidenceReason, confidentiality`.
 

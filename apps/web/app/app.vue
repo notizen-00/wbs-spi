@@ -359,8 +359,8 @@ async function submit() {
     await load();
     notice.value = 'Laporan berhasil dikirim. Simpan nomor penerimaan Anda.';
   });
-  submissionCaptcha.value?.reset();
-  submissionToken.value = '';
+  if (submissionCaptcha.value) submissionCaptcha.value.reset();
+  else submissionToken.value = '';
 }
 async function openReport(r: Report) {
   await run(async () => {

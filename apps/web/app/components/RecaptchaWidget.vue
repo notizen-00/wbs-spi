@@ -3,6 +3,7 @@ import { loadRecaptcha, type RecaptchaApi } from '../utils/recaptcha';
 defineProps<{ modelValue?: string }>();
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 const container = ref<HTMLElement | null>(null),
+  required = ref(true),
   error = ref(''),
   loading = ref(true);
 let api: RecaptchaApi | undefined,
@@ -10,14 +11,22 @@ let api: RecaptchaApi | undefined,
   disposed = false;
 function reset() {
   if (widget !== undefined) api?.reset(widget);
-  emit('update:modelValue', '');
+  emit('update:modelValue', required.value ? '' : 'development');
 }
 defineExpose({ reset });
 async function initialize() {
   loading.value = true;
   error.value = '';
   try {
-    const config = await $fetch<{ siteKey: string; configured: boolean }>('/api/v1/public/captcha');
+    const config = await $fetch<{ siteKey: string; configured: boolean; required?: boolean }>(
+      '/api/v1/public/captcha',
+    );
+    if (disposed) return;
+    if (config.required === false) {
+      required.value = false;
+      emit('update:modelValue', 'development');
+      return;
+    }
     if (!config.configured || !config.siteKey)
       throw new Error('Verifikasi keamanan belum tersedia. Hubungi pengelola.');
     api = await loadRecaptcha();
@@ -59,7 +68,7 @@ onUnmounted(() => {
 });
 </script>
 <template>
-  <div class="captcha-field">
+  <div v-show="required" class="captcha-field">
     <span class="captcha-label">Verifikasi keamanan</span>
     <div ref="container"></div>
     <p v-if="loading" role="status">Memuat reCAPTCHA…</p>

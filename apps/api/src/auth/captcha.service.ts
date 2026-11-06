@@ -6,9 +6,15 @@ export class CaptchaService {
   constructor(@Optional() @Inject(CAPTCHA_FETCH) private readonly request: typeof fetch = fetch) {}
   configuration() {
     const siteKey = process.env.NUXT_PUBLIC_RECAPTCHA_SITE_KEY || '';
-    return { siteKey, configured: Boolean(siteKey && process.env.RECAPTCHA_SECRET_KEY) };
+    const required = process.env.NODE_ENV !== 'development';
+    return {
+      siteKey: required ? siteKey : '',
+      configured: Boolean(siteKey && process.env.RECAPTCHA_SECRET_KEY),
+      required,
+    };
   }
   async verify(value: unknown) {
+    if (process.env.NODE_ENV === 'development') return;
     const secret = process.env.RECAPTCHA_SECRET_KEY;
     if (!secret) fail(503, 'Verifikasi keamanan belum tersedia. Hubungi pengelola.');
     if (typeof value !== 'string' || !value.trim() || value.length > 4096)
