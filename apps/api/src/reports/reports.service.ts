@@ -37,6 +37,7 @@ export class ReportsService {
     return rows.map((r) => serializeReport(r, user));
   }
   async create(user: User, input: unknown) {
+    if (user.role !== 'REPORTER') fail(403, 'Hanya pelapor yang dapat membuat aduan.');
     const b = object(input);
     return serializeReport(
       await this.prisma.report.create({
@@ -58,6 +59,7 @@ export class ReportsService {
     return { ...serializeReport(report, user), events };
   }
   async save(id: string, user: User, input: unknown) {
+    if (user.role !== 'REPORTER') fail(403, 'Hanya pelapor yang dapat mengedit draf.');
     const b = object(input);
     this.version(b.expectedVersion);
     return this.prisma.$transaction(async (tx) => {
@@ -83,6 +85,8 @@ export class ReportsService {
   }
   async command(id: string, user: User, input: unknown, key: string) {
     const b = object(input);
+    if (['SUBMIT', 'RESPOND', 'REQUEST_REOPEN'].includes(b.action) && user.role !== 'REPORTER')
+      fail(403, 'Tindakan ini hanya tersedia untuk pelapor.');
     if (key.length < 16 || key.length > 128) fail(422, 'Idempotency-Key wajib diisi.');
     this.version(b.expectedVersion);
     const fingerprint = hash(JSON.stringify(input));

@@ -183,7 +183,19 @@ async function load() {
     loading.value = false;
   }
 }
+watch(
+  () => user.value?.role,
+  () => {
+    selected.value = null;
+    filter.value = 'Semua';
+    query.value = '';
+    Object.assign(form, empty());
+    navigate('dashboard');
+  },
+);
 function navigate(p: string) {
+  if (internal.value && ['create', 'guide', 'privacy', 'help'].includes(p)) p = 'dashboard';
+  if (user.value?.role === 'ADMIN' && ['reports', 'detail'].includes(p)) p = 'dashboard';
   page.value = p;
   mobile.value = false;
   error.value = '';
@@ -194,6 +206,7 @@ function newReport() {
     auth.value = 'login';
     return;
   }
+  if (user.value.role !== 'REPORTER') return;
   selected.value = null;
   Object.assign(form, empty());
   step.value = 0;
@@ -368,21 +381,22 @@ onMounted(async () => {
       <div class="workspace-label">PORTAL {{ internal ? 'INTERNAL' : 'PELAPOR' }}</div>
       <nav aria-label="Menu utama">
         <button :class="{ active: page === 'dashboard' }" @click="navigate('dashboard')">
-          <LayoutDashboard :size="19" />Ringkasan
+          <LayoutDashboard :size="19" />{{ internal ? 'Ruang kerja' : 'Ringkasan' }}
         </button>
         <button
+          v-if="user?.role !== 'ADMIN'"
           :class="{ active: ['reports', 'detail', 'create'].includes(page) }"
           @click="navigate('reports')"
         >
           <Files :size="19" />{{ internal ? 'Antrean perkara' : 'Laporan saya'
           }}<span v-if="user" class="count">{{ reports.length }}</span>
         </button>
-        <button :class="{ active: page === 'guide' }" @click="navigate('guide')">
+        <button v-if="!internal" :class="{ active: page === 'guide' }" @click="navigate('guide')">
           <BookOpen :size="19" />Panduan pelaporan<ArrowUpRight class="nav-arrow" :size="15" />
         </button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="private-note">
+        <div v-if="!internal" class="private-note">
           <div class="private-note-icon"><LockKeyhole :size="19" /></div>
           <strong>Ruang aman untuk bersuara.</strong>
           <p>Identitas dan laporan Anda dibatasi untuk pihak yang berwenang.</p>
@@ -390,7 +404,14 @@ onMounted(async () => {
             Tentang kerahasiaan <ArrowRight :size="14" />
           </button>
         </div>
-        <button class="help-link" @click="navigate('help')">
+        <div v-if="internal" class="private-note">
+          <strong>Akses sesuai kewenangan</strong>
+          <p>
+            Perkara tersedia berdasarkan penugasan aktif. Jaga kerahasiaan informasi dan catat
+            setiap tindakan pada perkara.
+          </p>
+        </div>
+        <button v-if="!internal" class="help-link" @click="navigate('help')">
           <HelpCircle :size="18" />Pusat bantuan<ArrowUpRight :size="15" />
         </button>
         <div class="institution">
@@ -411,13 +432,17 @@ onMounted(async () => {
           ><span>Portal {{ internal ? 'internal' : 'pelapor' }}</span
           ><ChevronRight :size="14" /><strong>{{
             page === 'dashboard'
-              ? 'Ringkasan'
+              ? internal
+                ? 'Ruang kerja'
+                : 'Ringkasan'
               : page === 'create'
                 ? 'Buat laporan'
                 : page === 'detail'
                   ? 'Detail laporan'
                   : page === 'reports'
-                    ? 'Laporan saya'
+                    ? internal
+                      ? 'Antrean perkara'
+                      : 'Laporan saya'
                     : page === 'guide'
                       ? 'Panduan'
                       : page === 'privacy'
@@ -462,14 +487,14 @@ onMounted(async () => {
             {{ n.message }}<small>{{ date(n.created_at) }}</small>
           </p>
           <button
-            v-if="user"
+            v-if="user && user.role !== 'ADMIN'"
             class="text-button"
             @click="
               showNotifications = false;
               navigate('reports');
             "
           >
-            Lihat laporan<ArrowRight :size="14" />
+            {{ internal ? 'Lihat perkara' : 'Lihat laporan' }}<ArrowRight :size="14" />
           </button>
         </div>
         <span class="sr-only" role="status" aria-live="polite">{{ announcement }}</span>
@@ -484,7 +509,15 @@ onMounted(async () => {
         <div v-if="notice" class="alert success" role="status">
           <CheckCircle2 :size="19" /><span>{{ notice }}</span>
         </div>
-        <template v-if="page === 'dashboard'">
+        <InternalDashboard
+          v-if="internal && user && page === 'dashboard'"
+          :user="user"
+          :reports="reports"
+          :loading="loading"
+          @open="openReport"
+          @queue="navigate('reports')"
+        />
+        <template v-else-if="page === 'dashboard'">
           <div class="page-heading">
             <div>
               <div class="eyebrow">WHISTLEBLOWING SYSTEM</div>
@@ -648,17 +681,27 @@ onMounted(async () => {
         <template v-else-if="page === 'reports'"
           ><div class="page-heading">
             <div>
-              <div class="eyebrow">RUANG PELAPORAN</div>
+              <div class="eyebrow">{{ internal ? 'PENANGANAN PERKARA' : 'RUANG PELAPORAN' }}</div>
               <h1>{{ internal ? 'Antrean perkara' : 'Laporan saya' }}</h1>
-              <p>Laporan dan draf privat yang dapat Anda akses.</p>
+              <p>
+                {{
+                  internal
+                    ? 'Perkara dalam lingkup penugasan dan kewenangan Anda.'
+                    : 'Laporan dan draf privat yang dapat Anda akses.'
+                }}
+              </p>
             </div>
-            <button class="button" @click="newReport"><Plus :size="18" />Buat laporan</button>
+            <button v-if="!internal" class="button" @click="newReport">
+              <Plus :size="18" />Buat laporan
+            </button>
           </div>
           <div class="panel">
             <div class="list-toolbar">
               <div class="tabs">
                 <button
-                  v-for="f in ['Semua', 'Aktif', 'Draf', 'Selesai']"
+                  v-for="f in internal
+                    ? ['Semua', 'Aktif', 'Selesai']
+                    : ['Semua', 'Aktif', 'Draf', 'Selesai']"
                   :class="{ selected: filter === f }"
                   @click="filter = f"
                 >
@@ -679,8 +722,22 @@ onMounted(async () => {
             </div>
             <div v-else-if="!shown.length" class="empty">
               <Files />
-              <h4>{{ query ? 'Laporan tidak ditemukan' : 'Belum ada laporan' }}</h4>
-              <p>Coba filter lain atau buat laporan baru.</p>
+              <h4>
+                {{
+                  query
+                    ? 'Hasil tidak ditemukan'
+                    : internal
+                      ? 'Belum ada perkara dalam akses Anda'
+                      : 'Belum ada laporan'
+                }}
+              </h4>
+              <p>
+                {{
+                  internal
+                    ? 'Perkara muncul setelah Anda mendapat penugasan aktif. Coba sesuaikan pencarian atau filter.'
+                    : 'Coba filter lain atau buat laporan baru.'
+                }}
+              </p>
             </div>
             <button v-for="r in shown" :key="r.id" class="report-row" @click="openReport(r)">
               <span class="report-icon"><FileText :size="20" /></span
@@ -697,7 +754,7 @@ onMounted(async () => {
             </div>
           </div></template
         >
-        <template v-else-if="page === 'create'"
+        <template v-else-if="page === 'create' && user?.role === 'REPORTER'"
           ><div class="page-heading">
             <div>
               <button class="back-link" @click="navigate('reports')">
@@ -1021,6 +1078,14 @@ onMounted(async () => {
             </aside>
           </div></template
         >
+        <InternalDashboard
+          v-else-if="internal && user"
+          :user="user"
+          :reports="reports"
+          :loading="loading"
+          @open="openReport"
+          @queue="navigate('reports')"
+        />
         <template v-else
           ><div class="page-heading">
             <div>
@@ -1159,7 +1224,9 @@ onMounted(async () => {
           <span>© {{ new Date().getFullYear() }} Universitas Jember</span
           ><span
             >Whistleblowing System <i></i
-            ><button @click="navigate('privacy')">Kerahasiaan & perlindungan</button></span
+            ><button v-if="!internal" @click="navigate('privacy')">
+              Kerahasiaan & perlindungan</button
+            ><span v-else>Akses internal terbatas</span></span
           >
         </footer>
       </main>

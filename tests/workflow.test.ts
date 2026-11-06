@@ -96,6 +96,39 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     official = people.OFFICIAL!,
     investigator = people.INVESTIGATOR!,
     executor = people.EXECUTOR!;
+  await t.test('hanya pelapor dapat membuat draf dan menjalankan tindakan pelapor', async () => {
+    for (const role of ['MANAGER', 'INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'ADMIN'] as const) {
+      const internal = { ...manager, role };
+      await assert.rejects(
+        () => reports.create(internal, { payload: {} }),
+        (e: any) => e.getStatus() === 403,
+      );
+      await assert.rejects(
+        () => reports.save(randomUUID(), internal, {}),
+        (e: any) => e.getStatus() === 403,
+      );
+      for (const action of ['SUBMIT', 'RESPOND', 'REQUEST_REOPEN']) {
+        await assert.rejects(
+          () => reports.command(randomUUID(), internal, { action }, randomUUID()),
+          (e: any) => e.getStatus() === 403,
+        );
+      }
+    }
+    const draft = await prisma.report.create({ data: { ownerId: manager.id, payload: {} } });
+    await prisma.caseAccess.create({ data: { reportId: draft.id, userId: manager.id } });
+    assert.equal(
+      await prisma.report.count({ where: { AND: [{ id: draft.id }, caseScope(manager)] } }),
+      0,
+    );
+    assert.equal(
+      await prisma.report.count({
+        where: { AND: [{ id: draft.id }, caseScope({ ...manager, role: 'ADMIN' })] },
+      }),
+      0,
+    );
+    await prisma.caseAccess.deleteMany({ where: { reportId: draft.id } });
+    await prisma.report.delete({ where: { id: draft.id } });
+  });
   let r = (
     await db.query<any>(
       "INSERT INTO reports(owner_id,stage) VALUES($1,'INITIAL_REVIEW') RETURNING *",

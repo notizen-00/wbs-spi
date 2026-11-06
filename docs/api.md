@@ -77,3 +77,7 @@ Download melalui API, bukan public URL atau presigned URL. Konten diambil dan di
 401 sesi tidak sah, 403 aksi tidak diizinkan, 404 objek tidak boleh diketahui, 409 konflik versi/idempotensi/tahap, 413 ukuran berkas/request berlebih, 422 input/domain, 429 rate limit, 503 dependensi tidak tersedia. Error MinIO memiliki kode `STORAGE_ACCESS_DENIED`, `STORAGE_BUCKET_MISSING`, atau `STORAGE_UNAVAILABLE` dan pesan yang dapat ditindaklanjuti. Detail SQL, kredensial dan stack tidak dikembalikan.
 
 Kontrak ini dokumentasi implementasi, belum OpenAPI-generated client. API memiliki otorisasi dan pembatasan dasar; pengujian keamanan menyeluruh tetap diperlukan.
+
+### Pemisahan portal pelapor dan internal
+
+Hanya `REPORTER` dapat membuat dan mengedit draf, mengirim aduan, menjawab klarifikasi, serta meminta pembukaan kembali. Akun internal menerima HTTP 403 untuk tindakan tersebut. Pelapor hanya mengakses laporan miliknya; petugas internal hanya mengakses perkara bukan draf dengan penugasan aktif dan tanpa konflik kepentingan. Kepemilikan laporan lama tidak memberikan akses pelapor kepada akun yang sudah berganti menjadi petugas. `ADMIN` merupakan administrator teknis dan tidak memiliki akses isi perkara.
