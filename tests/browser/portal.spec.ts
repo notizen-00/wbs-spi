@@ -3,7 +3,7 @@ test('desktop dan mobile dapat digunakan tanpa overflow horizontal', async ({ pa
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Suara Anda berarti.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Ada yang perlu/ })).toBeVisible();
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await expect
@@ -16,12 +16,13 @@ test('desktop dan mobile dapat digunakan tanpa overflow horizontal', async ({ pa
         animations: 'disabled',
       });
   }
-  await page.getByRole('button', { name: 'Buka navigasi' }).click();
-  await page.getByRole('button', { name: 'Panduan pelaporan' }).click();
-  await expect(page.getByRole('heading', { name: 'Panduan pelaporan', exact: true })).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Setiap laporan dimulai dari fakta.' }),
-  ).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Navigasi publik' })
+    .getByRole('link', { name: 'Alur pelaporan' })
+    .click();
+  await expect(page).toHaveURL(/\/guide$/);
+  await expect(page.getByRole('heading', { name: 'Alur pelaporan', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Siapkan informasi' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 test('form pelapor bertahap, simpan draf dan kirim pada layar mobile', async ({ page }) => {

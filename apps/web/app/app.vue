@@ -43,6 +43,62 @@ const user = ref<User | null>(null),
   selected = ref<Report | null>(null),
   showNotifications = ref(false);
 const showTimeline = ref(true);
+const sessionReady = ref(false);
+const publicAuthPage = ref(false);
+const routePaths: Record<string, string> = {
+  dashboard: '/dashboard',
+  reports: '/reports',
+  create: '/reports/new',
+  guide: '/guide',
+  privacy: '/privacy',
+  help: '/help',
+};
+function setPath(path: string, replace = false) {
+  if (!import.meta.client || (window.location.pathname === path && !window.location.search)) return;
+  window.history[replace ? 'replaceState' : 'pushState'](window.history.state, '', path);
+}
+function openAuth(mode = 'login', replace = false) {
+  auth.value = mode;
+  publicAuthPage.value = true;
+  error.value = '';
+  credentials.password = '';
+  setPath(mode === 'register' ? '/register' : '/login', replace);
+  window.scrollTo(0, 0);
+}
+async function openPublic(section = '', replace = false) {
+  auth.value = '';
+  publicAuthPage.value = false;
+  error.value = '';
+  setPath(section ? `/${section}` : '/', replace);
+  await nextTick();
+  if (section) document.getElementById(section)?.scrollIntoView({ block: 'start' });
+  else window.scrollTo(0, 0);
+}
+async function applyPath(replace = true) {
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (!user.value) {
+    if (path === '/login' || path === '/register') openAuth(path.slice(1), replace);
+    else if (['/', '/guide', '/privacy', '/help'].includes(path))
+      await openPublic(path === '/' ? '' : path.slice(1), replace);
+    else openAuth('login', replace);
+    return;
+  }
+  if (path.startsWith('/reports/') && path !== '/reports/new') {
+    try {
+      const report = await api<Report>(path);
+      await openReport(report);
+    } catch (failure) {
+      navigate('reports', true);
+      error.value = message(failure);
+    }
+    return;
+  }
+  const target = Object.keys(routePaths).find((key) => routePaths[key] === path) ?? 'dashboard';
+  navigate(target, replace);
+}
+function popstate() {
+  if (sessionReady.value) void applyPath();
+}
 const {
   notifications,
   unreadCount,
@@ -56,16 +112,19 @@ const workspace = ref<{ refresh: () => Promise<void> } | null>(null);
 watch(auth, async (value) => {
   if (value) {
     await nextTick();
-    document.querySelector<HTMLInputElement>('[role="dialog"] input')?.focus();
+    document
+      .querySelector<HTMLInputElement>('.public-auth-card input, [role="dialog"] input')
+      ?.focus();
   }
 });
 function keydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
-    auth.value = '';
+    if (['recovery', 'reset'].includes(auth.value))
+      auth.value = publicAuthPage.value ? 'login' : '';
     mobile.value = false;
     showNotifications.value = false;
   }
-  if (event.key === 'Tab' && auth.value) {
+  if (event.key === 'Tab' && ['recovery', 'reset'].includes(auth.value)) {
     const dialog = document.querySelector('[role="dialog"]');
     const elements = Array.from(
       dialog?.querySelectorAll<HTMLElement>('button:not(:disabled),input,select,a[href]') || [],
@@ -81,7 +140,10 @@ function keydown(event: KeyboardEvent) {
     }
   }
 }
-onUnmounted(() => window.removeEventListener('keydown', keydown));
+onUnmounted(() => {
+  window.removeEventListener('keydown', keydown);
+  window.removeEventListener('popstate', popstate);
+});
 const empty = (): ReportPayload => ({
   title: '',
   category: '',
@@ -118,8 +180,8 @@ const active = computed(() =>
 const needsReply = computed(() =>
   reports.value.filter((r) => r.clarification && !r.clarification.response),
 );
-const internal = computed(() => user.value && user.value.role !== 'REPORTER');
 const date = formatDateTime;
+const internal = computed(() => user.value && user.value.role !== 'REPORTER');
 const initials = computed(() =>
   (user.value?.name || 'Tamu')
     .split(' ')
@@ -164,20 +226,34 @@ watch(
   () => {
     selected.value = null;
     Object.assign(form, empty());
-    navigate('dashboard');
+    if (sessionReady.value) {
+      if (user.value) navigate('dashboard', true);
+      else void openPublic('', true);
+    }
   },
 );
-function navigate(p: string) {
+function navigate(p: string, replace = false) {
+  if (!user.value) {
+    if (['guide', 'privacy', 'help'].includes(p)) void openPublic(p, replace);
+    else openAuth('login', replace);
+    return;
+  }
   if (internal.value && ['create', 'guide', 'privacy', 'help'].includes(p)) p = 'dashboard';
   if (user.value?.role === 'ADMIN' && ['reports', 'detail'].includes(p)) p = 'dashboard';
   page.value = p;
   mobile.value = false;
   error.value = '';
   notice.value = '';
+  setPath(
+    (p === 'detail' || p === 'create') && selected.value
+      ? `/reports/${selected.value.id}`
+      : (routePaths[p] ?? '/dashboard'),
+    replace,
+  );
 }
 function newReport() {
   if (!user.value) {
-    auth.value = 'login';
+    openAuth();
     return;
   }
   if (user.value.role !== 'REPORTER') return;
@@ -189,17 +265,24 @@ function newReport() {
 }
 async function login() {
   await run(async () => {
-    user.value = await api<User>('/auth/login', { method: 'POST', body: credentials });
+    user.value = await api<User>('/auth/login', {
+      method: 'POST',
+      body: credentials,
+    });
     credentials.password = '';
     auth.value = '';
     await load();
+    navigate('dashboard', true);
   });
 }
 async function register() {
   await run(async () => {
-    const result = await api('/auth/register', { method: 'POST', body: credentials });
+    const result = await api('/auth/register', {
+      method: 'POST',
+      body: credentials,
+    });
     notice.value = result.message;
-    auth.value = 'login';
+    openAuth('login', true);
     credentials.password = '';
   });
 }
@@ -211,7 +294,7 @@ async function logout() {
     selected.value = null;
     Object.assign(form, empty());
     notifications.value = [];
-    navigate('dashboard');
+    await openPublic('', true);
   });
 }
 async function saveDraft() {
@@ -259,6 +342,7 @@ async function submit() {
       headers: { 'Idempotency-Key': `submit-${selected.value!.id}-${selected.value!.version}` },
       body: {
         action: 'SUBMIT',
+
         expectedVersion: selected.value!.version,
         reason: 'Laporan dikirim oleh pelapor.',
       },
@@ -317,512 +401,659 @@ async function toggleNotifications() {
 }
 onMounted(async () => {
   window.addEventListener('keydown', keydown);
-  const reset = new URLSearchParams(window.location.search).get('reset');
-  if (reset) {
-    resetToken.value = reset;
-    auth.value = 'reset';
-    history.replaceState({}, '', window.location.pathname);
-  }
-  const verify = new URLSearchParams(window.location.search).get('verify');
-  if (verify) {
-    await run(async () => {
-      const r = await api('/auth/verify', { method: 'POST', body: { token: verify } });
-      notice.value = r.message;
-      auth.value = 'login';
-      history.replaceState({}, '', window.location.pathname);
-    });
-  }
+  window.addEventListener('popstate', popstate);
+  const query = new URLSearchParams(window.location.search);
+  const reset = query.get('reset'),
+    verify = query.get('verify');
+  if (reset || verify) setPath('/login', true);
   try {
     user.value = await api<User>('/me');
     await load();
   } catch (e: any) {
     if (e?.statusCode !== 401) error.value = message(e);
   }
+  sessionReady.value = true;
+  await applyPath();
+  if (reset) {
+    resetToken.value = reset;
+    auth.value = 'reset';
+  }
+  if (verify)
+    await run(async () => {
+      const r = await api('/auth/verify', { method: 'POST', body: { token: verify } });
+      notice.value = r.message;
+    });
 });
 </script>
 
 <template>
-  <div class="shell">
-    <div v-if="mobile" class="backdrop" @click="mobile = false"></div>
-    <aside class="sidebar" :class="{ open: mobile }">
-      <a href="#" class="brand" @click.prevent="navigate('dashboard')"
-        ><span class="brand-icon"><ShieldCheck :size="28" /></span
-        ><span>WBS<span class="brand-sub">UNIVERSITAS JEMBER</span></span></a
-      >
-      <button class="sidebar-close icon-button" aria-label="Tutup navigasi" @click="mobile = false">
-        <X />
-      </button>
-      <div class="workspace-label">PORTAL {{ internal ? 'INTERNAL' : 'PELAPOR' }}</div>
-      <nav aria-label="Menu utama">
-        <button :class="{ active: page === 'dashboard' }" @click="navigate('dashboard')">
-          <LayoutDashboard :size="19" />Dashboard
-        </button>
-        <button
-          v-if="user?.role !== 'ADMIN'"
-          :class="{ active: ['reports', 'detail', 'create'].includes(page) }"
-          @click="navigate('reports')"
+  <div :class="user ? 'shell' : 'public-shell'">
+    <div v-if="!sessionReady" class="session-loading" role="status">
+      <LoaderCircle class="spin" :size="25" />
+      <p>Memuat portal WBS…</p>
+    </div>
+    <PublicLanding
+      v-else-if="!user"
+      :auth-page="publicAuthPage"
+      @login="openAuth()"
+      @report="openAuth()"
+      @home="openPublic()"
+      @section="openPublic"
+    >
+      <template #auth
+        ><PublicAuthForm
+          :mode="auth === 'register' ? 'register' : 'login'"
+          :credentials="credentials"
+          :busy="busy"
+          :error="error"
+          :notice="notice"
+          @submit="auth === 'register' ? register() : login()"
+          @mode="openAuth"
+          @recovery="
+            auth = 'recovery';
+            error = '';
+          "
+      /></template>
+    </PublicLanding>
+    <template v-else>
+      <div v-if="mobile" class="backdrop" @click="mobile = false"></div>
+      <aside class="sidebar" :class="{ open: mobile }">
+        <a href="#" class="brand" @click.prevent="navigate('dashboard')"
+          ><span class="brand-icon"><ShieldCheck :size="28" /></span
+          ><span>WBS<span class="brand-sub">UNIVERSITAS JEMBER</span></span></a
         >
-          <Files :size="19" />{{ internal ? 'Antrean perkara' : 'Laporan saya'
-          }}<span v-if="user" class="count">{{ reports.length }}</span>
+        <button
+          class="sidebar-close icon-button"
+          aria-label="Tutup navigasi"
+          @click="mobile = false"
+        >
+          <X />
         </button>
-        <button v-if="!internal" :class="{ active: page === 'guide' }" @click="navigate('guide')">
-          <BookOpen :size="19" />Panduan pelaporan<ArrowUpRight class="nav-arrow" :size="15" />
-        </button>
-      </nav>
-      <div class="sidebar-bottom">
-        <div v-if="!internal" class="private-note">
-          <div class="private-note-icon"><LockKeyhole :size="19" /></div>
-          <strong>Ruang aman untuk bersuara.</strong>
-          <p>Identitas dan laporan Anda dibatasi untuk pihak yang berwenang.</p>
-          <button @click="navigate('privacy')">
-            Tentang kerahasiaan <ArrowRight :size="14" />
+        <div class="workspace-label">PORTAL {{ internal ? 'INTERNAL' : 'PELAPOR' }}</div>
+        <nav aria-label="Menu utama">
+          <button :class="{ active: page === 'dashboard' }" @click="navigate('dashboard')">
+            <LayoutDashboard :size="19" />Dashboard
           </button>
-        </div>
-        <div v-if="internal" class="private-note">
-          <strong>Akses sesuai kewenangan</strong>
-          <p>
-            Perkara tersedia berdasarkan penugasan aktif. Jaga kerahasiaan informasi dan catat
-            setiap tindakan pada perkara.
-          </p>
-        </div>
-        <button v-if="!internal" class="help-link" @click="navigate('help')">
-          <HelpCircle :size="18" />Pusat bantuan<ArrowUpRight :size="15" />
-        </button>
-        <div class="institution">
-          <span class="uni-mark">U</span
-          ><span>Universitas Jember<small>Integritas untuk masa depan.</small></span>
-        </div>
-      </div>
-    </aside>
-    <div class="main-wrapper">
-      <header class="topbar">
-        <div class="breadcrumb">
           <button
-            class="mobile-toggle icon-button"
-            aria-label="Buka navigasi"
-            @click="mobile = true"
+            v-if="user?.role !== 'ADMIN'"
+            :class="{ active: ['reports', 'detail', 'create'].includes(page) }"
+            @click="navigate('reports')"
           >
-            <Menu /></button
-          ><span>Portal {{ internal ? 'internal' : 'pelapor' }}</span
-          ><ChevronRight :size="14" /><strong>{{
-            page === 'dashboard'
-              ? 'Dashboard'
-              : page === 'create'
-                ? 'Buat laporan'
-                : page === 'detail'
-                  ? 'Detail laporan'
-                  : page === 'reports'
-                    ? internal
-                      ? 'Antrean perkara'
-                      : 'Laporan saya'
-                    : page === 'guide'
-                      ? 'Panduan'
-                      : page === 'privacy'
-                        ? 'Kerahasiaan'
-                        : 'Bantuan'
-          }}</strong>
-        </div>
-        <div class="header-right">
-          <span class="secure-label"><span></span>Koneksi privat</span
-          ><button
-            class="icon-button notification-button"
-            :aria-label="unreadCount ? `Notifikasi, ${unreadCount} pembaruan baru` : 'Notifikasi'"
-            :aria-expanded="showNotifications"
-            @click="toggleNotifications"
-          >
-            <Bell :size="20" /><span v-if="unreadCount" class="notification-count">{{
-              unreadCount > 99 ? '99+' : unreadCount
-            }}</span></button
-          ><span class="header-divider"></span
-          ><template v-if="user"
-            ><span class="avatar">{{ initials }}</span
-            ><span class="profile-name"
-              >{{ user.name
-              }}<small>{{ internal ? 'Petugas internal' : 'Pelapor terdaftar' }}</small></span
-            ><button class="icon-button" aria-label="Keluar" @click="logout">
-              <LogOut :size="17" /></button></template
-          ><button v-else class="button small" @click="auth = 'login'">
-            Masuk <ArrowRight :size="15" />
+            <Files :size="19" />{{ internal ? 'Antrean perkara' : 'Laporan saya'
+            }}<span v-if="user" class="count">{{ reports.length }}</span>
           </button>
-        </div>
-        <div v-if="showNotifications" class="notification-panel">
-          <strong>Notifikasi</strong>
-          <small class="notification-connection">{{
-            connectionStatus === 'connected'
-              ? 'Pembaruan langsung aktif'
-              : connectionStatus === 'connecting'
-                ? 'Menghubungkan pembaruan langsung…'
-                : 'Koneksi langsung terputus. Daftar tetap dapat dibuka.'
-          }}</small>
-          <p v-if="!notifications.length">Belum ada pemberitahuan baru.</p>
-          <p v-for="n in notifications" :key="n.id">
-            <strong>{{ n.title || 'Pembaruan laporan WBS' }}</strong>
-            <small v-if="n.subject">{{ n.subject }}</small>
-            <span>{{ n.message }}</span
-            ><small>{{ date(n.created_at) }}</small>
-          </p>
-          <button
-            v-if="user && user.role !== 'ADMIN'"
-            class="text-button"
-            @click="
-              showNotifications = false;
-              navigate('reports');
-            "
-          >
-            {{ internal ? 'Lihat perkara' : 'Lihat laporan' }}<ArrowRight :size="14" />
+          <button v-if="!internal" :class="{ active: page === 'guide' }" @click="navigate('guide')">
+            <BookOpen :size="19" />Panduan pelaporan<ArrowUpRight class="nav-arrow" :size="15" />
           </button>
-        </div>
-        <span class="sr-only" role="status" aria-live="polite">{{ announcement }}</span>
-      </header>
-      <main id="main-content" :class="{ 'detail-page': page === 'detail' }">
-        <div v-if="error" class="alert error" role="alert">
-          <AlertCircle :size="19" /><span>{{ error }}</span
-          ><button class="icon-button" aria-label="Tutup pesan" @click="error = ''">
-            <X :size="16" />
-          </button>
-        </div>
-        <div v-if="notice" class="alert success" role="status">
-          <CheckCircle2 :size="19" /><span>{{ notice }}</span>
-        </div>
-        <InternalDashboard
-          v-if="internal && user && page === 'dashboard'"
-          :user="user"
-          :reports="reports"
-          :loading="loading"
-          @open="openReport"
-          @queue="navigate('reports')"
-        />
-        <template v-else-if="page === 'dashboard'">
-          <div class="page-heading">
-            <div>
-              <div class="eyebrow">WHISTLEBLOWING SYSTEM</div>
-              <h1>
-                {{ user ? `Selamat datang, ${user.name.split(' ')[0]}.` : 'Suara Anda berarti.' }}
-              </h1>
-              <p>Sampaikan kepedulian Anda. Bersama, jaga integritas Universitas Jember.</p>
-            </div>
-            <span class="today">{{ date(new Date().toISOString()) }}</span>
+        </nav>
+        <div class="sidebar-bottom">
+          <div v-if="!internal" class="private-note">
+            <div class="private-note-icon"><LockKeyhole :size="19" /></div>
+            <strong>Ruang aman untuk bersuara.</strong>
+            <p>Identitas dan laporan Anda dibatasi untuk pihak yang berwenang.</p>
+            <button @click="navigate('privacy')">
+              Tentang kerahasiaan <ArrowRight :size="14" />
+            </button>
           </div>
-          <section class="hero">
-            <div class="hero-content">
-              <span class="hero-tag"><span></span>BERANI JUJUR, BERSAMA MENJAGA</span>
-              <h2>Lingkungan berintegritas<br />dimulai dari suara Anda.</h2>
-              <p>
-                Laporkan dugaan pelanggaran dengan aman dan bertanggung jawab. Setiap laporan adalah
-                langkah menuju perubahan.
-              </p>
-              <div class="hero-actions">
-                <button class="button white" @click="newReport">
-                  <Plus :size="18" />Buat laporan<ArrowUpRight :size="17" /></button
-                ><button class="text-button light" @click="navigate('guide')">
-                  Pelajari alur pelaporan<ArrowRight :size="16" />
-                </button>
-              </div>
-              <div class="hero-foot">
-                <ShieldCheck :size="15" />Akses terbatas<span>·</span
-                ><LockKeyhole :size="14" />Identitas terlindungi
-              </div>
-            </div>
-            <div class="hero-art" aria-hidden="true">
-              <div class="orbit orbit-one"></div>
-              <div class="orbit orbit-two"></div>
-              <div class="art-dot dot-one"></div>
-              <div class="art-dot dot-two"></div>
-              <div class="glass-card back-card"><span></span><span></span><span></span></div>
-              <div class="shield-art"><ShieldCheck :size="102" :stroke-width="1.1" /></div>
-              <div class="trust-chip">
-                <span><Check :size="14" /></span>Ruang aman untuk melapor
-              </div>
-            </div>
-          </section>
-          <div class="stats-grid">
-            <article class="stat">
-              <div><span>Total laporan</span><Files :size="19" /></div>
-              <strong>{{ reports.length.toString().padStart(2, '0') }}</strong
-              ><small>Seluruh laporan Anda</small>
-            </article>
-            <article class="stat">
-              <div><span>Sedang diproses</span><Clock :size="19" /></div>
-              <strong>{{ active.length.toString().padStart(2, '0') }}</strong
-              ><small><i class="mini-dot green"></i>Dalam penanganan</small>
-            </article>
-            <article class="stat">
-              <div><span>Perlu tanggapan</span><MessageSquare :size="19" /></div>
-              <strong>{{ needsReply.length.toString().padStart(2, '0') }}</strong
-              ><small><i class="mini-dot amber"></i>Permintaan klarifikasi</small>
-            </article>
-            <article class="stat">
-              <div><span>Laporan selesai</span><CheckCircle2 :size="19" /></div>
-              <strong>{{
-                reports
-                  .filter((r) => ['COMPLETED', 'CLOSED'].includes(r.stage))
-                  .length.toString()
-                  .padStart(2, '0')
-              }}</strong
-              ><small>Penanganan telah berakhir</small>
-            </article>
+          <div v-if="internal" class="private-note">
+            <strong>Akses sesuai kewenangan</strong>
+            <p>
+              Perkara tersedia berdasarkan penugasan aktif. Jaga kerahasiaan informasi dan catat
+              setiap tindakan pada perkara.
+            </p>
           </div>
-          <div class="dashboard-columns">
-            <section class="panel reports-panel">
-              <div class="panel-title">
-                <div>
-                  <h3>
-                    Laporan terbaru <span class="subtle-count">{{ reports.length }}</span>
-                  </h3>
-                  <p>Pantau perkembangan laporan yang Anda sampaikan.</p>
+          <button v-if="!internal" class="help-link" @click="navigate('help')">
+            <HelpCircle :size="18" />Pusat bantuan<ArrowUpRight :size="15" />
+          </button>
+          <div class="institution">
+            <span class="uni-mark">U</span
+            ><span>Universitas Jember<small>Integritas untuk masa depan.</small></span>
+          </div>
+        </div>
+      </aside>
+      <div class="main-wrapper">
+        <header class="topbar">
+          <div class="breadcrumb">
+            <button
+              class="mobile-toggle icon-button"
+              aria-label="Buka navigasi"
+              @click="mobile = true"
+            >
+              <Menu /></button
+            ><span>Portal {{ internal ? 'internal' : 'pelapor' }}</span
+            ><ChevronRight :size="14" /><strong>{{
+              page === 'dashboard'
+                ? 'Dashboard'
+                : page === 'create'
+                  ? 'Buat laporan'
+                  : page === 'detail'
+                    ? 'Detail laporan'
+                    : page === 'reports'
+                      ? internal
+                        ? 'Antrean perkara'
+                        : 'Laporan saya'
+                      : page === 'guide'
+                        ? 'Panduan'
+                        : page === 'privacy'
+                          ? 'Kerahasiaan'
+                          : 'Bantuan'
+            }}</strong>
+          </div>
+          <div class="header-right">
+            <span class="secure-label"><span></span>Koneksi privat</span
+            ><button
+              class="icon-button notification-button"
+              :aria-label="unreadCount ? `Notifikasi, ${unreadCount} pembaruan baru` : 'Notifikasi'"
+              :aria-expanded="showNotifications"
+              @click="toggleNotifications"
+            >
+              <Bell :size="20" /><span v-if="unreadCount" class="notification-count">{{
+                unreadCount > 99 ? '99+' : unreadCount
+              }}</span></button
+            ><span class="header-divider"></span
+            ><template v-if="user"
+              ><span class="avatar">{{ initials }}</span
+              ><span class="profile-name"
+                >{{ user.name
+                }}<small>{{ internal ? 'Petugas internal' : 'Pelapor terdaftar' }}</small></span
+              ><button class="icon-button" aria-label="Keluar" @click="logout">
+                <LogOut :size="17" /></button></template
+            ><button v-else class="button small" @click="auth = 'login'">
+              Masuk <ArrowRight :size="15" />
+            </button>
+          </div>
+          <div v-if="showNotifications" class="notification-panel">
+            <strong>Notifikasi</strong>
+            <small class="notification-connection">{{
+              connectionStatus === 'connected'
+                ? 'Pembaruan langsung aktif'
+                : connectionStatus === 'connecting'
+                  ? 'Menghubungkan pembaruan langsung…'
+                  : 'Koneksi langsung terputus. Daftar tetap dapat dibuka.'
+            }}</small>
+            <p v-if="!notifications.length">Belum ada pemberitahuan baru.</p>
+            <p v-for="n in notifications" :key="n.id">
+              <strong>{{ n.title || 'Pembaruan laporan WBS' }}</strong>
+              <small v-if="n.subject">{{ n.subject }}</small>
+              <span>{{ n.message }}</span
+              ><small>{{ date(n.created_at) }}</small>
+            </p>
+            <button
+              v-if="user && user.role !== 'ADMIN'"
+              class="text-button"
+              @click="
+                showNotifications = false;
+                navigate('reports');
+              "
+            >
+              {{ internal ? 'Lihat perkara' : 'Lihat laporan' }}<ArrowRight :size="14" />
+            </button>
+          </div>
+          <span class="sr-only" role="status" aria-live="polite">{{ announcement }}</span>
+        </header>
+        <main id="main-content" :class="{ 'detail-page': page === 'detail' }">
+          <div v-if="error" class="alert error" role="alert">
+            <AlertCircle :size="19" /><span>{{ error }}</span
+            ><button class="icon-button" aria-label="Tutup pesan" @click="error = ''">
+              <X :size="16" />
+            </button>
+          </div>
+          <div v-if="notice" class="alert success" role="status">
+            <CheckCircle2 :size="19" /><span>{{ notice }}</span>
+          </div>
+          <InternalDashboard
+            v-if="internal && user && page === 'dashboard'"
+            :user="user"
+            :reports="reports"
+            :loading="loading"
+            @open="openReport"
+            @queue="navigate('reports')"
+          />
+          <template v-else-if="page === 'dashboard'">
+            <div class="page-heading">
+              <div>
+                <div class="eyebrow">WHISTLEBLOWING SYSTEM</div>
+                <h1>
+                  {{ user ? `Selamat datang, ${user.name.split(' ')[0]}.` : 'Suara Anda berarti.' }}
+                </h1>
+                <p>Sampaikan kepedulian Anda. Bersama, jaga integritas Universitas Jember.</p>
+              </div>
+              <span class="today">{{ date(new Date().toISOString()) }}</span>
+            </div>
+            <section class="hero">
+              <div class="hero-content">
+                <span class="hero-tag"><span></span>BERANI JUJUR, BERSAMA MENJAGA</span>
+                <h2>Lingkungan berintegritas<br />dimulai dari suara Anda.</h2>
+                <p>
+                  Laporkan dugaan pelanggaran dengan aman dan bertanggung jawab. Setiap laporan
+                  adalah langkah menuju perubahan.
+                </p>
+                <div class="hero-actions">
+                  <button class="button white" @click="newReport">
+                    <Plus :size="18" />Buat laporan<ArrowUpRight :size="17" /></button
+                  ><button class="text-button light" @click="navigate('guide')">
+                    Pelajari alur pelaporan<ArrowRight :size="16" />
+                  </button>
                 </div>
-                <button class="text-button" @click="navigate('reports')">
-                  Lihat semua<ArrowRight :size="15" />
-                </button>
+                <div class="hero-foot">
+                  <ShieldCheck :size="15" />Akses terbatas<span>·</span
+                  ><LockKeyhole :size="14" />Identitas terlindungi
+                </div>
               </div>
-              <div v-if="loading" class="empty">
-                <LoaderCircle class="spin" />
-                <p>Memuat laporan…</p>
+              <div class="hero-art" aria-hidden="true">
+                <div class="orbit orbit-one"></div>
+                <div class="orbit orbit-two"></div>
+                <div class="art-dot dot-one"></div>
+                <div class="art-dot dot-two"></div>
+                <div class="glass-card back-card"><span></span><span></span><span></span></div>
+                <div class="shield-art"><ShieldCheck :size="102" :stroke-width="1.1" /></div>
+                <div class="trust-chip">
+                  <span><Check :size="14" /></span>Ruang aman untuk melapor
+                </div>
               </div>
-              <template v-else-if="reports.length"
-                ><button
-                  v-for="r in reports.slice(0, 4)"
-                  :key="r.id"
-                  class="report-row"
-                  @click="openReport(r)"
+            </section>
+            <div class="stats-grid">
+              <article class="stat">
+                <div><span>Total laporan</span><Files :size="19" /></div>
+                <strong>{{ reports.length.toString().padStart(2, '0') }}</strong
+                ><small>Seluruh laporan Anda</small>
+              </article>
+              <article class="stat">
+                <div><span>Sedang diproses</span><Clock :size="19" /></div>
+                <strong>{{ active.length.toString().padStart(2, '0') }}</strong
+                ><small><i class="mini-dot green"></i>Dalam penanganan</small>
+              </article>
+              <article class="stat">
+                <div><span>Perlu tanggapan</span><MessageSquare :size="19" /></div>
+                <strong>{{ needsReply.length.toString().padStart(2, '0') }}</strong
+                ><small><i class="mini-dot amber"></i>Permintaan klarifikasi</small>
+              </article>
+              <article class="stat">
+                <div><span>Laporan selesai</span><CheckCircle2 :size="19" /></div>
+                <strong>{{
+                  reports
+                    .filter((r) => ['COMPLETED', 'CLOSED'].includes(r.stage))
+                    .length.toString()
+                    .padStart(2, '0')
+                }}</strong
+                ><small>Penanganan telah berakhir</small>
+              </article>
+            </div>
+            <div class="dashboard-columns">
+              <section class="panel reports-panel">
+                <div class="panel-title">
+                  <div>
+                    <h3>
+                      Laporan terbaru <span class="subtle-count">{{ reports.length }}</span>
+                    </h3>
+                    <p>Pantau perkembangan laporan yang Anda sampaikan.</p>
+                  </div>
+                  <button class="text-button" @click="navigate('reports')">
+                    Lihat semua<ArrowRight :size="15" />
+                  </button>
+                </div>
+                <div v-if="loading" class="empty">
+                  <LoaderCircle class="spin" />
+                  <p>Memuat laporan…</p>
+                </div>
+                <template v-else-if="reports.length"
+                  ><button
+                    v-for="r in reports.slice(0, 4)"
+                    :key="r.id"
+                    class="report-row"
+                    @click="openReport(r)"
+                  >
+                    <span class="report-icon"><FileText :size="20" /></span
+                    ><span class="report-copy"
+                      ><strong>{{ r.payload.title || 'Draf tanpa judul' }}</strong
+                      ><small
+                        >{{ r.number || 'Draf privat' }}<span>·</span>{{ date(r.updatedAt) }}</small
+                      ></span
+                    ><span class="badge" :class="r.stage.toLowerCase()">{{
+                      stageLabels[r.stage]
+                    }}</span
+                    ><ChevronRight :size="17" /></button
+                ></template>
+                <div v-else class="empty">
+                  <span class="empty-icon"><Files :size="29" :stroke-width="1.4" /></span>
+                  <h4>{{ user ? 'Belum ada laporan' : 'Laporan Anda, dalam satu tempat' }}</h4>
+                  <p>
+                    {{
+                      user
+                        ? 'Laporan yang Anda buat akan tampil di sini.'
+                        : 'Masuk untuk membuat laporan dan memantau perkembangannya.'
+                    }}
+                  </p>
+                  <button class="text-button" @click="user ? newReport() : (auth = 'login')">
+                    {{ user ? 'Buat laporan pertama' : 'Masuk ke akun' }}<ArrowRight :size="16" />
+                  </button>
+                </div>
+                <div class="panel-footer">
+                  <LockKeyhole :size="13" />{{
+                    internal
+                      ? 'Hanya perkara dengan akses aktif yang ditampilkan.'
+                      : 'Hanya Anda dan pihak berwenang yang dapat mengakses laporan.'
+                  }}
+                </div>
+              </section>
+              <section class="panel how-panel">
+                <span class="eyebrow">MUDAH & TERARAH</span>
+                <h3>Bagaimana alurnya?</h3>
+                <div
+                  v-for="(item, i) in [
+                    ['Sampaikan laporan', 'Ceritakan kejadian dan sumber bukti.'],
+                    ['Verifikasi & pemeriksaan', 'Petugas menelaah dan menindaklanjuti.'],
+                    ['Pantau perkembangannya', 'Lihat status dan jawab klarifikasi.'],
+                  ]"
+                  :key="i"
+                  class="how-step"
                 >
-                  <span class="report-icon"><FileText :size="20" /></span
-                  ><span class="report-copy"
-                    ><strong>{{ r.payload.title || 'Draf tanpa judul' }}</strong
-                    ><small
-                      >{{ r.number || 'Draf privat' }}<span>·</span>{{ date(r.updatedAt) }}</small
-                    ></span
-                  ><span class="badge" :class="r.stage.toLowerCase()">{{
-                    stageLabels[r.stage]
-                  }}</span
-                  ><ChevronRight :size="17" /></button
-              ></template>
-              <div v-else class="empty">
-                <span class="empty-icon"><Files :size="29" :stroke-width="1.4" /></span>
-                <h4>{{ user ? 'Belum ada laporan' : 'Laporan Anda, dalam satu tempat' }}</h4>
+                  <span>{{ i + 1 }}</span>
+                  <div>
+                    <strong>{{ item[0] }}</strong>
+                    <p>{{ item[1] }}</p>
+                  </div>
+                </div>
+                <button class="text-button" @click="navigate('guide')">
+                  Lihat panduan lengkap<ArrowUpRight :size="15" />
+                </button>
+              </section>
+            </div>
+            <div class="support-strip">
+              <span class="support-icon"><HelpCircle :size="24" :stroke-width="1.5" /></span>
+              <div>
+                <strong>Masih ragu atau membutuhkan panduan?</strong>
+                <p>Kenali jenis pelanggaran, cara melapor, dan perlindungan identitas Anda.</p>
+              </div>
+              <button class="button secondary" @click="navigate('help')">
+                Pusat bantuan<ArrowUpRight :size="16" />
+              </button>
+            </div>
+          </template>
+          <template v-else-if="page === 'reports'"
+            ><div class="page-heading">
+              <div>
+                <div class="eyebrow">{{ internal ? 'PENANGANAN PERKARA' : 'RUANG PELAPORAN' }}</div>
+                <h1>{{ internal ? 'Antrean perkara' : 'Laporan saya' }}</h1>
                 <p>
                   {{
-                    user
-                      ? 'Laporan yang Anda buat akan tampil di sini.'
-                      : 'Masuk untuk membuat laporan dan memantau perkembangannya.'
+                    internal
+                      ? 'Perkara dalam lingkup penugasan dan kewenangan Anda.'
+                      : 'Laporan dan draf privat yang dapat Anda akses.'
                   }}
                 </p>
-                <button class="text-button" @click="user ? newReport() : (auth = 'login')">
-                  {{ user ? 'Buat laporan pertama' : 'Masuk ke akun' }}<ArrowRight :size="16" />
+              </div>
+              <button v-if="!internal" class="button" @click="newReport">
+                <Plus :size="18" />Buat laporan
+              </button>
+            </div>
+            <ReportList
+              v-if="user"
+              :key="user.id"
+              :user="user"
+              :categories="categories"
+              @open="openReport"
+            />
+            <div v-else class="panel empty">
+              <LockKeyhole />
+              <h4>Masuk untuk melihat laporan</h4>
+              <button class="button" @click="auth = 'login'">Masuk ke akun</button>
+            </div></template
+          >
+          <template v-else-if="page === 'create' && user?.role === 'REPORTER'"
+            ><div class="page-heading">
+              <div>
+                <button class="back-link" @click="navigate('reports')">
+                  <ChevronLeft :size="16" />Kembali ke laporan
                 </button>
+                <h1>Sampaikan laporan Anda.</h1>
+                <p>Isi dengan jelas dan sesuai fakta yang Anda ketahui.</p>
               </div>
-              <div class="panel-footer">
-                <LockKeyhole :size="13" />{{
-                  internal
-                    ? 'Hanya perkara dengan akses aktif yang ditampilkan.'
-                    : 'Hanya Anda dan pihak berwenang yang dapat mengakses laporan.'
-                }}
-              </div>
-            </section>
-            <section class="panel how-panel">
-              <span class="eyebrow">MUDAH & TERARAH</span>
-              <h3>Bagaimana alurnya?</h3>
-              <div
-                v-for="(item, i) in [
-                  ['Sampaikan laporan', 'Ceritakan kejadian dan sumber bukti.'],
-                  ['Verifikasi & pemeriksaan', 'Petugas menelaah dan menindaklanjuti.'],
-                  ['Pantau perkembangannya', 'Lihat status dan jawab klarifikasi.'],
-                ]"
-                :key="i"
-                class="how-step"
-              >
-                <span>{{ i + 1 }}</span>
-                <div>
-                  <strong>{{ item[0] }}</strong>
-                  <p>{{ item[1] }}</p>
-                </div>
-              </div>
-              <button class="text-button" @click="navigate('guide')">
-                Lihat panduan lengkap<ArrowUpRight :size="15" />
-              </button>
-            </section>
-          </div>
-          <div class="support-strip">
-            <span class="support-icon"><HelpCircle :size="24" :stroke-width="1.5" /></span>
-            <div>
-              <strong>Masih ragu atau membutuhkan panduan?</strong>
-              <p>Kenali jenis pelanggaran, cara melapor, dan perlindungan identitas Anda.</p>
+              <span class="badge draft"><LockKeyhole :size="13" />Draf privat</span>
             </div>
-            <button class="button secondary" @click="navigate('help')">
-              Pusat bantuan<ArrowUpRight :size="16" />
-            </button>
-          </div>
-        </template>
-        <template v-else-if="page === 'reports'"
-          ><div class="page-heading">
-            <div>
-              <div class="eyebrow">{{ internal ? 'PENANGANAN PERKARA' : 'RUANG PELAPORAN' }}</div>
-              <h1>{{ internal ? 'Antrean perkara' : 'Laporan saya' }}</h1>
-              <p>
-                {{
-                  internal
-                    ? 'Perkara dalam lingkup penugasan dan kewenangan Anda.'
-                    : 'Laporan dan draf privat yang dapat Anda akses.'
-                }}
-              </p>
-            </div>
-            <button v-if="!internal" class="button" @click="newReport">
-              <Plus :size="18" />Buat laporan
-            </button>
-          </div>
-          <ReportList
-            v-if="user"
-            :key="user.id"
-            :user="user"
-            :categories="categories"
-            @open="openReport"
-          />
-          <div v-else class="panel empty">
-            <LockKeyhole />
-            <h4>Masuk untuk melihat laporan</h4>
-            <button class="button" @click="auth = 'login'">Masuk ke akun</button>
-          </div></template
-        >
-        <template v-else-if="page === 'create' && user?.role === 'REPORTER'"
-          ><div class="page-heading">
-            <div>
-              <button class="back-link" @click="navigate('reports')">
-                <ChevronLeft :size="16" />Kembali ke laporan
-              </button>
-              <h1>Sampaikan laporan Anda.</h1>
-              <p>Isi dengan jelas dan sesuai fakta yang Anda ketahui.</p>
-            </div>
-            <span class="badge draft"><LockKeyhole :size="13" />Draf privat</span>
-          </div>
-          <div class="form-layout">
-            <section class="panel form-panel">
-              <div class="steps">
-                <div v-for="(s, i) in steps" :class="{ current: step === i, done: step > i }">
-                  <span
-                    ><Check v-if="step > i" :size="15" /><template v-else>{{
-                      i + 1
-                    }}</template></span
-                  ><small>{{ s }}</small>
-                </div>
-              </div>
-              <div class="form-content">
-                <span class="eyebrow">LANGKAH {{ step + 1 }} DARI 4</span>
-                <h2>{{ steps[step] }}</h2>
-                <p class="form-intro">
-                  {{
-                    [
-                      'Mulai dengan gambaran umum kejadian yang ingin dilaporkan.',
-                      'Ceritakan apa yang terjadi. Hindari dugaan yang tidak berdasar.',
-                      'Jelaskan sumber bukti dan pilih kerahasiaan laporan.',
-                      'Periksa kembali seluruh informasi sebelum mengirim.',
-                    ][step]
-                  }}
-                </p>
-                <div v-if="step === 0" class="fields">
-                  <label
-                    >Judul laporan <span>*</span
-                    ><input
-                      v-model="form.title"
-                      maxlength="200"
-                      placeholder="Ringkasan singkat dugaan pelanggaran" /></label
-                  ><label
-                    >Kategori pelanggaran <span>*</span
-                    ><select v-model="form.category">
-                      <option disabled value="">Pilih kategori</option>
-                      <option v-for="c in categories">{{ c }}</option>
-                    </select></label
-                  >
-                  <div class="two-fields">
-                    <label
-                      >Tanggal kejadian <span>*</span
-                      ><input v-model="form.when" type="date" /></label
-                    ><label
-                      >Lokasi kejadian <span>*</span
-                      ><input v-model="form.where" placeholder="Unit, gedung, atau lokasi"
-                    /></label>
+            <div class="form-layout">
+              <section class="panel form-panel">
+                <div class="steps">
+                  <div v-for="(s, i) in steps" :class="{ current: step === i, done: step > i }">
+                    <span
+                      ><Check v-if="step > i" :size="15" /><template v-else>{{
+                        i + 1
+                      }}</template></span
+                    ><small>{{ s }}</small>
                   </div>
                 </div>
-                <div v-if="step === 1" class="fields">
-                  <label
-                    >Apa yang terjadi? <span>*</span
-                    ><textarea
-                      v-model="form.what"
-                      rows="5"
-                      placeholder="Jelaskan bentuk pelanggaran yang Anda ketahui…"
-                    ></textarea></label
-                  ><label
-                    >Siapa yang terlibat? <span>*</span
-                    ><textarea
-                      v-model="form.who"
-                      rows="3"
-                      placeholder="Pihak terkait dan perannya dalam kejadian"
-                    ></textarea></label
-                  ><label
-                    >Mengapa kejadian ini diduga melanggar? <span>*</span
-                    ><textarea
-                      v-model="form.why"
-                      rows="3"
-                      placeholder="Jelaskan dasar laporan Anda"
-                    ></textarea></label
-                  ><label
-                    >Bagaimana kejadiannya? <span>*</span
-                    ><textarea
-                      v-model="form.how"
-                      rows="4"
-                      placeholder="Urutan kejadian dan cara pelanggaran dilakukan"
-                    ></textarea>
-                  </label>
-                </div>
-                <div v-if="step === 2" class="fields">
-                  <div class="info-box">
-                    <ShieldCheck :size="21" />
-                    <div>
-                      <strong>Bukti Anda disimpan secara privat</strong>
-                      <p>
-                        Unggah bukti pendukung atau jelaskan sumber bukti yang tersedia. Berkas
-                        hanya dapat dibuka setelah lolos pemindaian keamanan.
-                      </p>
+                <div class="form-content">
+                  <span class="eyebrow">LANGKAH {{ step + 1 }} DARI 4</span>
+                  <h2>{{ steps[step] }}</h2>
+                  <p class="form-intro">
+                    {{
+                      [
+                        'Mulai dengan gambaran umum kejadian yang ingin dilaporkan.',
+                        'Ceritakan apa yang terjadi. Hindari dugaan yang tidak berdasar.',
+                        'Jelaskan sumber bukti dan pilih kerahasiaan laporan.',
+                        'Periksa kembali seluruh informasi sebelum mengirim.',
+                      ][step]
+                    }}
+                  </p>
+                  <div v-if="step === 0" class="fields">
+                    <label
+                      >Judul laporan <span>*</span
+                      ><input
+                        v-model="form.title"
+                        maxlength="200"
+                        placeholder="Ringkasan singkat dugaan pelanggaran" /></label
+                    ><label
+                      >Kategori pelanggaran <span>*</span
+                      ><select v-model="form.category">
+                        <option disabled value="">Pilih kategori</option>
+                        <option v-for="c in categories">{{ c }}</option>
+                      </select></label
+                    >
+                    <div class="two-fields">
+                      <label
+                        >Tanggal kejadian <span>*</span
+                        ><input v-model="form.when" type="date" /></label
+                      ><label
+                        >Lokasi kejadian <span>*</span
+                        ><input v-model="form.where" placeholder="Unit, gedung, atau lokasi"
+                      /></label>
                     </div>
                   </div>
-                  <EvidencePanel v-if="selected" :report-id="selected.id" />
-                  <div v-else class="info-box">
-                    <p>
-                      Simpan draf terlebih dahulu untuk mengunggah bukti, atau lanjutkan dengan
-                      menjelaskan sumber bukti.
+                  <div v-if="step === 1" class="fields">
+                    <label
+                      >Apa yang terjadi? <span>*</span
+                      ><textarea
+                        v-model="form.what"
+                        rows="5"
+                        placeholder="Jelaskan bentuk pelanggaran yang Anda ketahui…"
+                      ></textarea></label
+                    ><label
+                      >Siapa yang terlibat? <span>*</span
+                      ><textarea
+                        v-model="form.who"
+                        rows="3"
+                        placeholder="Pihak terkait dan perannya dalam kejadian"
+                      ></textarea></label
+                    ><label
+                      >Mengapa kejadian ini diduga melanggar? <span>*</span
+                      ><textarea
+                        v-model="form.why"
+                        rows="3"
+                        placeholder="Jelaskan dasar laporan Anda"
+                      ></textarea></label
+                    ><label
+                      >Bagaimana kejadiannya? <span>*</span
+                      ><textarea
+                        v-model="form.how"
+                        rows="4"
+                        placeholder="Urutan kejadian dan cara pelanggaran dilakukan"
+                      ></textarea>
+                    </label>
+                  </div>
+                  <div v-if="step === 2" class="fields">
+                    <div class="info-box">
+                      <ShieldCheck :size="21" />
+                      <div>
+                        <strong>Bukti Anda disimpan secara privat</strong>
+                        <p>
+                          Unggah bukti pendukung atau jelaskan sumber bukti yang tersedia. Berkas
+                          hanya dapat dibuka setelah lolos pemindaian keamanan.
+                        </p>
+                      </div>
+                    </div>
+                    <EvidencePanel v-if="selected" :report-id="selected.id" />
+                    <div v-else class="info-box">
+                      <p>
+                        Simpan draf terlebih dahulu untuk mengunggah bukti, atau lanjutkan dengan
+                        menjelaskan sumber bukti.
+                      </p>
+                      <button type="button" class="button secondary" :disabled="busy" @click="save">
+                        Simpan draf
+                      </button>
+                    </div>
+                    <label
+                      >Sumber bukti atau alasan belum menyertakan bukti <span>*</span
+                      ><textarea
+                        v-model="form.evidenceReason"
+                        rows="4"
+                        placeholder="Jelaskan bukti yang tersedia, sumbernya, atau alasan belum dapat menyertakannya."
+                      ></textarea>
+                    </label>
+                    <fieldset>
+                      <legend>Kerahasiaan laporan</legend>
+                      <label class="radio-card"
+                        ><input
+                          v-model="form.confidentiality"
+                          type="radio"
+                          value="PROTECTED" /><span
+                          ><strong>Identitas terlindungi</strong
+                          ><small>Identitas tidak ditampilkan dalam ringkasan perkara.</small></span
+                        ><LockKeyhole :size="19" /></label
+                      ><label class="radio-card"
+                        ><input
+                          v-model="form.confidentiality"
+                          type="radio"
+                          value="IDENTIFIED" /><span
+                          ><strong>Bersedia dihubungi</strong
+                          ><small>Kontak tetap terbatas; bukan laporan tanpa akun.</small></span
+                        ><UserRound :size="19"
+                      /></label>
+                    </fieldset>
+                  </div>
+                  <div v-if="step === 3" class="preview">
+                    <div
+                      v-for="(label, key) in {
+                        title: 'Judul',
+                        category: 'Kategori',
+                        when: 'Tanggal',
+                        where: 'Lokasi',
+                        what: 'Kejadian',
+                        who: 'Pihak terkait',
+                        why: 'Dasar laporan',
+                        how: 'Kronologi',
+                        evidenceReason: 'Sumber bukti',
+                      }"
+                      :key="key"
+                    >
+                      <small>{{ label }}</small>
+                      <p>{{ form[key] }}</p>
+                    </div>
+                    <div>
+                      <small>Kerahasiaan</small>
+                      <p>
+                        {{
+                          form.confidentiality === 'PROTECTED'
+                            ? 'Identitas terlindungi'
+                            : 'Bersedia dihubungi'
+                        }}
+                      </p>
+                    </div>
+                    <label class="confirmation"
+                      ><input v-model="confirmed" type="checkbox" /><span
+                        >Saya menyatakan informasi yang disampaikan sesuai pengetahuan saya dan
+                        dibuat dengan itikad baik.</span
+                      ></label
+                    >
+                    <p v-if="!user?.verified" class="warning-text">
+                      Verifikasi email diperlukan sebelum mengirim. Anda tetap dapat menyimpan draf.
                     </p>
-                    <button type="button" class="button secondary" :disabled="busy" @click="save">
-                      Simpan draf
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button class="button secondary" :disabled="busy" @click="save">
+                    <Save :size="16" />Simpan draf
+                  </button>
+                  <div>
+                    <button v-if="step > 0" class="text-button" @click="step--">
+                      <ChevronLeft :size="16" />Kembali</button
+                    ><button v-if="step < 3" class="button" @click="next">
+                      Lanjutkan<ArrowRight :size="16" /></button
+                    ><button
+                      v-else
+                      class="button"
+                      :disabled="busy || !confirmed || !user?.verified"
+                      @click="submit"
+                    >
+                      <Send :size="16" />{{ busy ? 'Mengirim…' : 'Kirim laporan' }}
                     </button>
                   </div>
-                  <label
-                    >Sumber bukti atau alasan belum menyertakan bukti <span>*</span
-                    ><textarea
-                      v-model="form.evidenceReason"
-                      rows="4"
-                      placeholder="Jelaskan bukti yang tersedia, sumbernya, atau alasan belum dapat menyertakannya."
-                    ></textarea>
-                  </label>
-                  <fieldset>
-                    <legend>Kerahasiaan laporan</legend>
-                    <label class="radio-card"
-                      ><input v-model="form.confidentiality" type="radio" value="PROTECTED" /><span
-                        ><strong>Identitas terlindungi</strong
-                        ><small>Identitas tidak ditampilkan dalam ringkasan perkara.</small></span
-                      ><LockKeyhole :size="19" /></label
-                    ><label class="radio-card"
-                      ><input v-model="form.confidentiality" type="radio" value="IDENTIFIED" /><span
-                        ><strong>Bersedia dihubungi</strong
-                        ><small>Kontak tetap terbatas; bukan laporan tanpa akun.</small></span
-                      ><UserRound :size="19"
-                    /></label>
-                  </fieldset>
                 </div>
-                <div v-if="step === 3" class="preview">
+              </section>
+              <aside class="form-aside">
+                <span class="aside-shield"><ShieldCheck :size="28" /></span>
+                <h3>Anda berada di ruang yang aman.</h3>
+                <p>
+                  Draf hanya dapat dibaca oleh Anda. Laporan baru masuk ke proses verifikasi setelah
+                  dikirim.
+                </p>
+                <hr />
+                <strong>Laporan yang baik memuat:</strong>
+                <ul>
+                  <li>Fakta yang Anda ketahui</li>
+                  <li>Waktu dan lokasi yang jelas</li>
+                  <li>Pihak terkait dan kronologi</li>
+                  <li>Bukti atau sumber informasi</li>
+                </ul>
+                <button class="text-button" @click="navigate('guide')">
+                  Baca panduan<ArrowUpRight :size="15" />
+                </button>
+              </aside></div
+          ></template>
+          <template v-else-if="page === 'detail' && selected"
+            ><div class="page-heading">
+              <div>
+                <button class="back-link" @click="navigate('reports')">
+                  <ChevronLeft :size="16" />Kembali ke laporan
+                </button>
+                <div class="eyebrow">{{ selected.number }}</div>
+                <h1>{{ selected.payload.title }}</h1>
+                <p>Dikirim {{ date(selected.createdAt) }} · Versi {{ selected.version }}</p>
+              </div>
+              <span class="badge" :class="selected.stage.toLowerCase()">{{
+                stageLabels[selected.stage]
+              }}</span>
+            </div>
+            <div class="detail-toolbar">
+              <button
+                type="button"
+                class="button secondary"
+                :aria-expanded="showTimeline"
+                aria-controls="report-timeline"
+                @click="showTimeline = !showTimeline"
+              >
+                <Clock :size="17" />{{
+                  showTimeline ? 'Sembunyikan timeline' : 'Tampilkan timeline'
+                }}
+              </button>
+            </div>
+            <div class="detail-layout" :class="{ 'timeline-hidden': !showTimeline }">
+              <section class="panel detail-body">
+                <h3>Informasi laporan</h3>
+                <div class="preview">
                   <div
                     v-for="(label, key) in {
-                      title: 'Judul',
                       category: 'Kategori',
-                      when: 'Tanggal',
+                      when: 'Tanggal kejadian',
                       where: 'Lokasi',
                       what: 'Kejadian',
                       who: 'Pihak terkait',
@@ -830,413 +1061,239 @@ onMounted(async () => {
                       how: 'Kronologi',
                       evidenceReason: 'Sumber bukti',
                     }"
-                    :key="key"
                   >
                     <small>{{ label }}</small>
-                    <p>{{ form[key] }}</p>
+                    <p>{{ selected.payload[key] }}</p>
                   </div>
-                  <div>
-                    <small>Kerahasiaan</small>
+                </div>
+                <div v-if="selected.clarification" class="clarification">
+                  <h3><MessageSquare :size="20" />Permintaan klarifikasi</h3>
+                  <p>{{ selected.clarification.question }}</p>
+                  <template v-if="selected.clarification.response"
+                    ><small>Tanggapan pelapor</small>
+                    <p>{{ selected.clarification.response }}</p></template
+                  ><template v-else-if="!internal"
+                    ><label class="fields"
+                      >Tanggapan Anda<textarea
+                        v-model="response"
+                        rows="4"
+                        placeholder="Tuliskan jawaban dan informasi tambahan…"
+                      ></textarea></label
+                    ><button
+                      class="button"
+                      :disabled="busy || !response.trim()"
+                      @click="command('RESPOND')"
+                    >
+                      Kirim tanggapan<Send :size="16" /></button
+                  ></template>
+                </div>
+                <div v-if="internal" class="internal-actions">
+                  <h3>Tindakan petugas</h3>
+                  <p>Akses dan tahap diperiksa ulang oleh server.</p>
+                  <label class="fields"
+                    >Catatan tindakan<textarea v-model="commandReason" rows="3"></textarea>
+                  </label>
+                  <div class="hero-actions">
+                    <button
+                      v-if="user?.role === 'MANAGER'"
+                      class="button secondary"
+                      :disabled="busy || !commandReason.trim()"
+                      @click="command('CLARIFY')"
+                    >
+                      Minta klarifikasi</button
+                    ><button
+                      v-if="selected.stage === 'SUBMITTED' && user?.role === 'MANAGER'"
+                      class="button"
+                      :disabled="busy || !commandReason.trim()"
+                      @click="command('ADVANCE')"
+                    >
+                      Mulai verifikasi<ArrowRight :size="16" />
+                    </button>
+                  </div>
+                </div>
+                <EvidencePanel
+                  :report-id="selected.id"
+                  @updated="workspace?.refresh()"
+                  :readonly="
+                    ['COMPLETED', 'CLOSED'].includes(selected.stage) ||
+                    selected.lifecycle === 'SUSPENDED'
+                  "
+                /><CaseWorkspace
+                  ref="workspace"
+                  v-if="user"
+                  :report="selected"
+                  :user="user"
+                  @updated="refreshSelected"
+                />
+              </section>
+              <ReportTimeline id="report-timeline" v-show="showTimeline" :report="selected" /></div
+          ></template>
+          <InternalDashboard
+            v-else-if="internal && user"
+            :user="user"
+            :reports="reports"
+            :loading="loading"
+            @open="openReport"
+            @queue="navigate('reports')"
+          />
+          <template v-else
+            ><div class="page-heading">
+              <div>
+                <div class="eyebrow">INFORMASI & DUKUNGAN</div>
+                <h1>
+                  {{
+                    page === 'guide'
+                      ? 'Panduan pelaporan'
+                      : page === 'privacy'
+                        ? 'Kerahasiaan Anda.'
+                        : 'Kami membantu Anda melapor.'
+                  }}
+                </h1>
+                <p>Kenali prosesnya agar Anda dapat melapor dengan lebih yakin.</p>
+              </div>
+            </div>
+            <div class="info-layout">
+              <section class="panel article">
+                <template v-if="page === 'guide'"
+                  ><h2>Setiap laporan dimulai dari fakta.</h2>
+                  <p>
+                    WBS Universitas Jember menerima dugaan pelanggaran yang berkaitan dengan
+                    lingkungan universitas. Sistem ini menggunakan akun terverifikasi.
+                  </p>
+                  <div
+                    v-for="(s, i) in [
+                      [
+                        'Buat dan verifikasi akun',
+                        'Daftarkan email Anda dan buka tautan verifikasi.',
+                      ],
+                      [
+                        'Lengkapi informasi 5W+1H',
+                        'Jelaskan apa, siapa, kapan, di mana, mengapa, dan bagaimana.',
+                      ],
+                      [
+                        'Sertakan sumber bukti',
+                        'Jika belum memiliki lampiran, jelaskan sumber informasi atau alasannya.',
+                      ],
+                      [
+                        'Periksa dan kirim',
+                        'Draf tetap privat sampai Anda mengonfirmasi pengiriman.',
+                      ],
+                      [
+                        'Pantau dan tanggapi',
+                        'Lihat nomor penerimaan, perkembangan, dan jawab klarifikasi melalui portal.',
+                      ],
+                    ]"
+                    class="guide-step"
+                  >
+                    <span>{{ i + 1 }}</span>
+                    <div>
+                      <h3>{{ s[0] }}</h3>
+                      <p>{{ s[1] }}</p>
+                    </div>
+                  </div>
+                  <button class="button" @click="newReport">
+                    Mulai buat laporan<ArrowRight :size="17" /></button></template
+                ><template v-else-if="page === 'privacy'"
+                  ><ShieldCheck :size="36" class="green-text" />
+                  <h2>Identitas dibatasi sesuai kewenangan.</h2>
+                  <p>
+                    Pelaporan menggunakan akun terverifikasi. Draf hanya dapat diakses pemilik.
+                    Setelah dikirim, perkara hanya tersedia bagi petugas dengan akses perkara aktif.
+                  </p>
+                  <h3>Jaga informasi sensitif</h3>
+                  <p>
+                    Hindari menyebarkan nomor laporan, kronologi, dan bukti melalui kanal publik.
+                    Akses khusus identitas dan pengelolaan bukti masih memerlukan penyelesaian
+                    kendali keamanan sebelum penggunaan operasional.
+                  </p>
+                  <h3>Riwayat tetap tercatat</h3>
+                  <p>
+                    Pengiriman dan tanggapan menyimpan versi dan jejak audit. Laporan tidak dihapus
+                    melalui permintaan penarikan biasa.
+                  </p>
+                  <div class="info-box">
+                    <LockKeyhole :size="22" />
                     <p>
-                      {{
-                        form.confidentiality === 'PROTECTED'
-                          ? 'Identitas terlindungi'
-                          : 'Bersedia dihubungi'
-                      }}
+                      Versi pengembangan ini digunakan dengan data sintetis. Kebijakan resmi dan
+                      kesiapan operasional belum ditetapkan.
                     </p>
-                  </div>
-                  <label class="confirmation"
-                    ><input v-model="confirmed" type="checkbox" /><span
-                      >Saya menyatakan informasi yang disampaikan sesuai pengetahuan saya dan dibuat
-                      dengan itikad baik.</span
-                    ></label
+                  </div></template
+                ><template v-else
+                  ><h2>Pertanyaan yang sering diajukan</h2>
+                  <details
+                    v-for="item in [
+                      [
+                        'Apakah saya dapat melapor tanpa akun?',
+                        'Tidak. Anda memerlukan akun dan email terverifikasi untuk mengirim laporan.',
+                      ],
+                      [
+                        'Apakah draf dapat dibaca petugas?',
+                        'Tidak. Draf bersifat privat dan hanya dapat diakses oleh pemilik.',
+                      ],
+                      [
+                        'Bagaimana jika belum memiliki bukti?',
+                        'Jelaskan sumber informasi atau alasan belum menyertakan bukti pada formulir laporan.',
+                      ],
+                      [
+                        'Apakah laporan otomatis ditutup jika saya terlambat menjawab?',
+                        'Tidak. Petugas perlu menelaah informasi yang tersedia sesuai prosedur.',
+                      ],
+                      [
+                        'Bagaimana cara melihat perkembangan laporan?',
+                        'Masuk ke akun, pilih Laporan saya, lalu buka laporan yang ingin dipantau.',
+                      ],
+                    ]"
+                    :key="item[0]"
                   >
-                  <p v-if="!user?.verified" class="warning-text">
-                    Verifikasi email diperlukan sebelum mengirim. Anda tetap dapat menyimpan draf.
-                  </p>
-                </div>
-              </div>
-              <div class="form-actions">
-                <button class="button secondary" :disabled="busy" @click="save">
-                  <Save :size="16" />Simpan draf
+                    <summary>{{ item[0] }}</summary>
+                    <p>{{ item[1] }}</p>
+                  </details>
+                  <div class="info-box">
+                    <HelpCircle :size="22" />
+                    <p>
+                      Kontak resmi pengelola akan ditampilkan setelah ditetapkan oleh Universitas
+                      Jember.
+                    </p>
+                  </div></template
+                >
+              </section>
+              <aside class="form-aside">
+                <BookOpen :size="28" />
+                <h3>Sampaikan dengan itikad baik.</h3>
+                <p>Laporan yang jelas membantu petugas menelaah informasi dengan cermat.</p>
+                <button
+                  class="text-button"
+                  @click="navigate(page === 'privacy' ? 'guide' : 'privacy')"
+                >
+                  {{ page === 'privacy' ? 'Panduan pelaporan' : 'Tentang kerahasiaan'
+                  }}<ArrowRight :size="16" />
                 </button>
-                <div>
-                  <button v-if="step > 0" class="text-button" @click="step--">
-                    <ChevronLeft :size="16" />Kembali</button
-                  ><button v-if="step < 3" class="button" @click="next">
-                    Lanjutkan<ArrowRight :size="16" /></button
-                  ><button
-                    v-else
-                    class="button"
-                    :disabled="busy || !confirmed || !user?.verified"
-                    @click="submit"
-                  >
-                    <Send :size="16" />{{ busy ? 'Mengirim…' : 'Kirim laporan' }}
-                  </button>
-                </div>
-              </div>
-            </section>
-            <aside class="form-aside">
-              <span class="aside-shield"><ShieldCheck :size="28" /></span>
-              <h3>Anda berada di ruang yang aman.</h3>
-              <p>
-                Draf hanya dapat dibaca oleh Anda. Laporan baru masuk ke proses verifikasi setelah
-                dikirim.
-              </p>
-              <hr />
-              <strong>Laporan yang baik memuat:</strong>
-              <ul>
-                <li>Fakta yang Anda ketahui</li>
-                <li>Waktu dan lokasi yang jelas</li>
-                <li>Pihak terkait dan kronologi</li>
-                <li>Bukti atau sumber informasi</li>
-              </ul>
-              <button class="text-button" @click="navigate('guide')">
-                Baca panduan<ArrowUpRight :size="15" />
-              </button>
-            </aside></div
-        ></template>
-        <template v-else-if="page === 'detail' && selected"
-          ><div class="page-heading">
-            <div>
-              <button class="back-link" @click="navigate('reports')">
-                <ChevronLeft :size="16" />Kembali ke laporan
-              </button>
-              <div class="eyebrow">{{ selected.number }}</div>
-              <h1>{{ selected.payload.title }}</h1>
-              <p>Dikirim {{ date(selected.createdAt) }} · Versi {{ selected.version }}</p>
-            </div>
-            <span class="badge" :class="selected.stage.toLowerCase()">{{
-              stageLabels[selected.stage]
-            }}</span>
-          </div>
-          <div class="detail-toolbar">
-            <button
-              type="button"
-              class="button secondary"
-              :aria-expanded="showTimeline"
-              aria-controls="report-timeline"
-              @click="showTimeline = !showTimeline"
+              </aside></div
+          ></template>
+          <footer class="footer">
+            <span>© {{ new Date().getFullYear() }} Universitas Jember</span
+            ><span
+              >Whistleblowing System <i></i
+              ><button v-if="!internal" @click="navigate('privacy')">
+                Kerahasiaan & perlindungan</button
+              ><span v-else>Akses internal terbatas</span></span
             >
-              <Clock :size="17" />{{ showTimeline ? 'Sembunyikan timeline' : 'Tampilkan timeline' }}
-            </button>
-          </div>
-          <div class="detail-layout" :class="{ 'timeline-hidden': !showTimeline }">
-            <section class="panel detail-body">
-              <h3>Informasi laporan</h3>
-              <div class="preview">
-                <div
-                  v-for="(label, key) in {
-                    category: 'Kategori',
-                    when: 'Tanggal kejadian',
-                    where: 'Lokasi',
-                    what: 'Kejadian',
-                    who: 'Pihak terkait',
-                    why: 'Dasar laporan',
-                    how: 'Kronologi',
-                    evidenceReason: 'Sumber bukti',
-                  }"
-                >
-                  <small>{{ label }}</small>
-                  <p>{{ selected.payload[key] }}</p>
-                </div>
-              </div>
-              <div v-if="selected.clarification" class="clarification">
-                <h3><MessageSquare :size="20" />Permintaan klarifikasi</h3>
-                <p>{{ selected.clarification.question }}</p>
-                <template v-if="selected.clarification.response"
-                  ><small>Tanggapan pelapor</small>
-                  <p>{{ selected.clarification.response }}</p></template
-                ><template v-else-if="!internal"
-                  ><label class="fields"
-                    >Tanggapan Anda<textarea
-                      v-model="response"
-                      rows="4"
-                      placeholder="Tuliskan jawaban dan informasi tambahan…"
-                    ></textarea></label
-                  ><button
-                    class="button"
-                    :disabled="busy || !response.trim()"
-                    @click="command('RESPOND')"
-                  >
-                    Kirim tanggapan<Send :size="16" /></button
-                ></template>
-              </div>
-              <div v-if="internal" class="internal-actions">
-                <h3>Tindakan petugas</h3>
-                <p>Akses dan tahap diperiksa ulang oleh server.</p>
-                <label class="fields"
-                  >Catatan tindakan<textarea v-model="commandReason" rows="3"></textarea>
-                </label>
-                <div class="hero-actions">
-                  <button
-                    v-if="user?.role === 'MANAGER'"
-                    class="button secondary"
-                    :disabled="busy || !commandReason.trim()"
-                    @click="command('CLARIFY')"
-                  >
-                    Minta klarifikasi</button
-                  ><button
-                    v-if="selected.stage === 'SUBMITTED' && user?.role === 'MANAGER'"
-                    class="button"
-                    :disabled="busy || !commandReason.trim()"
-                    @click="command('ADVANCE')"
-                  >
-                    Mulai verifikasi<ArrowRight :size="16" />
-                  </button>
-                </div>
-              </div>
-              <EvidencePanel
-                :report-id="selected.id"
-                @updated="workspace?.refresh()"
-                :readonly="
-                  ['COMPLETED', 'CLOSED'].includes(selected.stage) ||
-                  selected.lifecycle === 'SUSPENDED'
-                "
-              /><CaseWorkspace
-                ref="workspace"
-                v-if="user"
-                :report="selected"
-                :user="user"
-                @updated="refreshSelected"
-              />
-            </section>
-            <ReportTimeline id="report-timeline" v-show="showTimeline" :report="selected" /></div
-        ></template>
-        <InternalDashboard
-          v-else-if="internal && user"
-          :user="user"
-          :reports="reports"
-          :loading="loading"
-          @open="openReport"
-          @queue="navigate('reports')"
-        />
-        <template v-else
-          ><div class="page-heading">
-            <div>
-              <div class="eyebrow">INFORMASI & DUKUNGAN</div>
-              <h1>
-                {{
-                  page === 'guide'
-                    ? 'Panduan pelaporan'
-                    : page === 'privacy'
-                      ? 'Kerahasiaan Anda.'
-                      : 'Kami membantu Anda melapor.'
-                }}
-              </h1>
-              <p>Kenali prosesnya agar Anda dapat melapor dengan lebih yakin.</p>
-            </div>
-          </div>
-          <div class="info-layout">
-            <section class="panel article">
-              <template v-if="page === 'guide'"
-                ><h2>Setiap laporan dimulai dari fakta.</h2>
-                <p>
-                  WBS Universitas Jember menerima dugaan pelanggaran yang berkaitan dengan
-                  lingkungan universitas. Sistem ini menggunakan akun terverifikasi.
-                </p>
-                <div
-                  v-for="(s, i) in [
-                    [
-                      'Buat dan verifikasi akun',
-                      'Daftarkan email Anda dan buka tautan verifikasi.',
-                    ],
-                    [
-                      'Lengkapi informasi 5W+1H',
-                      'Jelaskan apa, siapa, kapan, di mana, mengapa, dan bagaimana.',
-                    ],
-                    [
-                      'Sertakan sumber bukti',
-                      'Jika belum memiliki lampiran, jelaskan sumber informasi atau alasannya.',
-                    ],
-                    [
-                      'Periksa dan kirim',
-                      'Draf tetap privat sampai Anda mengonfirmasi pengiriman.',
-                    ],
-                    [
-                      'Pantau dan tanggapi',
-                      'Lihat nomor penerimaan, perkembangan, dan jawab klarifikasi melalui portal.',
-                    ],
-                  ]"
-                  class="guide-step"
-                >
-                  <span>{{ i + 1 }}</span>
-                  <div>
-                    <h3>{{ s[0] }}</h3>
-                    <p>{{ s[1] }}</p>
-                  </div>
-                </div>
-                <button class="button" @click="newReport">
-                  Mulai buat laporan<ArrowRight :size="17" /></button></template
-              ><template v-else-if="page === 'privacy'"
-                ><ShieldCheck :size="36" class="green-text" />
-                <h2>Identitas dibatasi sesuai kewenangan.</h2>
-                <p>
-                  Pelaporan menggunakan akun terverifikasi. Draf hanya dapat diakses pemilik.
-                  Setelah dikirim, perkara hanya tersedia bagi petugas dengan akses perkara aktif.
-                </p>
-                <h3>Jaga informasi sensitif</h3>
-                <p>
-                  Hindari menyebarkan nomor laporan, kronologi, dan bukti melalui kanal publik.
-                  Akses khusus identitas dan pengelolaan bukti masih memerlukan penyelesaian kendali
-                  keamanan sebelum penggunaan operasional.
-                </p>
-                <h3>Riwayat tetap tercatat</h3>
-                <p>
-                  Pengiriman dan tanggapan menyimpan versi dan jejak audit. Laporan tidak dihapus
-                  melalui permintaan penarikan biasa.
-                </p>
-                <div class="info-box">
-                  <LockKeyhole :size="22" />
-                  <p>
-                    Versi pengembangan ini digunakan dengan data sintetis. Kebijakan resmi dan
-                    kesiapan operasional belum ditetapkan.
-                  </p>
-                </div></template
-              ><template v-else
-                ><h2>Pertanyaan yang sering diajukan</h2>
-                <details
-                  v-for="item in [
-                    [
-                      'Apakah saya dapat melapor tanpa akun?',
-                      'Tidak. Anda memerlukan akun dan email terverifikasi untuk mengirim laporan.',
-                    ],
-                    [
-                      'Apakah draf dapat dibaca petugas?',
-                      'Tidak. Draf bersifat privat dan hanya dapat diakses oleh pemilik.',
-                    ],
-                    [
-                      'Bagaimana jika belum memiliki bukti?',
-                      'Jelaskan sumber informasi atau alasan belum menyertakan bukti pada formulir laporan.',
-                    ],
-                    [
-                      'Apakah laporan otomatis ditutup jika saya terlambat menjawab?',
-                      'Tidak. Petugas perlu menelaah informasi yang tersedia sesuai prosedur.',
-                    ],
-                    [
-                      'Bagaimana cara melihat perkembangan laporan?',
-                      'Masuk ke akun, pilih Laporan saya, lalu buka laporan yang ingin dipantau.',
-                    ],
-                  ]"
-                  :key="item[0]"
-                >
-                  <summary>{{ item[0] }}</summary>
-                  <p>{{ item[1] }}</p>
-                </details>
-                <div class="info-box">
-                  <HelpCircle :size="22" />
-                  <p>
-                    Kontak resmi pengelola akan ditampilkan setelah ditetapkan oleh Universitas
-                    Jember.
-                  </p>
-                </div></template
-              >
-            </section>
-            <aside class="form-aside">
-              <BookOpen :size="28" />
-              <h3>Sampaikan dengan itikad baik.</h3>
-              <p>Laporan yang jelas membantu petugas menelaah informasi dengan cermat.</p>
-              <button
-                class="text-button"
-                @click="navigate(page === 'privacy' ? 'guide' : 'privacy')"
-              >
-                {{ page === 'privacy' ? 'Panduan pelaporan' : 'Tentang kerahasiaan'
-                }}<ArrowRight :size="16" />
-              </button>
-            </aside></div
-        ></template>
-        <footer class="footer">
-          <span>© {{ new Date().getFullYear() }} Universitas Jember</span
-          ><span
-            >Whistleblowing System <i></i
-            ><button v-if="!internal" @click="navigate('privacy')">
-              Kerahasiaan & perlindungan</button
-            ><span v-else>Akses internal terbatas</span></span
-          >
-        </footer>
-      </main>
-    </div>
+          </footer>
+        </main>
+      </div>
+    </template>
     <AccountRecovery
       v-if="['recovery', 'reset'].includes(auth)"
       :token="auth === 'reset' ? resetToken : undefined"
-      @close="auth = ''"
+      @close="auth = publicAuthPage ? 'login' : ''"
       @done="
         (m: string) => {
           notice = m;
-          auth = 'login';
+          if (!user) openAuth('login', true);
+          else auth = '';
           resetToken = '';
         }
       "
     />
-    <div v-else-if="auth" class="modal-backdrop" @click.self="auth = ''">
-      <section role="dialog" aria-modal="true" aria-labelledby="auth-title" class="auth-modal">
-        <button class="modal-close icon-button" aria-label="Tutup" @click="auth = ''"><X /></button
-        ><span class="brand-icon"><ShieldCheck :size="28" /></span>
-        <div class="eyebrow">WBS UNIVERSITAS JEMBER</div>
-        <h2 id="auth-title">
-          {{ auth === 'register' ? 'Mulai dari keberanian Anda.' : 'Selamat datang kembali.' }}
-        </h2>
-        <p>
-          {{
-            auth === 'register'
-              ? 'Buat akun untuk menyampaikan laporan dengan aman.'
-              : 'Masuk untuk melanjutkan dan memantau laporan Anda.'
-          }}
-        </p>
-        <div v-if="error" class="alert error" role="alert">{{ error }}</div>
-        <div v-if="notice" class="alert success" role="status">{{ notice }}</div>
-        <form class="fields" @submit.prevent="auth === 'register' ? register() : login()">
-          <label v-if="auth === 'register'"
-            >Nama lengkap<input v-model="credentials.name" autocomplete="name" required /></label
-          ><label
-            >Email<input
-              v-model="credentials.email"
-              type="email"
-              autocomplete="email"
-              placeholder="nama@email.com"
-              required /></label
-          ><label
-            >Kata sandi<input
-              v-model="credentials.password"
-              type="password"
-              :autocomplete="auth === 'register' ? 'new-password' : 'current-password'"
-              :minlength="auth === 'register' ? 12 : 1"
-              maxlength="128"
-              :placeholder="auth === 'register' ? 'Minimal 12 karakter' : 'Masukkan kata sandi'"
-              required /></label
-          ><button class="button full" :disabled="busy" type="submit">
-            <LoaderCircle v-if="busy" class="spin" :size="18" />{{
-              busy ? 'Memproses…' : auth === 'register' ? 'Buat akun' : 'Masuk ke akun'
-            }}<ArrowRight :size="17" />
-          </button>
-        </form>
-        <p class="auth-switch">
-          <button
-            v-if="auth === 'login'"
-            @click="
-              auth = 'recovery';
-              error = '';
-            "
-          >
-            Lupa kata sandi / verifikasi ulang
-          </button>
-        </p>
-        <p class="auth-switch">
-          {{ auth === 'register' ? 'Sudah punya akun?' : 'Belum punya akun?' }}
-          <button
-            @click="
-              auth = auth === 'register' ? 'login' : 'register';
-              error = '';
-              notice = '';
-            "
-          >
-            {{ auth === 'register' ? 'Masuk' : 'Daftar sekarang' }}
-          </button>
-        </p>
-        <div class="auth-foot">
-          <LockKeyhole :size="13" />Gunakan data sintetis pada versi pengembangan ini.
-        </div>
-      </section>
-    </div>
   </div>
 </template>

@@ -146,6 +146,17 @@ svg {
 .shell {
   min-height: 100vh;
 }
+.session-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #486442;
+  background: #fbfcf8;
+  font-size: 13px;
+}
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;

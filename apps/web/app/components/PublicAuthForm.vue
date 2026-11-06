@@ -1,0 +1,81 @@
+<script setup lang="ts">
+import { ShieldCheck, LockKeyhole, ArrowRight, LoaderCircle } from '@lucide/vue';
+defineProps<{
+  mode: string;
+  credentials: { name: string; email: string; password: string };
+  busy: boolean;
+  error: string;
+  notice: string;
+}>();
+defineEmits<{ submit: []; mode: [mode: string]; recovery: [] }>();
+</script>
+<template>
+  <section class="auth-modal public-auth-card" aria-labelledby="auth-title">
+    <span class="brand-icon"><ShieldCheck :size="28" /></span>
+    <div class="eyebrow">WBS UNIVERSITAS JEMBER</div>
+    <h2 id="auth-title">{{ mode === 'register' ? 'Buat akun pelapor' : 'Masuk ke akun' }}</h2>
+    <p>
+      {{
+        mode === 'register'
+          ? 'Daftarkan email Anda untuk mulai menyampaikan laporan.'
+          : 'Gunakan email dan kata sandi yang terdaftar.'
+      }}
+    </p>
+    <div v-if="error" class="alert error" role="alert">{{ error }}</div>
+    <div v-if="notice" class="alert success" role="status">{{ notice }}</div>
+    <form class="fields" @submit.prevent="$emit('submit')">
+      <label v-if="mode === 'register'"
+        >Nama lengkap<input v-model="credentials.name" autocomplete="name" required
+      /></label>
+      <label
+        >Email<input
+          v-model="credentials.email"
+          type="email"
+          autocomplete="email"
+          placeholder="nama@email.com"
+          required
+      /></label>
+      <label
+        >Kata sandi<input
+          v-model="credentials.password"
+          type="password"
+          :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
+          :minlength="mode === 'register' ? 12 : 1"
+          maxlength="128"
+          :placeholder="mode === 'register' ? 'Minimal 12 karakter' : 'Masukkan kata sandi'"
+          required
+      /></label>
+      <button class="button full" :disabled="busy" type="submit">
+        <LoaderCircle v-if="busy" class="spin" :size="18" />{{
+          busy ? 'Memproses…' : mode === 'register' ? 'Buat akun' : 'Masuk ke akun'
+        }}<ArrowRight :size="17" />
+      </button>
+    </form>
+    <p v-if="mode !== 'register'" class="auth-switch">
+      <button type="button" @click="$emit('recovery')">Lupa kata sandi / verifikasi ulang</button>
+    </p>
+    <p class="auth-switch">
+      {{ mode === 'register' ? 'Sudah punya akun?' : 'Belum punya akun?'
+      }}<button type="button" @click="$emit('mode', mode === 'register' ? 'login' : 'register')">
+        {{ mode === 'register' ? 'Masuk' : 'Daftar sekarang' }}
+      </button>
+    </p>
+    <div class="auth-foot">
+      <LockKeyhole :size="13" />Gunakan data sintetis pada versi pengembangan ini.
+    </div>
+  </section>
+</template>
+<style scoped>
+.public-auth-card {
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  box-shadow: 0 14px 45px #203e2510;
+}
+.public-auth-card > p {
+  color: #63725b;
+}
+.auth-switch button {
+  margin-left: 5px;
+}
+</style>

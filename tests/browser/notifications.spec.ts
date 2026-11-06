@@ -72,5 +72,5 @@ test('notifikasi realtime menambah badge, deduplikasi, sinkronisasi reconnect da
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Keluar', exact: true }).click();
   await expect(page.locator('.notification-count')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Masuk', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Masuk', exact: true })).toBeVisible();
 });
