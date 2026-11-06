@@ -26,6 +26,8 @@ export class EvidenceService {
         mime: true,
         bytes: true,
         scanStatus: true,
+        scanError: true,
+        attempts: true,
         createdAt: true,
       },
     });
@@ -35,6 +37,13 @@ export class EvidenceService {
       mime: e.mime,
       bytes: e.bytes,
       status: e.scanStatus,
+      scan_error:
+        e.scanError ||
+        (e.scanStatus === 'ERROR'
+          ? 'Pemindaian gagal. Coba ulang atau hubungi pengelola untuk memeriksa antivirus dan penyimpanan.'
+          : null),
+      retry_available: e.scanStatus === 'ERROR',
+      retry_scheduled: e.scanStatus === 'ERROR' && e.attempts < 5,
       created_at: e.createdAt,
     }));
   }
@@ -64,6 +73,33 @@ export class EvidenceService {
         data: { actorId: user.id, reportId: id, evidenceId: evidence.id, action: 'UPLOAD' },
       });
       return { id: evidence.id, status: evidence.scanStatus };
+    });
+  }
+  async retry(id: string, user: User) {
+    validId(id);
+    return this.prisma.$transaction(async (tx) => {
+      const metadata = await tx.evidence.findUnique({ where: { id }, select: { reportId: true } });
+      if (!metadata) fail(404, 'Bukti tidak ditemukan.');
+      const report = await this.reports.authorized(metadata.reportId, user, tx, true);
+      const evidence = await tx.evidence.findUniqueOrThrow({ where: { id } });
+      if (user.role === 'EXECUTOR' && evidence.uploaderId !== user.id)
+        fail(404, 'Bukti tidak ditemukan.');
+      if (['COMPLETED', 'CLOSED'].includes(report.stage) || report.lifecycle === 'SUSPENDED')
+        fail(409, 'Perkara tidak menerima perubahan bukti.');
+      if (evidence.scanStatus !== 'ERROR') fail(409, 'Hanya pemindaian gagal yang dapat diulang.');
+      await tx.evidence.update({
+        where: { id },
+        data: { scanStatus: 'PENDING', attempts: 0, scanError: null, nextScanAt: new Date() },
+      });
+      await tx.sensitiveAccessEvent.create({
+        data: {
+          actorId: user.id,
+          reportId: metadata.reportId,
+          evidenceId: id,
+          action: 'RETRY_SCAN',
+        },
+      });
+      return { id, status: 'PENDING' };
     });
   }
   async download(id: string, user: User) {

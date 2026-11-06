@@ -16,16 +16,10 @@ async function main() {
   process.on('SIGTERM', stop);
   try {
     while (!stopping) {
-      try {
-        await outbox.tick();
-      } catch {
-        console.error('Outbox unavailable; retry scheduled.');
-      }
-      try {
-        await scanner.tick();
-      } catch {
-        console.error('Scanner unavailable; evidence remains locked.');
-      }
+      await Promise.all([
+        scanner.tick().catch(() => console.error('Scanner unavailable; evidence remains locked.')),
+        outbox.tick().catch(() => console.error('Outbox unavailable; retry scheduled.')),
+      ]);
       if (!stopping) await new Promise((r) => setTimeout(r, 5000));
     }
   } finally {

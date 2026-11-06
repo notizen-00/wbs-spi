@@ -69,7 +69,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     assert.equal(
       (await db.query('SELECT * FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows
         .length,
-      4,
+      5,
     );
   });
   await t.test('schema Prisma sesuai dengan database hasil migrasi', async () => {
@@ -169,6 +169,44 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       assert.equal(metadata.bytes, bytes.length);
       assert.equal(metadata.checksum.length, 64);
       assert.deepEqual(memory.get(metadata.storageKey), bytes);
+      const brokenStorage = {
+        retrieve: async () => {
+          throw new Error('secret internal storage details');
+        },
+      } as unknown as MinioStorageService;
+      const scanner = new ScannerService(prisma, brokenStorage);
+      await scanner.tick();
+      const failed = await prisma.evidence.findUniqueOrThrow({ where: { id: uploaded.id } });
+      assert.equal(failed.scanStatus, 'ERROR');
+      assert.equal(failed.attempts, 1);
+      assert.ok(failed.scanError?.includes('penyimpanan'));
+      assert.ok(!failed.scanError?.includes('secret'));
+      await scanner.tick();
+      assert.equal(
+        (await prisma.evidence.findUniqueOrThrow({ where: { id: uploaded.id } })).attempts,
+        1,
+      );
+      const listed = await service.list(draft.id, reporter);
+      assert.equal(listed[0].scan_error, failed.scanError);
+      assert.equal(listed[0].retry_scheduled, true);
+      await assert.rejects(
+        service.retry(uploaded.id, manager),
+        (error: any) => error.getStatus() === 404,
+      );
+      await service.retry(uploaded.id, reporter);
+      const retried = await prisma.evidence.findUniqueOrThrow({ where: { id: uploaded.id } });
+      assert.equal(retried.scanStatus, 'PENDING');
+      assert.equal(retried.scanError, null);
+      assert.equal(retried.attempts, 0);
+      await prisma.evidence.update({
+        where: { id: uploaded.id },
+        data: { scanStatus: 'REJECTED' },
+      });
+      await assert.rejects(
+        service.retry(uploaded.id, reporter),
+        (error: any) => error.getStatus() === 409,
+      );
+
       await assert.rejects(
         service.download(uploaded.id, reporter),
         (error: any) => error.getStatus() === 409,
@@ -625,7 +663,9 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     const count = await prisma.report.count();
     const snapshots = await prisma.reportVersion.count();
     // Only this disposable test database: simulate history from the previous SQL runner.
-    await db.exec('DELETE FROM _prisma_migrations');
+    await db.exec(
+      'DROP INDEX evidence_scan_queue_idx; ALTER TABLE evidence DROP COLUMN scan_error, DROP COLUMN next_scan_at; DELETE FROM _prisma_migrations',
+    );
     const entries = [
       ['001_initial.sql', '20261106000100_initial'],
       ['002_workflow.sql', '20261106000200_workflow'],

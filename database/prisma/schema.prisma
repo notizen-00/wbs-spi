@@ -317,6 +317,8 @@ model Evidence {
   checksum     String
   scanStatus   String                 @default("PENDING") @map("scan_status")
   scanVersion  String?                @map("scan_version")
+  scanError    String?                @map("scan_error")
+  nextScanAt   DateTime               @default(now()) @map("next_scan_at") @db.Timestamptz
   attempts     Int                    @default(0)
   createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz
   report       Report                 @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)

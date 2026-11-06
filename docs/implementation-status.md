@@ -18,36 +18,40 @@ Status: **versi pengembangan/UAT dengan data sintetis**. Dokumen PRD dan spesifi
 
 ## Belum memenuhi gerbang operasional PRD
 
-| Area | Pekerjaan tersisa |
-| --- | --- |
-| FR-07/09/11 | Form verifikasi terstruktur/risk assessment, resolusi konflik dan pengalihan resmi yang membekukan keputusan berikutnya, jurnal/rencana/progres pemeriksaan |
-| FR-08/20/22 | Tenggat konkret, kalender kerja, SLA, reminder, pause/resume timer, policy version dan UI konfigurasi |
-| FR-18 | Identitas terenkripsi terpisah, permintaan/grant identitas, cakupan dan kedaluwarsa izin; endpoint pembukaan identitas sengaja belum tersedia |
-| FR-19/23 | DB runtime role dengan least privilege terpisah dari migrator, replika audit terpisah, observability dan alert operator |
-| Auth internal | MFA, recovery institusi, administrasi akun dan mandat dengan audit penuh |
-| Storage | Streaming upload, metadata tipe struktural lanjutan, validasi/pemindaian ulang, cleanup orphan sesuai retensi, versi scanner/signature aktual, snapshot bukti pada setiap submission |
-| Frontend | Router/deep link per perkara, pagination UI dan statistik agregat seluruh halaman (dashboard sekarang menghitung maksimal 50 laporan yang dimuat), ekspor aman/unduhan jawaban resmi |
-| Deploy/operasi | HTTPS/secrets institusi, image digest pinning, backup/restore konsisten DB + objek + kunci, uji beban, uji konkurensi database nyata dan UAT lintas peran penuh |
-| Arsitektur | OpenAPI final dan generated frontend API client; pemecahan modul domain lebih lanjut sesuai pertumbuhan fitur |
+| Area           | Pekerjaan tersisa                                                                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| FR-07/09/11    | Form verifikasi terstruktur/risk assessment, resolusi konflik dan pengalihan resmi yang membekukan keputusan berikutnya, jurnal/rencana/progres pemeriksaan                          |
+| FR-08/20/22    | Tenggat konkret, kalender kerja, SLA, reminder, pause/resume timer, policy version dan UI konfigurasi                                                                                |
+| FR-18          | Identitas terenkripsi terpisah, permintaan/grant identitas, cakupan dan kedaluwarsa izin; endpoint pembukaan identitas sengaja belum tersedia                                        |
+| FR-19/23       | DB runtime role dengan least privilege terpisah dari migrator, replika audit terpisah, observability dan alert operator                                                              |
+| Auth internal  | MFA, recovery institusi, administrasi akun dan mandat dengan audit penuh                                                                                                             |
+| Storage        | Streaming upload, metadata tipe struktural lanjutan, validasi/pemindaian ulang, cleanup orphan sesuai retensi, versi scanner/signature aktual, snapshot bukti pada setiap submission |
+| Frontend       | Router/deep link per perkara, pagination UI dan statistik agregat seluruh halaman (dashboard sekarang menghitung maksimal 50 laporan yang dimuat), ekspor aman/unduhan jawaban resmi |
+| Deploy/operasi | HTTPS/secrets institusi, image digest pinning, backup/restore konsisten DB + objek + kunci, uji beban, uji konkurensi database nyata dan UAT lintas peran penuh                      |
+| Arsitektur     | OpenAPI final dan generated frontend API client; pemecahan modul domain lebih lanjut sesuai pertumbuhan fitur                                                                        |
 
 Keputusan institusi yang belum disahkan tetap seperti PRD: mandat, kategori kerahasiaan, retensi, SLA, kewenangan penundaan dan akses identitas. Jangan menerima laporan nyata sebelum kendali wajib dan UAT lengkap siap.
 
 ## Pemeriksaan yang telah dijalankan
 
-| Pemeriksaan | Hasil |
-| --- | --- |
-| Unit/domain dan integrasi Prisma/PGlite/WebSocket | 27 tes lolos: seluruh alur sebelumnya, akses WebSocket/sesi/origin, pemisahan penerima, pencabutan sesi dan notifikasi pasca-commit tanpa menunggu email |
-| Client MinIO | 3 tes lolos: prioritas/fallback konfigurasi, signature S3, path-style request, roundtrip data biner, error objek hilang dan pesan penolakan kredensial |
-| Validasi MIME | 16 tes lolos: PDF, gambar, MP3, video, penolakan ekstensi palsu, SVG aktif, base64 rusak dan ukuran berlebih |
-| TypeScript API/worker dan Nuxt | Lolos |
-| Build NestJS + Nuxt | Lolos |
-| API hasil kompilasi | Berhasil start; `/health` mengembalikan `ok` |
-| Browser Chrome desktop/mobile | 4 tes lolos; responsivitas, form, upload MP3, dan notifikasi realtime dengan badge/deduplikasi/reconnect/logout pada mobile |
-| Docker Compose config | Valid |
-| MinIO native Windows | Binary berhasil dibangun; install ulang, start/stop/start, HEAD bucket, upload/download biner dan penolakan baca anonim terverifikasi pada layanan lokal nyata |
-| Perbaikan upload lokal | Penolakan kredensial HTTP 403 teridentifikasi dan pulih setelah reload konfigurasi server; validasi dan unggah/unduh PDF, MP3, MP4 terverifikasi ke MinIO nyata. Objek smoke test dibersihkan |
-| Realtime lokal | Redis nyata + sesi WebSocket terautentikasi + pencabutan sesi berhasil pada channel/database uji terisolasi; handshake melalui proxy frontend juga terverifikasi |
-| PostgreSQL/Redis/ClamAV/SMTP integrasi penuh | Belum diuji sebagai satu alur operasional; listener PostgreSQL/Redis terdeteksi, SMTP/ClamAV belum tersedia |
-| Audit dependency | Tidak ada high/critical setelah override multer 2.5; masih 12 temuan low/moderate pada dependency transitif build Nuxt. Perlu review sebelum rilis; tidak memaksakan downgrade framework |
+| Pemeriksaan                                       | Hasil                                                                                                                                                                                         |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit/domain dan integrasi Prisma/PGlite/WebSocket | 27 tes lolos: seluruh alur sebelumnya, akses WebSocket/sesi/origin, pemisahan penerima, pencabutan sesi dan notifikasi pasca-commit tanpa menunggu email                                      |
+| Client MinIO                                      | 3 tes lolos: prioritas/fallback konfigurasi, signature S3, path-style request, roundtrip data biner, error objek hilang dan pesan penolakan kredensial                                        |
+| Validasi MIME                                     | 16 tes lolos: PDF, gambar, MP3, video, penolakan ekstensi palsu, SVG aktif, base64 rusak dan ukuran berlebih                                                                                  |
+| TypeScript API/worker dan Nuxt                    | Lolos                                                                                                                                                                                         |
+| Build NestJS + Nuxt                               | Lolos                                                                                                                                                                                         |
+| API hasil kompilasi                               | Berhasil start; `/health` mengembalikan `ok`                                                                                                                                                  |
+| Browser Chrome desktop/mobile                     | 4 tes lolos; responsivitas, form, upload MP3, dan notifikasi realtime dengan badge/deduplikasi/reconnect/logout pada mobile                                                                   |
+| Docker Compose config                             | Valid                                                                                                                                                                                         |
+| MinIO native Windows                              | Binary berhasil dibangun; install ulang, start/stop/start, HEAD bucket, upload/download biner dan penolakan baca anonim terverifikasi pada layanan lokal nyata                                |
+| Perbaikan upload lokal                            | Penolakan kredensial HTTP 403 teridentifikasi dan pulih setelah reload konfigurasi server; validasi dan unggah/unduh PDF, MP3, MP4 terverifikasi ke MinIO nyata. Objek smoke test dibersihkan |
+| Realtime lokal                                    | Redis nyata + sesi WebSocket terautentikasi + pencabutan sesi berhasil pada channel/database uji terisolasi; handshake melalui proxy frontend juga terverifikasi                              |
+| PostgreSQL/Redis/ClamAV/SMTP integrasi penuh      | Belum diuji sebagai satu alur operasional; listener PostgreSQL/Redis terdeteksi, SMTP/ClamAV belum tersedia                                                                                   |
+| Audit dependency                                  | Tidak ada high/critical setelah override multer 2.5; masih 12 temuan low/moderate pada dependency transitif build Nuxt. Perlu review sebelum rilis; tidak memaksakan downgrade framework      |
 
 Screenshot browser tersedia di `artifacts/portal-1440.png` dan `artifacts/portal-390.png`. Tes browser fixture tidak membuktikan integrasi backend nyata; tes PGlite tidak membuktikan race/lock di deployment PostgreSQL sebenarnya.
+
+### Diagnostik pemindaian bukti
+
+Alasan kegagalan scanner/storage disimpan tanpa stack atau kredensial dan dikirim ke pemilik akses bukti. Worker menggunakan retry dengan backoff, sementara endpoint retry khusus ERROR menerapkan otorisasi perkara, rate limit, dan audit. Antrean scanner diproses bersamaan dengan outbox agar SMTP tidak menahan pemindaian. UI melakukan polling saat pemindaian tertunda, menampilkan alasan per berkas dan snackbar, serta menyediakan coba ulang. Setup ClamAV portable Windows dan `scanner:check` tersedia; definisi antivirus perlu diperbarui rutin melalui freshclam.

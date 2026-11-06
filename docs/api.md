@@ -81,3 +81,7 @@ Kontrak ini dokumentasi implementasi, belum OpenAPI-generated client. API memili
 ### Pemisahan portal pelapor dan internal
 
 Hanya `REPORTER` dapat membuat dan mengedit draf, mengirim aduan, menjawab klarifikasi, serta meminta pembukaan kembali. Akun internal menerima HTTP 403 untuk tindakan tersebut. Pelapor hanya mengakses laporan miliknya; petugas internal hanya mengakses perkara bukan draf dengan penugasan aktif dan tanpa konflik kepentingan. Kepemilikan laporan lama tidak memberikan akses pelapor kepada akun yang sudah berganti menjadi petugas. `ADMIN` merupakan administrator teknis dan tidak memiliki akses isi perkara.
+
+### Diagnostik pemindaian bukti
+
+Daftar bukti mengembalikan `scan_error` (alasan aman untuk pengguna), `retry_available`, dan `retry_scheduled`. `POST /api/v1/evidence/:id/retry` mengantrekan ulang hanya berkas ERROR dengan scope perkara dan pembatasan rate yang sama; READY dan REJECTED ditolak 409. Pengulangan dicatat pada audit akses. Berkas tetap tidak dapat diunduh sebelum READY. Migrasi `20261106080000_evidence_scan_diagnostics` menambah alasan dan jadwal retry serta membuka kesempatan ulang untuk ERROR lama.

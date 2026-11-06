@@ -59,7 +59,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy/windows/Install-P
 - PostgreSQL: tetapkan password saat instalasi dan buat database `wbs`, lalu sesuaikan `DATABASE_URL`. Ikuti [panduan Prisma](prisma.md) untuk membedakan database baru dan baseline database lama.
 - Redis native Windows memakai **Memurai Developer**; edisi Developer untuk development/test, bukan produksi. Atur `REDIS_URL` ke listener lokalnya, default 6379. Service vendor dikelola installer/Services Windows.
 - Mailpit native: setelah terpasang, jalankan `mailpit --listen 127.0.0.1:8025 --smtp 127.0.0.1:1025` pada terminal sendiri. Isi `SMTP_HOST=localhost`, `SMTP_PORT=1025`; inbox di http://localhost:8025.
-- ClamAV: gunakan paket Windows resmi, konfigurasikan `clamd.conf` dengan `TCPAddr 127.0.0.1`, `TCPSocket 3310`, `DatabaseDirectory` dan `StreamMaxLength 25M`. Siapkan `freshclam.conf`, jalankan `freshclam` untuk mengambil definisi, lalu `clamd --config-file=<path>` pada terminal sendiri. Ini tidak diinstal atau dipalsukan oleh installer MinIO; jika scanner belum siap, bukti tetap terkunci.
+- ClamAV: gunakan paket Windows resmi, konfigurasikan `clamd.conf` dengan `TCPAddr 127.0.0.1`, `TCPSocket 3310`, `DatabaseDirectory` dan `StreamMaxLength 25M`. Siapkan `freshclam.conf`, jalankan `freshclam` untuk mengambil definisi, lalu `clamd --config-file=<path>` pada terminal sendiri. Installer MinIO terpisah dari scanner; gunakan `npm run native:scanner:install` untuk setup ClamAV portable otomatis. Jika scanner belum siap, bukti tetap terkunci.
 
 `native:status` menunjukkan listener default yang tersedia; hasil port terbuka bukan bukti bahwa autentikasi atau protokol sudah benar. Setelah prasyarat siap:
 
@@ -72,3 +72,13 @@ npm.cmd run worker
 ```
 
 Referensi: [MinIO build dari source](https://github.com/minio/minio/tree/RELEASE.2025-09-07T16-13-09Z#install-from-source), [Redis native Windows/Memurai](https://redis.io/tutorials/howtos/how-to-run-redis-on-windows-natively-with-memurai/), [ClamAV Windows](https://docs.clamav.net/manual/Installing.html), [Mailpit](https://mailpit.axllent.org/docs/install/).
+
+## Scanner native dan pemulihan bukti
+
+Jalankan `npm run native:scanner:install` untuk mengunduh paket portable ClamAV resmi 1.5.4, membuat konfigurasi lokal, mengunduh definisi antivirus melalui freshclam, dan memulai clamd tersembunyi. Tidak memerlukan instalasi service Windows. Unduhan paket dan definisi cukup besar. Setelah reboot, jalankan `npm run native:scanner:start`. Jalankan ulang installer untuk memperbarui definisi antivirus; produksi memerlukan penjadwalan freshclam rutin.
+
+Konfigurasi berada di `.local/windows/clamav`, log di `.local/windows/logs`. Listener dibatasi `127.0.0.1:3310`, dengan `StreamMaxLength 25M` untuk unggahan maksimum 20 MiB. Pastikan `.env` memakai `CLAMAV_HOST=127.0.0.1` atau `localhost`, `CLAMAV_PORT=3310`. Verifikasi dengan `npm run scanner:check`; kemudian jalankan worker.
+
+Pemindaian ERROR dicoba maksimal lima kali dengan jeda 15, 30, 60, dan 120 detik antarpercobaan. Setelah layanan pulih, gunakan tombol **Coba ulang** pada berkas ERROR. Berkas REJECTED tidak bisa dipaksa menjadi READY atau dicoba ulang melalui endpoint ini. UI memperbarui status setiap 5 detik selama ada pekerjaan tertunda dan menampilkan snackbar beserta alasan kegagalan.
+
+Referensi: [paket resmi ClamAV](https://www.clamav.net/downloads), [konfigurasi](https://docs.clamav.net/manual/Usage/Configuration.html), [protokol INSTREAM](https://docs.clamav.net/manual/Usage/ClamdProtocol.html).

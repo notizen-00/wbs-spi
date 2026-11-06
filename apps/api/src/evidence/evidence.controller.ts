@@ -23,6 +23,14 @@ export class EvidenceController {
     await this.auth.rate(req, 'upload', 30);
     return this.evidence.upload(id, user, body);
   }
+  @Post('evidence/:id/retry') async retry(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Req() req: Request,
+  ) {
+    await this.auth.rate(req, 'retry-scan', 30);
+    return this.evidence.retry(id, user);
+  }
   @Get('evidence/:id/download') async download(
     @Param('id') id: string,
     @CurrentUser() user: User,
