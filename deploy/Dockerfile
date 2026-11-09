@@ -9,7 +9,9 @@ COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/domain/package.json packages/domain/package.json
 RUN npm ci
 COPY . .
-RUN npm run build
+RUN npm run build \
+    && mkdir -p /app/.local \
+    && chown -R node:node /app/apps/api/src/generated /app/.local
 ENV NODE_ENV=production
 USER node
 CMD ["node", "apps/api/dist/apps/api/src/main.js"]

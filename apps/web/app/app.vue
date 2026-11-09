@@ -56,8 +56,10 @@ const submissionCaptcha = ref<{ reset: () => void } | null>(null);
 const sessionReady = ref(false);
 const publicAuthPage = ref(false);
 const publicSection = ref('');
+const demoGuide = ref<{ password: string | null } | null>(null);
 const routePaths: Record<string, string> = {
   dashboard: '/dashboard',
+  demo: '/demo',
   adminCategories: '/admin/categories',
   adminSettings: '/admin/settings',
   reports: '/reports',
@@ -71,6 +73,7 @@ function setPath(path: string, replace = false) {
   window.history[replace ? 'replaceState' : 'pushState'](window.history.state, '', path);
 }
 function openAuth(mode = 'login', replace = false) {
+  page.value = 'dashboard';
   auth.value = mode;
   publicAuthPage.value = true;
   error.value = '';
@@ -82,6 +85,7 @@ async function openPublic(section = '', replace = false) {
   auth.value = '';
   publicAuthPage.value = false;
   publicSection.value = section;
+  page.value = section === 'demo' && demoGuide.value ? 'demo' : 'dashboard';
   error.value = '';
   setPath(section ? `/${section}` : '/', replace);
   await nextTick();
@@ -91,6 +95,11 @@ async function openPublic(section = '', replace = false) {
 }
 async function applyPath(replace = true) {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (path === '/demo' && demoGuide.value) {
+    page.value = 'demo';
+    setPath('/demo', replace);
+    return;
+  }
   if (!user.value) {
     if (path === '/login' || path === '/register') openAuth(path.slice(1), replace);
     else if (['/', '/guide', '/privacy', '/help', '/tracking'].includes(path))
@@ -247,6 +256,7 @@ watch(
   },
 );
 function navigate(p: string, replace = false) {
+  if (p === 'demo' && !demoGuide.value) p = 'dashboard';
   if (!user.value) {
     if (['guide', 'privacy', 'help'].includes(p)) void openPublic(p, replace);
     else openAuth('login', replace);
@@ -459,6 +469,9 @@ onMounted(async () => {
   } catch (e: any) {
     if (e?.statusCode !== 401) error.value = message(e);
   }
+  demoGuide.value = await $fetch<{ password: string | null }>('/api/v1/public/demo-guide').catch(
+    () => null,
+  );
   sessionReady.value = true;
   await applyPath();
   if (reset) {
@@ -479,8 +492,15 @@ onMounted(async () => {
       <LoaderCircle class="spin" :size="25" />
       <p>Memuat portal WBS…</p>
     </div>
+    <DemoGuide
+      v-else-if="page === 'demo' && demoGuide"
+      :password="demoGuide.password"
+      @home="user ? navigate('dashboard') : openPublic()"
+      @login="user ? navigate('dashboard') : openAuth()"
+    />
     <PublicLanding
       v-else-if="!user"
+      :demo-available="!!demoGuide"
       :auth-page="publicAuthPage"
       :tracking-page="!publicAuthPage && publicSection === 'tracking'"
       @login="openAuth()"
@@ -545,6 +565,9 @@ onMounted(async () => {
           </button>
           <button v-if="!internal" :class="{ active: page === 'guide' }" @click="navigate('guide')">
             <BookOpen :size="19" />Panduan pelaporan<ArrowUpRight class="nav-arrow" :size="15" />
+          </button>
+          <button v-if="demoGuide" @click="navigate('demo')">
+            <BookOpen :size="19" />Alur aplikasi demo
           </button>
         </nav>
         <div class="sidebar-bottom">

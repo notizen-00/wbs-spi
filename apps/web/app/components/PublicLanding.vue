@@ -11,7 +11,7 @@ import {
   Clock3,
   Archive,
 } from '@lucide/vue';
-const props = defineProps<{ authPage: boolean; trackingPage?: boolean }>();
+const props = defineProps<{ authPage: boolean; trackingPage?: boolean; demoAvailable?: boolean }>();
 const { site } = useSiteConfiguration();
 const {
   data: statistics,
@@ -112,6 +112,9 @@ const faqs = [
         ><a href="/privacy" @click.prevent="$emit('section', 'privacy')">Kerahasiaan</a
         ><a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a>
         <a href="/tracking" @click.prevent="$emit('section', 'tracking')">Cek status</a>
+        <a v-if="demoAvailable" href="/demo" @click.prevent="$emit('section', 'demo')"
+          >Alur aplikasi demo</a
+        >
       </nav>
       <a href="/login" class="button secondary public-login" @click.prevent="$emit('login')"
         >Masuk<ArrowRight :size="16"
@@ -603,6 +606,7 @@ const faqs = [
 }
 .public-header nav {
   display: flex;
+  flex-wrap: wrap;
   flex-direction: row;
   gap: 30px;
   margin: 0;

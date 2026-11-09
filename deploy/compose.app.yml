@@ -23,6 +23,7 @@ services:
     command: ["node", "apps/api/dist/apps/api/src/main.js"]
     environment: &app-env
       NODE_ENV: ${DOCKER_NODE_ENV:-development}
+      DEMO_PUBLIC_PASSWORD: ${DEMO_PUBLIC_PASSWORD:-}
       HOST: 0.0.0.0
       PORT: 3001
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgres://wbs:wbs_local_only@postgres:5432/wbs}

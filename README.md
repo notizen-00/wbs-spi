@@ -289,3 +289,11 @@ Notifikasi mendukung **WebSocket realtime**: lonceng/badge diperbarui otomatis, 
 Dashboard hijau, sidebar desktop dan drawer mobile, formulir empat langkah, daftar berbentuk kartu pada mobile, fokus keyboard, dialog akun, feedback error/sukses, serta tata letak tanpa tabel lebar. Ukuran 320, 390, 768 dan 1440 px diuji tanpa overflow horizontal. Font disajikan dari aplikasi sendiri; isi laporan tidak disimpan ke localStorage dan tidak dikirim ke analytics.
 
 Pratinjau hasil pengujian: [desktop](artifacts/portal-1440.png) · [mobile](artifacts/portal-390.png).
+
+### Halaman alur demo (development)
+
+Buka `/demo` atau pilih **Alur aplikasi demo** pada navigasi publik/sidebar. Halaman berisi lima email akun demo, fungsi tiap role, dan urutan pelaporan sampai Selesai. Super admin dijelaskan terpisah tanpa menampilkan kredensialnya. Halaman hanya tersedia ketika API memakai `NODE_ENV=development` (`DOCKER_NODE_ENV=development` untuk Docker); endpoint panduan mengembalikan 404 pada mode lain.
+
+Untuk menampilkan password demo, isi `DEMO_PUBLIC_PASSWORD` pada `.env` (native) atau `.env.docker` (Docker) dengan password akun demo yang ditentukan saat seed. Nilai ini sengaja ditampilkan kepada pengunjung halaman demo. Tanpa nilai ini, halaman meminta pengunjung menggunakan password dari pengelola demo. Variabel ini tidak membuat akun atau mengganti password; jalankan seed terlebih dahulu. Jangan isi dengan password super admin atau akun nyata.
+
+Setelah mengubah `.env.docker`, terapkan environment dengan `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-build`. Perubahan kode halaman memerlukan build image terbaru. Untuk native, restart API setelah mengubah `.env`.
