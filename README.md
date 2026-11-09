@@ -292,7 +292,7 @@ Pratinjau hasil pengujian: [desktop](artifacts/portal-1440.png) · [mobile](arti
 
 ### Halaman alur demo (development)
 
-Buka `/demo` atau pilih **Alur aplikasi demo** pada navigasi publik/sidebar. Halaman berisi lima email akun demo, fungsi tiap role, dan urutan pelaporan sampai Selesai. Super admin dijelaskan terpisah tanpa menampilkan kredensialnya. Halaman hanya tersedia ketika API memakai `NODE_ENV=development` (`DOCKER_NODE_ENV=development` untuk Docker); endpoint panduan mengembalikan 404 pada mode lain.
+Buka `/demo` atau pilih **Alur aplikasi demo** pada navigasi beranda publik. Menu ini tidak ditampilkan di dashboard. Halaman berisi lima email akun demo, fungsi tiap role, dan urutan pelaporan sampai Selesai. Super admin dijelaskan terpisah tanpa menampilkan kredensialnya. Halaman hanya tersedia ketika API memakai `NODE_ENV=development` (`DOCKER_NODE_ENV=development` untuk Docker); endpoint panduan mengembalikan 404 pada mode lain.
 
 Untuk menampilkan password demo, isi `DEMO_PUBLIC_PASSWORD` pada `.env` (native) atau `.env.docker` (Docker) dengan password akun demo yang ditentukan saat seed. Nilai ini sengaja ditampilkan kepada pengunjung halaman demo. Tanpa nilai ini, halaman meminta pengunjung menggunakan password dari pengelola demo. Variabel ini tidak membuat akun atau mengganti password; jalankan seed terlebih dahulu. Jangan isi dengan password super admin atau akun nyata.
 

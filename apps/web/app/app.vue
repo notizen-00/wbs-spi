@@ -566,9 +566,6 @@ onMounted(async () => {
           <button v-if="!internal" :class="{ active: page === 'guide' }" @click="navigate('guide')">
             <BookOpen :size="19" />Panduan pelaporan<ArrowUpRight class="nav-arrow" :size="15" />
           </button>
-          <button v-if="demoGuide" @click="navigate('demo')">
-            <BookOpen :size="19" />Alur aplikasi demo
-          </button>
         </nav>
         <div class="sidebar-bottom">
           <div v-if="!internal" class="private-note">
