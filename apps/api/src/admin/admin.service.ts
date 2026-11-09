@@ -15,6 +15,55 @@ function expectedVersion(value: unknown) {
 @Injectable()
 export class AdminService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  async publicStatistics() {
+    const rows = await this.prisma.$queryRaw<{ category: string; stage: string; count: bigint }[]>`
+      SELECT COALESCE(NULLIF(payload->>'category', ''), 'Lainnya') AS category,
+             stage, COUNT(*) AS count
+      FROM reports
+      WHERE stage <> 'DRAFT'
+      GROUP BY 1, stage
+    `;
+    const categories = new Map<string, number>();
+    const monthlyRows = await this.prisma.$queryRaw<{ month: string; count: bigint }[]>`
+      WITH submitted AS (
+        SELECT COALESCE(
+          (SELECT MIN(e.created_at) FROM case_events e WHERE e.report_id = r.id AND e.action = 'SUBMIT'),
+          r.created_at
+        ) AT TIME ZONE 'Asia/Jakarta' AS submitted_at
+        FROM reports r WHERE r.stage <> 'DRAFT'
+      ), months AS (
+        SELECT generate_series(
+          date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta') - interval '5 months',
+          date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta'), interval '1 month'
+        ) AS month
+      )
+      SELECT to_char(m.month, 'YYYY-MM') AS month, COUNT(s.submitted_at) AS count
+      FROM months m LEFT JOIN submitted s
+        ON s.submitted_at >= m.month AND s.submitted_at < m.month + interval '1 month'
+      GROUP BY m.month ORDER BY m.month
+    `;
+    let total = 0;
+    let completed = 0;
+    let closed = 0;
+    for (const row of rows) {
+      const count = Number(row.count);
+      total += count;
+      if (row.stage === 'COMPLETED') completed += count;
+      if (row.stage === 'CLOSED') closed += count;
+      categories.set(row.category, (categories.get(row.category) ?? 0) + count);
+    }
+    return {
+      total,
+      active: total - completed - closed,
+      completed,
+      closed,
+      monthly: monthlyRows.map((row) => ({ month: row.month, count: Number(row.count) })),
+      categories: [...categories]
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
+      updatedAt: new Date().toISOString(),
+    };
+  }
   async publicSettings() {
     const [settings, categories] = await Promise.all([
       this.prisma.siteSettings.findUniqueOrThrow({ where: { id: 'main' } }),

@@ -37,7 +37,7 @@ npm.cmd run db:migrate
 npm.cmd run db:status
 ```
 
-Seed tetap membutuhkan `SEED_PASSWORD` minimal 12 karakter dan ditolak pada production. `npm.cmd run db:seed` memanggil `prisma db seed` yang dikonfigurasi di `prisma.config.ts`; seed memakai Prisma dan dapat diulang tanpa mengganti kata sandi akun yang sudah ada.
+Isi `SEED_PASSWORD` di `.env` dengan password minimal 12 karakter, lalu jalankan `npm.cmd run db:seed` tanpa mengatur password di terminal. Seed ditolak pada production. Perintah ini memanggil `prisma db seed` yang dikonfigurasi di `prisma.config.ts`; seed memakai Prisma dan dapat diulang tanpa mengganti kata sandi akun yang sudah ada.
 
 ## Mengubah schema
 

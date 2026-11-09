@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   Search,
+  Eye,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -133,6 +134,29 @@ onUnmounted(() => {
   clearTimeout(timer);
   controller?.abort();
 });
+function actionHint(report: Report): string {
+  const role = props.user.role;
+  if (report.lifecycle === 'SUSPENDED') return role === 'MANAGER' ? 'Evaluasi penundaan' : '';
+  if (role === 'REPORTER') {
+    if (report.stage === 'DRAFT') return 'Lengkapi draf';
+    if (report.clarification && !report.clarification.response) return 'Jawab klarifikasi';
+    return '';
+  }
+  if (role === 'MANAGER') {
+    if (report.stage === 'SUBMITTED') return 'Mulai verifikasi';
+    if (report.stage === 'INITIAL_REVIEW') return 'Tinjau & usulkan penugasan';
+    if (report.stage === 'RESULT_REVIEW') return 'Tinjau hasil pemeriksaan';
+    if (report.stage === 'FOLLOW_UP') return 'Tinjau tindak lanjut';
+  }
+  if (
+    role === 'OFFICIAL' &&
+    ['ASSIGNMENT_APPROVAL', 'RESULT_APPROVAL', 'CLOSURE_APPROVAL'].includes(report.stage)
+  )
+    return 'Tinjau & putuskan proposal';
+  if (role === 'INVESTIGATOR' && report.stage === 'INVESTIGATION') return 'Catat hasil pemeriksaan';
+  if (role === 'EXECUTOR' && report.stage === 'FOLLOW_UP') return 'Catat pelaksanaan';
+  return '';
+}
 function reset() {
   Object.assign(criteria, {
     q: '',
@@ -238,25 +262,65 @@ function reset() {
         }}
       </p>
     </div>
-    <template v-else
-      ><button
-        v-for="report in items"
-        :key="report.id"
-        type="button"
-        class="report-row"
-        @click="$emit('open', report)"
-      >
-        <span class="report-icon"><FileText :size="20" /></span
-        ><span class="report-copy"
-          ><strong>{{ report.payload.title || 'Draf tanpa judul' }}</strong
-          ><small
-            >{{ report.number || 'Draf privat' }} · {{ formatDateTime(report.updatedAt) }}</small
-          ></span
-        ><span class="badge" :class="report.stage.toLowerCase()">{{
-          stageLabels[report.stage]
-        }}</span
-        ><ChevronRight :size="17" /></button
-    ></template>
+    <div v-else class="report-table-scroll">
+      <table class="report-table">
+        <caption class="table-caption">
+          Daftar laporan dan tindakan sesuai peran Anda
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Keterangan laporan</th>
+            <th scope="col">Status</th>
+            <th scope="col">Waktu diperbarui</th>
+            <th scope="col">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="report in items"
+            :key="report.id"
+            :class="{ 'needs-action': !!actionHint(report) }"
+          >
+            <td>
+              <div class="report-description">
+                <span class="report-icon"><FileText :size="20" aria-hidden="true" /></span>
+                <div class="report-description-copy">
+                  <strong>{{ report.payload.title || 'Draf tanpa judul' }}</strong>
+                  <small
+                    >{{ report.number || 'Draf privat' }} · {{ report.payload.category }}</small
+                  >
+                  <span v-if="actionHint(report)" class="action-hint"
+                    ><AlertCircle :size="14" aria-hidden="true" />Perlu tindakan:
+                    {{ actionHint(report) }}</span
+                  >
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge" :class="report.stage.toLowerCase()">{{
+                stageLabels[report.stage]
+              }}</span
+              ><small v-if="report.lifecycle === 'SUSPENDED'" class="suspended-label"
+                >Ditunda</small
+              >
+            </td>
+            <td>
+              <time :datetime="report.updatedAt">{{ formatDateTime(report.updatedAt) }}</time>
+            </td>
+            <td>
+              <button
+                type="button"
+                class="report-open-action"
+                :aria-label="'Buka detail ' + (report.payload.title || 'draf tanpa judul')"
+                @click="$emit('open', report)"
+              >
+                <Eye :size="17" aria-hidden="true" />Buka detail
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <footer class="report-pagination">
       <div class="pagination-info" aria-live="polite">
         <span v-if="!loading && !error"
@@ -304,6 +368,110 @@ function reset() {
 </template>
 
 <style scoped>
+.report-table-scroll {
+  overflow-x: auto;
+}
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+.table-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.report-table th {
+  background: #f1f5ee;
+  color: #42563e;
+  padding: 15px 20px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  border-bottom: 1px solid #dce5d6;
+}
+.report-table td {
+  padding: 20px;
+  border-bottom: 1px solid #e3e9dd;
+  vertical-align: middle;
+}
+.report-table tbody tr {
+  background: #fff;
+}
+.report-table tbody tr.needs-action {
+  background: linear-gradient(100deg, #dcebdd 0%, #edf4e9 55%, #f5f8f1 100%);
+}
+.report-table tr.needs-action td:first-child {
+  box-shadow: inset 4px 0 #34734b;
+}
+.report-table tbody tr:hover {
+  background: #f3f7ef;
+}
+.report-table tbody tr.needs-action:hover {
+  background: linear-gradient(100deg, #cedfce, #e7efdf);
+}
+.report-description {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 240px;
+}
+.report-description-copy {
+  display: grid;
+  gap: 7px;
+  overflow-wrap: anywhere;
+}
+.report-description-copy strong {
+  color: #263d2c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.report-description-copy small,
+.report-table time {
+  color: #596b52;
+  line-height: 1.6;
+}
+.report-table time {
+  white-space: nowrap;
+}
+.action-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #285638;
+  font-size: 11px;
+  font-weight: 700;
+}
+.action-hint svg {
+  flex-shrink: 0;
+}
+.suspended-label {
+  display: block;
+  margin-top: 7px;
+  color: #92400e;
+}
+.report-open-action {
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.report-open-action:hover {
+  background: #185438;
+}
+.report-open-action:focus-visible {
+  outline: 3px solid #32734e;
+  outline-offset: 3px;
+}
+@media (max-width: 760px) {
+  .report-table th,
+  .report-table td {
+    padding: 14px;
+  }
+}
+
 .report-filters {
   padding: 22px;
   border-bottom: 1px solid #e3e9dd;

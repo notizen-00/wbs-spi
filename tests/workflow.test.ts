@@ -904,6 +904,39 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       );
       const superAdmin = stored as User,
         admin = new AdminService(prisma);
+      const statistics = await admin.publicStatistics();
+      const submittedReports = await prisma.report.findMany({ where: { stage: { not: 'DRAFT' } } });
+      assert.equal(statistics.total, submittedReports.length);
+      assert.equal(statistics.monthly.length, 6);
+      for (const row of statistics.monthly) {
+        assert.match(row.month, /^\d{4}-\d{2}$/);
+        assert.ok(Number.isInteger(row.count) && row.count >= 0);
+      }
+      assert.deepEqual(
+        statistics.monthly.map((row) => row.month),
+        statistics.monthly.map((row) => row.month).sort(),
+      );
+      assert.equal(
+        statistics.completed,
+        submittedReports.filter((r) => r.stage === 'COMPLETED').length,
+      );
+      assert.equal(statistics.closed, submittedReports.filter((r) => r.stage === 'CLOSED').length);
+      assert.equal(statistics.active + statistics.completed + statistics.closed, statistics.total);
+      assert.equal(
+        statistics.categories.reduce((sum, row) => sum + row.count, 0),
+        statistics.total,
+      );
+      for (const category of statistics.categories) {
+        assert.deepEqual(Object.keys(category).sort(), ['count', 'name']);
+        assert.equal(
+          category.count,
+          submittedReports.filter((r) => {
+            const payload = r.payload as { category?: string };
+            return (payload.category || 'Lainnya') === category.name;
+          }).length,
+        );
+      }
+      assert.doesNotThrow(() => JSON.stringify(statistics));
       for (const person of [
         reporter,
         manager,

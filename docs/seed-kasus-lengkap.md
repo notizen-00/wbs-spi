@@ -13,10 +13,8 @@ npm.cmd run native:scanner:start
 npm.cmd run storage:check
 npm.cmd run scanner:check
 
-# Password akun demo baru; minimal 12 karakter.
-$env:SEED_PASSWORD = 'Ganti-Dengan-Sandi-Uji-Anda'
+# Isi SEED_PASSWORD di .env terlebih dahulu; minimal 12 karakter.
 npm.cmd run db:seed:case
-Remove-Item Env:SEED_PASSWORD
 ```
 
 Jika MinIO/ClamAV belum dipasang, ikuti [instalasi native di README](../README.md). Jangan menjalankan worker pemindaian bersamaan dengan seeder ini agar dua proses tidak memindai bukti seed yang sama saat penyiapan.

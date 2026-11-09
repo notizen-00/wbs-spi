@@ -6,9 +6,59 @@ import {
   LockKeyhole,
   HelpCircle,
   CheckCircle2,
+  ChartNoAxesCombined,
+  Files,
+  Clock3,
+  Archive,
 } from '@lucide/vue';
-defineProps<{ authPage: boolean; trackingPage?: boolean }>();
+const props = defineProps<{ authPage: boolean; trackingPage?: boolean }>();
 const { site } = useSiteConfiguration();
+const {
+  data: statistics,
+  status: statisticsStatus,
+  error: statisticsError,
+  refresh: refreshStatistics,
+} = await useAsyncData(
+  'public-report-statistics',
+  () =>
+    $fetch<{
+      total: number;
+      active: number;
+      completed: number;
+      closed: number;
+      categories: { name: string; count: number }[];
+      monthly: { month: string; count: number }[];
+      updatedAt: string;
+    }>('/api/v1/public/statistics'),
+  { immediate: !props.authPage && !props.trackingPage },
+);
+watch(
+  () => !props.authPage && !props.trackingPage,
+  (landing) => {
+    if (landing && !statistics.value) void refreshStatistics();
+  },
+);
+const number = (value: number) => new Intl.NumberFormat('id-ID').format(value);
+const statisticCards = computed(() => [
+  { label: 'Laporan terkirim', value: statistics.value?.total ?? 0, icon: Files },
+  { label: 'Dalam proses', value: statistics.value?.active ?? 0, icon: Clock3 },
+  { label: 'Selesai', value: statistics.value?.completed ?? 0, icon: CheckCircle2 },
+  { label: 'Ditutup', value: statistics.value?.closed ?? 0, icon: Archive },
+]);
+const chartCategories = computed(() => {
+  const rows = statistics.value?.categories ?? [];
+  if (rows.length <= 6) return rows;
+  return [
+    ...rows.slice(0, 5),
+    { name: 'Kategori lainnya', count: rows.slice(5).reduce((sum, row) => sum + row.count, 0) },
+  ];
+});
+const chartMax = computed(() => Math.max(1, ...chartCategories.value.map((row) => row.count)));
+const percentage = (count: number) =>
+  new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(
+    statistics.value?.total ? (count / statistics.value.total) * 100 : 0,
+  );
+
 defineEmits<{ login: []; report: []; home: []; section: [section: string] }>();
 const steps = [
   [
@@ -153,6 +203,91 @@ const faqs = [
             <p>Ikuti perkembangan, jawab klarifikasi, dan baca jawaban resmi dalam satu tempat.</p>
           </article>
         </section>
+        <section
+          id="statistics"
+          class="public-statistics"
+          aria-labelledby="statistics-title"
+          :aria-busy="statisticsStatus === 'pending'"
+        >
+          <div class="public-section-heading">
+            <div>
+              <span class="public-eyebrow">GAMBARAN PELAPORAN</span>
+              <h2 id="statistics-title">Setiap laporan berarti.</h2>
+            </div>
+            <p>
+              Ringkasan laporan yang telah dikirim. Data ditampilkan secara agregat tanpa identitas
+              dan isi perkara.
+            </p>
+          </div>
+          <div v-if="statisticsStatus === 'pending'" class="statistics-message" role="status">
+            Memuat statistik laporan...
+          </div>
+          <div v-else-if="statisticsError" class="statistics-message" role="status">
+            <p>Statistik laporan belum dapat dimuat.</p>
+            <button type="button" class="button secondary" @click="refreshStatistics()">
+              Coba lagi<ArrowRight :size="16" />
+            </button>
+          </div>
+          <template v-else-if="statistics">
+            <div class="statistics-cards">
+              <article v-for="card in statisticCards" :key="card.label">
+                <component :is="card.icon" :size="20" aria-hidden="true" /><strong>{{
+                  number(card.value)
+                }}</strong
+                ><span>{{ card.label }}</span>
+              </article>
+            </div>
+            <PublicStatisticsCharts :statistics="statistics" />
+            <div class="category-chart">
+              <div class="chart-intro">
+                <span class="chart-symbol"
+                  ><ChartNoAxesCombined :size="27" aria-hidden="true"
+                /></span>
+                <h3>Laporan per kategori</h3>
+                <p>Distribusi seluruh laporan terkirim berdasarkan kategori pelanggaran.</p>
+                <small>Draf tidak termasuk dalam statistik.</small>
+              </div>
+              <div v-if="!statistics.total" class="chart-empty">
+                <Files :size="32" aria-hidden="true" /><strong>Belum ada laporan terkirim</strong>
+                <p>Grafik akan tampil setelah laporan pertama dikirim.</p>
+              </div>
+              <ul
+                v-else
+                class="category-bars"
+                aria-label="Jumlah dan persentase laporan per kategori"
+              >
+                <li v-for="(category, index) in chartCategories" :key="category.name">
+                  <div class="bar-label">
+                    <span>{{ category.name }}</span
+                    ><strong
+                      >{{ number(category.count) }}
+                      <small>({{ percentage(category.count) }}%)</small></strong
+                    >
+                  </div>
+                  <div class="bar-track" aria-hidden="true">
+                    <span
+                      :style="{
+                        width: `${(category.count / chartMax) * 100}%`,
+                        opacity: 1 - index * 0.09,
+                      }"
+                    ></span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <p class="statistics-note">
+              Seluruh periode &middot; Diperbarui
+              {{
+                new Date(statistics.updatedAt).toLocaleString('id-ID', {
+                  timeZone: 'Asia/Jakarta',
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })
+              }}
+              WIB &middot; Jumlah laporan bukan jumlah pelanggaran yang terbukti.
+            </p>
+          </template>
+        </section>
         <section id="guide" class="public-section" aria-labelledby="guide-title">
           <div class="public-section-heading">
             <div>
@@ -265,6 +400,150 @@ const faqs = [
 </template>
 
 <style scoped>
+.public-statistics {
+  padding: 56px 0;
+  border-bottom: 1px solid #d5dbc8;
+}
+.statistics-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 30px 0 22px;
+}
+.statistics-cards article {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  background: #f2f5ed;
+  border: 1px solid #dce4d5;
+  border-radius: 12px;
+  color: #476349;
+}
+.statistics-cards article:first-child {
+  background: #274c39;
+  color: #f4f7ec;
+  border-color: #274c39;
+}
+.statistics-cards strong {
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1;
+  font-family: 'Manrope Variable', sans-serif;
+}
+.statistics-cards span {
+  font-size: 12px;
+}
+.category-chart {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.8fr) minmax(0, 1.6fr);
+  gap: 40px;
+  padding: 32px;
+  border: 1px solid #dce4d5;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #f7f9f3, #fff);
+}
+.chart-symbol {
+  display: inline-flex;
+  padding: 12px;
+  background: #e6eddc;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  color: #36593d;
+}
+.chart-intro h3 {
+  font-size: 21px;
+  margin: 0 0 12px;
+}
+.chart-intro p,
+.chart-empty p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #62705a;
+}
+.chart-intro small {
+  display: block;
+  margin-top: 18px;
+  font-size: 11px;
+  color: #62705a;
+}
+.category-bars {
+  display: grid;
+  gap: 22px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  align-content: center;
+}
+.bar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  font-size: 12px;
+  margin-bottom: 9px;
+}
+.bar-label span {
+  overflow-wrap: anywhere;
+}
+.bar-label strong {
+  white-space: nowrap;
+}
+.bar-label small {
+  font-weight: 400;
+  color: #62705a;
+}
+.bar-track {
+  height: 12px;
+  border-radius: 20px;
+  background: #e6ecdf;
+  overflow: hidden;
+}
+.bar-track > span {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #284e38, #709353);
+}
+.statistics-note {
+  margin-top: 16px;
+  color: #62705a;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.chart-empty {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 28px 10px;
+  color: #62705a;
+}
+.statistics-message {
+  padding: 30px 0;
+  color: #62705a;
+}
+.statistics-message button {
+  margin-top: 14px;
+}
+@media (max-width: 760px) {
+  .statistics-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .statistics-cards article {
+    padding: 20px;
+  }
+  .category-chart {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 24px;
+    gap: 28px;
+  }
+  .public-statistics {
+    padding: 40px 0;
+  }
+}
+
 .public-portal {
   --ink: #243d31;
   --paper: #fff;

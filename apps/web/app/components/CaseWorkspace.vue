@@ -1,9 +1,42 @@
 <script setup lang="ts">
-import { ArrowRight, ShieldCheck, AlertCircle, History, CheckCircle2 } from '@lucide/vue';
+import {
+  ArrowRight,
+  ShieldCheck,
+  AlertCircle,
+  History,
+  CheckCircle2,
+  UserRoundPlus,
+  Archive,
+  Undo2,
+  FileCheck2,
+  ClipboardCheck,
+  RotateCcw,
+  Pause,
+  Play,
+  Scale,
+  FileSearch,
+  ClipboardPen,
+  TriangleAlert,
+} from '@lucide/vue';
 import type { Report, User } from '@wbs/contracts';
 import { formatDateTime } from '../utils/date-time';
 const props = defineProps<{ report: Report; user: User }>();
 const emit = defineEmits<{ updated: [] }>();
+const actionIcons = {
+  PROPOSE_ASSIGNMENT: UserRoundPlus,
+  PROPOSE_CLOSURE: Archive,
+  REVIEW_FINDING: Undo2,
+  PROPOSE_RESULT: FileCheck2,
+  REVIEW_EXECUTION: ClipboardCheck,
+  PROPOSE_REOPEN: RotateCcw,
+  REQUEST_REOPEN: RotateCcw,
+  SUSPEND: Pause,
+  RESUME: Play,
+  DECIDE: Scale,
+  FINDING: FileSearch,
+  EXECUTE: ClipboardPen,
+  CONFLICT: TriangleAlert,
+};
 const evidence = ref<any[]>([]);
 const data = ref<any>({}),
   error = ref(''),
@@ -119,6 +152,29 @@ const actions = computed(() => {
         user.role === 'REPORTER' ? 'Jawaban & tindak lanjut' : 'Dashboard perkara'
       }}
     </h3>
+    <div v-if="actions.length" class="workspace-actions">
+      <button
+        v-for="a in actions"
+        :key="a.id"
+        class="button action-button"
+        :class="{
+          chosen: action === a.id,
+          caution: ['SUSPEND', 'CONFLICT', 'PROPOSE_CLOSURE', 'REVIEW_FINDING'].includes(a.id),
+        }"
+        :aria-pressed="action === a.id"
+        @click="
+          action = a.id;
+          error = '';
+        "
+      >
+        <component
+          :is="actionIcons[a.id as keyof typeof actionIcons]"
+          :size="17"
+          aria-hidden="true"
+        />
+        {{ a.label }}
+      </button>
+    </div>
     <div v-if="report.lifecycle === 'SUSPENDED'" class="info-box">
       Perkara sedang ditunda. Tahap asal tetap tersimpan sampai evaluasi pelanjutan.
     </div>
@@ -152,20 +208,6 @@ const actions = computed(() => {
         <p v-if="pending.payload.targetStage">Tahap tujuan: {{ pending.payload.targetStage }}</p>
       </article>
     </template>
-    <div v-if="actions.length" class="workspace-actions">
-      <button
-        v-for="a in actions"
-        :key="a.id"
-        class="button secondary"
-        :class="{ chosen: action === a.id }"
-        @click="
-          action = a.id;
-          error = '';
-        "
-      >
-        {{ a.label }}
-      </button>
-    </div>
     <form
       v-if="action"
       class="fields workspace-form"

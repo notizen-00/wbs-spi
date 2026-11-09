@@ -1158,30 +1158,6 @@ onMounted(async () => {
                       Kirim tanggapan<Send :size="16" /></button
                   ></template>
                 </div>
-                <div v-if="internal" class="internal-actions">
-                  <h3>Tindakan petugas</h3>
-                  <p>Akses dan tahap diperiksa ulang oleh server.</p>
-                  <label class="fields"
-                    >Catatan tindakan<textarea v-model="commandReason" rows="3"></textarea>
-                  </label>
-                  <div class="hero-actions">
-                    <button
-                      v-if="user?.role === 'MANAGER'"
-                      class="button secondary"
-                      :disabled="busy || !commandReason.trim()"
-                      @click="command('CLARIFY')"
-                    >
-                      Minta klarifikasi</button
-                    ><button
-                      v-if="selected.stage === 'SUBMITTED' && user?.role === 'MANAGER'"
-                      class="button"
-                      :disabled="busy || !commandReason.trim()"
-                      @click="command('ADVANCE')"
-                    >
-                      Mulai verifikasi<ArrowRight :size="16" />
-                    </button>
-                  </div>
-                </div>
                 <EvidencePanel
                   :report-id="selected.id"
                   @updated="workspace?.refresh()"
@@ -1189,15 +1165,44 @@ onMounted(async () => {
                     ['COMPLETED', 'CLOSED'].includes(selected.stage) ||
                     selected.lifecycle === 'SUSPENDED'
                   "
-                /><CaseWorkspace
-                  ref="workspace"
-                  v-if="user"
-                  :report="selected"
-                  :user="user"
-                  @updated="refreshSelected"
                 />
               </section>
-              <ReportTimeline id="report-timeline" v-show="showTimeline" :report="selected" /></div
+              <aside class="detail-sidebar">
+                <section class="panel detail-actions" aria-label="Aksi laporan">
+                  <div v-if="internal" class="internal-actions">
+                    <h3>Tindakan petugas</h3>
+                    <p>Akses dan tahap diperiksa ulang oleh server.</p>
+                    <label class="fields"
+                      >Catatan tindakan<textarea v-model="commandReason" rows="3"></textarea>
+                    </label>
+                    <div class="hero-actions">
+                      <button
+                        v-if="user?.role === 'MANAGER'"
+                        class="button secondary"
+                        :disabled="busy || !commandReason.trim()"
+                        @click="command('CLARIFY')"
+                      >
+                        <MessageSquare :size="17" aria-hidden="true" />Minta klarifikasi</button
+                      ><button
+                        v-if="selected.stage === 'SUBMITTED' && user?.role === 'MANAGER'"
+                        class="button"
+                        :disabled="busy || !commandReason.trim()"
+                        @click="command('ADVANCE')"
+                      >
+                        Mulai verifikasi<ArrowRight :size="16" />
+                      </button>
+                    </div>
+                  </div>
+                  <CaseWorkspace
+                    ref="workspace"
+                    v-if="user"
+                    :report="selected"
+                    :user="user"
+                    @updated="refreshSelected"
+                  />
+                </section>
+                <ReportTimeline id="report-timeline" v-show="showTimeline" :report="selected" />
+              </aside></div
           ></template>
           <InternalDashboard
             v-else-if="internal && user"

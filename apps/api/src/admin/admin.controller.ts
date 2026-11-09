@@ -74,6 +74,9 @@ export class AdminController {
 @Controller('api/v1/public')
 export class SiteController {
   constructor(@Inject(AdminService) private readonly admin: AdminService) {}
+  @Get('statistics') statistics() {
+    return this.admin.publicStatistics();
+  }
   @Get('settings') settings() {
     return this.admin.publicSettings();
   }
