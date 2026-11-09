@@ -231,7 +231,9 @@ Remove-Item Env:SUPER_ADMIN_EMAIL
 Remove-Item Env:SUPER_ADMIN_PASSWORD
 ```
 
-Buka http://localhost:8080. Compose ini khusus integrasi lokal, menggunakan cookie development pada HTTP dan kredensial contoh. Image dibangun sekali, dipakai API, worker, web, serta proses migrasi. Ubah `POSTGRES_PASSWORD` bersama kredensial pada `DOCKER_DATABASE_URL`; URL yang sama diteruskan ke migrator, API, dan worker. Inisialisasi password PostgreSQL hanya berlaku pada volume baru; mengedit env tidak mengganti password database yang sudah ada.
+Buka http://localhost:8081. Port web dapat diganti melalui `DOCKER_WEB_PORT` di `.env.docker`; sesuaikan juga `DOCKER_APP_ORIGIN` dengan alamat yang dibuka di browser. Jika origin tidak diisi, default mengikuti `http://localhost:<DOCKER_WEB_PORT>`. Setelah mengganti port/origin, jalankan ulang `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-build` untuk menerapkan konfigurasi pada proxy, API, dan worker.
+
+Compose ini khusus integrasi lokal, menggunakan cookie development pada HTTP dan kredensial contoh. Image dibangun sekali, dipakai API, worker, web, serta proses migrasi. Ubah `POSTGRES_PASSWORD` bersama kredensial pada `DOCKER_DATABASE_URL`; URL yang sama diteruskan ke migrator, API, dan worker. Inisialisasi password PostgreSQL hanya berlaku pada volume baru; mengedit env tidak mengganti password database yang sudah ada.
 
 MinIO dan client `mc` juga dibangun lokal dari tag source resmi melalui `deploy/minio.Dockerfile`, sehingga tidak bergantung pada image `minio/minio`/`minio/mc` yang gagal di-pull. Build pertama lebih lama karena kompilasi Go. Semua service yang memakai image lokal diberi konfigurasi build agar Compose tidak mencoba menarik `wbs-local:dev` dari registry. Detail: [storage MinIO](docs/minio.md).
 
