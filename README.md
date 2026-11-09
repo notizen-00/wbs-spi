@@ -231,7 +231,7 @@ Remove-Item Env:SUPER_ADMIN_EMAIL
 Remove-Item Env:SUPER_ADMIN_PASSWORD
 ```
 
-Buka http://localhost:8081. Port web dapat diganti melalui `DOCKER_WEB_PORT` di `.env.docker`; sesuaikan juga `DOCKER_APP_ORIGIN` dengan alamat yang dibuka di browser. Jika origin tidak diisi, default mengikuti `http://localhost:<DOCKER_WEB_PORT>`. Setelah mengganti port/origin, jalankan ulang `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-build` untuk menerapkan konfigurasi pada proxy, API, dan worker.
+Buka http://localhost:8081. Port web dapat diganti melalui `DOCKER_WEB_PORT` di `.env.docker`; sesuaikan juga `DOCKER_APP_ORIGIN` dengan alamat yang dibuka di browser. Jika origin tidak diisi, default mengikuti `http://localhost:<DOCKER_WEB_PORT>`. Untuk akses dari komputer lain melalui IP server, isi `DOCKER_WEB_BIND_ADDRESS=0.0.0.0` (default `127.0.0.1`, hanya lokal server) dan gunakan `DOCKER_APP_ORIGIN=http://IP_SERVER:PORT`. Setelah mengganti bind/port/origin, jalankan ulang `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-build` untuk menerapkan konfigurasi pada proxy, API, dan worker. Jika firewall server aktif, izinkan koneksi TCP ke port web yang dipilih.
 
 Compose ini khusus integrasi lokal, menggunakan cookie development pada HTTP dan kredensial contoh. Image dibangun sekali, dipakai API, worker, web, serta proses migrasi. Ubah `POSTGRES_PASSWORD` bersama kredensial pada `DOCKER_DATABASE_URL`; URL yang sama diteruskan ke migrator, API, dan worker. Inisialisasi password PostgreSQL hanya berlaku pada volume baru; mengedit env tidak mengganti password database yang sudah ada.
 
