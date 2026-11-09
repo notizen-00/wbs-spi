@@ -239,7 +239,11 @@ Image dasar build Node, Go, dan Alpine memakai Docker Official Images pada Amazo
 
 `DOCKER_NODE_ENV=development` melewati CAPTCHA; production memerlukannya. `DOCKER_APP_ORIGIN` harus sesuai alamat browser. Hostname Redis/MinIO/ClamAV di dalam stack ditetapkan Compose; SMTP default memakai `mailpit:1025`. Untuk SMTP eksternal, isi `DOCKER_SMTP_HOST`, `DOCKER_SMTP_PORT`, dan kredensial `SMTP_*`. `.env.docker` diabaikan Git dan tidak disalin ke image. Detail mekanisme `--env-file`: [dokumentasi Docker](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/).
 
-Jika layanan native masih berjalan, hentikan layanan yang memakai port 5432, 6379, 9000/9001, 3310, atau 1025/8025 sebelum menjalankan stack. Data database dan MinIO native tidak otomatis dipindahkan ke volume Docker. Perubahan ini tidak menjalankan container atau memigrasikan data native.
+Redis Docker dipublikasikan pada `127.0.0.1:6380` agar tidak bentrok dengan Redis/Memurai native di 6379. Ganti port host melalui `DOCKER_REDIS_PORT` di `.env.docker`. API dan worker dalam container tetap memakai `redis://redis:6379`. Jika API/worker dijalankan native tetapi Redis memakai Docker, atur `REDIS_URL=redis://localhost:6380` di `.env` (sesuaikan dengan port pilihan), lalu restart API/worker native.
+
+Untuk menerapkan perubahan port Redis saja: `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-deps redis`. Recreate Redis dapat mengakhiri sesi pengguna karena sesi disimpan di Redis.
+
+Jika layanan native masih berjalan, pastikan port 5432, 9000/9001, 3310, atau 1025/8025 tidak bentrok sebelum menjalankan stack. Data database dan MinIO native tidak otomatis dipindahkan ke volume Docker. Perubahan ini tidak menjalankan container atau memigrasikan data native.
 
 ## Perintah pemeriksaan
 
