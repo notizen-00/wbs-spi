@@ -5,13 +5,9 @@ import { stageLabels, type Report, type User } from '@wbs/contracts';
 const props = defineProps<{ user: User; reports: Report[]; loading: boolean }>();
 defineEmits<{ open: [report: Report]; queue: [] }>();
 const roles = {
-  MANAGER: [
-    'Pengelola',
-    'Verifikasi laporan masuk, kelola penugasan, dan tinjau hasil pemeriksaan.',
-  ],
   INVESTIGATOR: [
-    'Pemeriksa',
-    'Tangani pemeriksaan yang ditugaskan dan dokumentasikan temuan perkara.',
+    'Verifikator/Pemeriksa',
+    'Verifikasi laporan, usulkan penugasan, lakukan pemeriksaan yang ditugaskan, dan verifikasi tindak lanjut.',
   ],
   OFFICIAL: [
     'Pejabat berwenang',
@@ -20,10 +16,6 @@ const roles = {
   EXECUTOR: [
     'Pelaksana tindak lanjut',
     'Laksanakan tindak lanjut yang ditugaskan dan lengkapi bukti pelaksanaannya.',
-  ],
-  ADMIN: [
-    'Administrator teknis',
-    'Kelola operasional teknis sistem. Akun administrator tidak memiliki akses ke isi perkara.',
   ],
   SUPER_ADMIN: ['Super admin', 'Kelola kategori laporan, logo, dan pengaturan layanan.'],
   REPORTER: ['Pelapor', ''],
@@ -41,14 +33,14 @@ const active = computed(() =>
       <h1>Dashboard</h1>
       <p>{{ role[1] }}</p>
     </div>
-    <button v-if="user.role !== 'ADMIN'" class="button" @click="$emit('queue')">
+    <button v-if="user.role !== 'SUPER_ADMIN'" class="button" @click="$emit('queue')">
       Buka antrean<ArrowRight :size="17" />
     </button>
   </div>
-  <section v-if="user.role === 'ADMIN'" class="panel">
+  <section v-if="user.role === 'SUPER_ADMIN'" class="panel">
     <div class="empty">
       <ShieldCheck :size="32" />
-      <h3>Administrasi teknis</h3>
+      <h3>Super Admin</h3>
       <p>
         Akses teknis dipisahkan dari penanganan aduan. Pemeriksaan dan keputusan perkara menjadi
         kewenangan petugas yang ditugaskan.

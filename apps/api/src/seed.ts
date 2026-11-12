@@ -8,9 +8,9 @@ export async function seed(prisma: PrismaService, password: string) {
   await prisma.$transaction(async (tx) => {
     for (const [name, email, role] of [
       ['Pelapor Demo', 'pelapor@example.test', 'REPORTER'],
-      ['Pengelola Demo', 'pengelola@example.test', 'MANAGER'],
+      ['Verifikator/Pemeriksa Demo', 'pengelola@example.test', 'INVESTIGATOR'],
       ['Pejabat Demo', 'pejabat@example.test', 'OFFICIAL'],
-      ['Pemeriksa Demo', 'pemeriksa@example.test', 'INVESTIGATOR'],
+      ['Verifikator/Pemeriksa Kedua Demo', 'pemeriksa@example.test', 'INVESTIGATOR'],
       ['Pelaksana Demo', 'pelaksana@example.test', 'EXECUTOR'],
     ])
       await tx.user.upsert({

@@ -61,21 +61,21 @@ Semua command menyertakan `action`, `expectedVersion`, `reason` (wajib), dan hea
 | Action             | Input tambahan                              | Kewenangan                                               |
 | ------------------ | ------------------------------------------- | -------------------------------------------------------- |
 | SUBMIT             | —                                           | Pemilik, email terverifikasi; intake harus dikonfigurasi |
-| ADVANCE            | —                                           | Pengelola, hanya SUBMITTED → INITIAL_REVIEW              |
-| CLARIFY            | reason menjadi pertanyaan                   | Pengelola perkara                                        |
+| ADVANCE            | —                                           | Verifikator/Pemeriksa, hanya SUBMITTED → INITIAL_REVIEW              |
+| CLARIFY            | reason menjadi pertanyaan                   | Verifikator/Pemeriksa perkara                                        |
 | RESPOND            | reason menjadi tanggapan                    | Pemilik dengan klarifikasi terbuka                       |
-| PROPOSE_ASSIGNMENT | assigneeId, summary tersamarkan             | Pengelola pada verifikasi awal                           |
+| PROPOSE_ASSIGNMENT | assigneeId, summary tersamarkan             | Verifikator/Pemeriksa pada verifikasi awal                           |
 | DECIDE             | decision: APPROVE / RETURN                  | Pejabat, mandat sesuai jenis proposal, bukan pengusul    |
 | FINDING            | content hasil dan rekomendasi               | Pemeriksa dengan penugasan aktif                         |
-| REVIEW_FINDING     | decision: RETURN                            | Pengelola pada review hasil                              |
-| PROPOSE_RESULT     | executorId, instruction                     | Pengelola pada review hasil                              |
+| REVIEW_FINDING     | decision: RETURN                            | Verifikator/Pemeriksa pada review hasil                              |
+| PROPOSE_RESULT     | executorId, instruction                     | Verifikator/Pemeriksa pada review hasil                              |
 | EXECUTE            | taskId, execution, evidenceId               | Pelaksana tugas, bukti READY milik sendiri               |
-| REVIEW_EXECUTION   | taskId, decision: VERIFY / RETURN           | Pengelola berbeda dari pelaksana, bukti masih READY      |
-| PROPOSE_CLOSURE    | outcome: CLOSED / COMPLETED, response aman  | Pengelola, COMPLETED harus seluruh tugas terverifikasi   |
-| SUSPEND            | evaluationAt ISO, conditions                | Pengelola perkara; kewenangan institusi belum final      |
-| RESUME             | reason hasil evaluasi                       | Pengelola, kembali ke tahap asal                         |
+| REVIEW_EXECUTION   | taskId, decision: VERIFY / RETURN           | Verifikator/Pemeriksa berbeda dari pelaksana, bukti masih READY      |
+| PROPOSE_CLOSURE    | outcome: CLOSED / COMPLETED, response aman  | Verifikator/Pemeriksa, COMPLETED harus seluruh tugas terverifikasi   |
+| SUSPEND            | evaluationAt ISO, conditions                | Verifikator/Pemeriksa perkara; kewenangan institusi belum final      |
+| RESUME             | reason hasil evaluasi                       | Verifikator/Pemeriksa, kembali ke tahap asal                         |
 | REQUEST_REOPEN     | reason informasi baru                       | Pemilik, perkara final                                   |
-| PROPOSE_REOPEN     | targetStage: INITIAL_REVIEW / INVESTIGATION | Pengelola, ada request pending                           |
+| PROPOSE_REOPEN     | targetStage: INITIAL_REVIEW / INVESTIGATION | Verifikator/Pemeriksa, ada request pending                           |
 | CONFLICT           | reason                                      | Petugas terkait, mencabut akses dan penugasannya         |
 
 Keputusan tidak memakai PATCH status bebas. Proposal yang dikembalikan memiliki keputusan final tersendiri; revisi dibuat sebagai proposal baru. Snapshot dan keputusan terdahulu tidak ditimpa. API umum tidak menyediakan DELETE perkara.
@@ -103,7 +103,7 @@ Kontrak ini dokumentasi implementasi, belum OpenAPI-generated client. API memili
 
 ### Pemisahan portal pelapor dan internal
 
-Hanya `REPORTER` dapat membuat dan mengedit draf, mengirim aduan, menjawab klarifikasi, serta meminta pembukaan kembali. Akun internal menerima HTTP 403 untuk tindakan tersebut. Pelapor hanya mengakses laporan miliknya; petugas internal hanya mengakses perkara bukan draf dengan penugasan aktif dan tanpa konflik kepentingan. Kepemilikan laporan lama tidak memberikan akses pelapor kepada akun yang sudah berganti menjadi petugas. `ADMIN` merupakan administrator teknis dan tidak memiliki akses isi perkara.
+Hanya `REPORTER` dapat membuat dan mengedit draf, mengirim aduan, menjawab klarifikasi, serta meminta pembukaan kembali. Akun internal menerima HTTP 403 untuk tindakan tersebut. Pelapor hanya mengakses laporan miliknya; petugas internal hanya mengakses perkara bukan draf dengan penugasan aktif dan tanpa konflik kepentingan. Kepemilikan laporan lama tidak memberikan akses pelapor kepada akun yang sudah berganti menjadi petugas. `SUPER_ADMIN` merupakan satu-satunya role administrasi dan tidak memiliki akses isi perkara.
 
 ### Diagnostik pemindaian bukti
 

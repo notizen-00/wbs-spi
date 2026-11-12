@@ -136,13 +136,13 @@ onUnmounted(() => {
 });
 function actionHint(report: Report): string {
   const role = props.user.role;
-  if (report.lifecycle === 'SUSPENDED') return role === 'MANAGER' ? 'Evaluasi penundaan' : '';
+  if (report.lifecycle === 'SUSPENDED') return role === 'INVESTIGATOR' ? 'Evaluasi penundaan' : '';
   if (role === 'REPORTER') {
     if (report.stage === 'DRAFT') return 'Lengkapi draf';
     if (report.clarification && !report.clarification.response) return 'Jawab klarifikasi';
     return '';
   }
-  if (role === 'MANAGER') {
+  if (role === 'INVESTIGATOR') {
     if (report.stage === 'SUBMITTED') return 'Mulai verifikasi';
     if (report.stage === 'INITIAL_REVIEW') return 'Tinjau & usulkan penugasan';
     if (report.stage === 'RESULT_REVIEW') return 'Tinjau hasil pemeriksaan';

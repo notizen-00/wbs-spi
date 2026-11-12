@@ -16,7 +16,7 @@ export class CaptchaService {
   async verify(value: unknown) {
     if (process.env.NODE_ENV === 'development') return;
     const secret = process.env.RECAPTCHA_SECRET_KEY;
-    if (!secret) fail(503, 'Verifikasi keamanan belum tersedia. Hubungi pengelola.');
+    if (!secret) fail(503, 'Verifikasi keamanan belum tersedia. Hubungi administrator.');
     if (typeof value !== 'string' || !value.trim() || value.length > 4096)
       fail(422, 'Selesaikan reCAPTCHA sebelum melanjutkan.');
     let result: { success?: boolean; hostname?: string; challenge_ts?: string };

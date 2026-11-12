@@ -38,7 +38,7 @@ test('notifikasi keputusan membedakan selesai, pengembalian, dan pembukaan kemba
     ),
   );
   assert.equal(
-    caseNotification('DECIDE', 'INITIAL_REVIEW', null, 'MANAGER', 'RETURN').title,
+    caseNotification('DECIDE', 'INITIAL_REVIEW', null, 'INVESTIGATOR', 'RETURN').title,
     'Usulan dikembalikan untuk ditelaah',
   );
   assert.equal(

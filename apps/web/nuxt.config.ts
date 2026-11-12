@@ -2,7 +2,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-11-01',
   ssr: false,
   devtools: { enabled: false },
-  css: ['~/assets/main.css'],
+  css: ['~/assets/main.css', '~/assets/academic-green.css'],
   nitro: {
     devProxy: { '/api': { target: 'http://localhost:3001/api', changeOrigin: true, ws: true } },
   },

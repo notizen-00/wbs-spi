@@ -56,7 +56,7 @@ flowchart TD
     H -->|Perbaiki usulan| F
     H -->|Ya| I["Tim memeriksa dan mencatat bukti"]
     I --> J["Susun hasil dan rekomendasi"]
-    J --> K{"Review pengelola memadai?"}
+    J --> K{"Review verifikator/pemeriksa memadai?"}
     K -->|Tidak| I
     K -->|Ya| L["Pejabat menilai hasil dan tindak lanjut"]
     L --> M{"Disetujui?"}
@@ -72,7 +72,7 @@ Jalur perbaikan hasil setelah penilaian pejabat adalah detail implementasi usula
 flowchart TD
     A["Hasil dan tindak lanjut disetujui"] --> B["Pelaksana menjalankan tindak lanjut"]
     B --> C["Serahkan bukti pelaksanaan"]
-    C --> D{"Pengelola memverifikasi bukti wajib"}
+    C --> D{"Verifikator/Pemeriksa memverifikasi bukti wajib"}
     D -->|Belum memadai| B
     D -->|Memadai| E["Usulkan penutupan dan jawaban resmi aman"]
     E --> F{"Pejabat menyetujui?"}

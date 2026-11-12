@@ -36,7 +36,7 @@ export async function seedCompletedCase(
   const people: User[] = [];
   for (const [email, role] of [
     ['pelapor@example.test', 'REPORTER'],
-    ['pengelola@example.test', 'MANAGER'],
+    ['pengelola@example.test', 'INVESTIGATOR'],
     ['pejabat@example.test', 'OFFICIAL'],
     ['pemeriksa@example.test', 'INVESTIGATOR'],
     ['pelaksana@example.test', 'EXECUTOR'],
@@ -160,7 +160,7 @@ export async function seedCompletedCase(
     'review',
     manager,
     'ADVANCE',
-    'Laporan diterima; pengelola mulai memverifikasi informasi awal.',
+    'Laporan diterima; verifikator/pemeriksa mulai memverifikasi informasi awal.',
   );
   await command(
     'clarify',

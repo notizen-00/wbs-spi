@@ -43,7 +43,7 @@ async function refresh() {
       if (['ERROR', 'REJECTED'].includes(file.status)) {
         const reason =
           file.scan_error ||
-          'Pemindaian gagal. Hubungi pengelola untuk memeriksa layanan antivirus.';
+          'Pemindaian gagal. Hubungi administrator untuk memeriksa layanan antivirus.';
         const signature = `${file.status}:${reason}`;
         if (reported.get(file.id) !== signature) {
           failures.push(`${file.name}: ${reason}`);

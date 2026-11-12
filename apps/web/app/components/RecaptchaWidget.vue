@@ -28,7 +28,7 @@ async function initialize() {
       return;
     }
     if (!config.configured || !config.siteKey)
-      throw new Error('Verifikasi keamanan belum tersedia. Hubungi pengelola.');
+      throw new Error('Verifikasi keamanan belum tersedia. Hubungi administrator.');
     api = await loadRecaptcha();
     if (disposed || !container.value) return;
     widget = api.render(container.value, {

@@ -191,21 +191,21 @@ Semua memakai kata sandi `SEED_PASSWORD` yang ditentukan saat seed. Seed tidak m
 | Email | Peran |
 | --- | --- |
 | `pelapor@example.test` | Pelapor |
-| `pengelola@example.test` | Pengelola penerimaan |
+| `pengelola@example.test` | Verifikator/Pemeriksa penerimaan |
 | `pejabat@example.test` | Pejabat dengan mandat demo 30 hari |
 | `pemeriksa@example.test` | Tim pemeriksa |
 | `pelaksana@example.test` | Pelaksana tindak lanjut |
 
-Pengelola demo terdaftar sebagai penerima intake. Akun internal lain tidak otomatis memiliki akses perkara. Tidak ada pemilih role di frontend atau header yang dapat digunakan untuk menyamar sebagai pengguna lain.
+Verifikator/Pemeriksa demo terdaftar sebagai penerima intake. Akun internal lain tidak otomatis memiliki akses perkara. Tidak ada pemilih role di frontend atau header yang dapat digunakan untuk menyamar sebagai pengguna lain.
 
 ### Uji alur utama
 
 1. Pelapor membuat draf, mengisi 5W+1H, sumber bukti dan pilihan kerahasiaan; pratinjau dan konfirmasi kirim.
-2. Pengelola melihat laporan masuk, mulai verifikasi, meminta klarifikasi bila perlu, lalu mengusulkan pemeriksa dengan ringkasan tersamarkan.
+2. Verifikator/Pemeriksa melihat laporan masuk, mulai verifikasi, meminta klarifikasi bila perlu, lalu mengusulkan pemeriksa dengan ringkasan tersamarkan.
 3. Pejabat melihat proposal dan menyetujui atau mengembalikan dengan alasan; mandat dan pemisahan pengusul diperiksa backend.
-4. Pemeriksa menyerahkan hasil. Pengelola dapat mengembalikan hasil atau mengusulkan tindak lanjut; pejabat memutus.
+4. Pemeriksa menyerahkan hasil. Verifikator/Pemeriksa dapat mengembalikan hasil atau mengusulkan tindak lanjut; pejabat memutus.
 5. Pelaksana mengunggah bukti, menunggu scan lolos, lalu menyerahkan pelaksanaan dengan referensi bukti.
-6. Pengelola memverifikasi pelaksanaan dan mengusulkan penutupan beserta jawaban resmi aman. Pejabat menyetujui.
+6. Verifikator/Pemeriksa memverifikasi pelaksanaan dan mengusulkan penutupan beserta jawaban resmi aman. Pejabat menyetujui.
 7. Pelapor melihat jawaban resmi dan dapat mengajukan pembukaan kembali dengan informasi baru. Status akhir baru berubah setelah keputusan pejabat.
 
 Penutupan dini tersedia dari verifikasi awal. Penundaan menyimpan tahap asal, penanggung jawab, jadwal evaluasi dan syarat lanjut. Pernyataan konflik mencabut akses pelaku dan penugasan aktifnya; penyelesaian/pengalihan konflik secara institusional masih perlu dilengkapi sebelum operasional.
@@ -294,6 +294,6 @@ Pratinjau hasil pengujian: [desktop](artifacts/portal-1440.png) · [mobile](arti
 
 Buka `/demo` atau pilih **Alur aplikasi demo** pada navigasi beranda publik. Menu ini tidak ditampilkan di dashboard. Halaman berisi lima email akun demo, fungsi tiap role, dan urutan pelaporan sampai Selesai. Super admin dijelaskan terpisah tanpa menampilkan kredensialnya. Halaman hanya tersedia ketika API memakai `NODE_ENV=development` (`DOCKER_NODE_ENV=development` untuk Docker); endpoint panduan mengembalikan 404 pada mode lain.
 
-Untuk menampilkan password demo, isi `DEMO_PUBLIC_PASSWORD` pada `.env` (native) atau `.env.docker` (Docker) dengan password akun demo yang ditentukan saat seed. Nilai ini sengaja ditampilkan kepada pengunjung halaman demo. Tanpa nilai ini, halaman meminta pengunjung menggunakan password dari pengelola demo. Variabel ini tidak membuat akun atau mengganti password; jalankan seed terlebih dahulu. Jangan isi dengan password super admin atau akun nyata.
+Untuk menampilkan password demo, isi `DEMO_PUBLIC_PASSWORD` pada `.env` (native) atau `.env.docker` (Docker) dengan password akun demo yang ditentukan saat seed. Nilai ini sengaja ditampilkan kepada pengunjung halaman demo. Tanpa nilai ini, halaman meminta pengunjung menggunakan password dari verifikator/pemeriksa demo. Variabel ini tidak membuat akun atau mengganti password; jalankan seed terlebih dahulu. Jangan isi dengan password super admin atau akun nyata.
 
 Setelah mengubah `.env.docker`, terapkan environment dengan `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-build`. Perubahan kode halaman memerlukan build image terbaru. Untuk native, restart API setelah mengubah `.env`.

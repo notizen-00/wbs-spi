@@ -32,6 +32,7 @@ import { AuthService } from '../apps/api/src/auth/auth.service';
 import { UnauthorizedException } from '@nestjs/common';
 import { createServer } from 'node:http';
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { Server as SocketServer } from 'socket.io';
 import { io, type Socket as ClientSocket } from 'socket.io-client';
 import type Redis from 'ioredis';
@@ -73,7 +74,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     assert.equal(
       (await db.query('SELECT * FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows
         .length,
-      9,
+      11,
     );
   });
   await t.test('schema Prisma sesuai dengan database hasil migrasi', async () => {
@@ -86,22 +87,115 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       '--exit-code',
     ]);
   });
+  await t.test('migrasi menggabungkan pengelola lama tanpa kehilangan akun dan akses', async () => {
+    const userId = randomUUID();
+    const reportId = randomUUID();
+    await db.exec('BEGIN; ALTER TABLE users DROP CONSTRAINT users_role_check;');
+    try {
+      await db.query(
+        "INSERT INTO users(id,name,email,password_hash,role,verified) VALUES($1,'Petugas lama','legacy-role@example.test','hash','MANAGER',true)",
+        [userId],
+      );
+      await db.query('INSERT INTO intake_members(user_id) VALUES($1)', [userId]);
+      await db.query("INSERT INTO reports(id,owner_id,stage) VALUES($1,$2,'SUBMITTED')", [
+        reportId,
+        userId,
+      ]);
+      await db.query('INSERT INTO case_access(report_id,user_id) VALUES($1,$2)', [
+        reportId,
+        userId,
+      ]);
+      // Restore the old constraint before applying the new migration to existing data.
+      await db.exec(
+        "ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('REPORTER','MANAGER','INVESTIGATOR','OFFICIAL','EXECUTOR','ADMIN','SUPER_ADMIN'))",
+      );
+      await db.exec(
+        readFileSync(
+          'database/prisma/migrations/20261112000100_merge_verifier_investigator/migration.sql',
+          'utf8',
+        ),
+      );
+      assert.equal(
+        (await db.query<{ role: string }>('SELECT role FROM users WHERE id=$1', [userId])).rows[0]!
+          .role,
+        'INVESTIGATOR',
+      );
+      assert.equal(
+        (await db.query('SELECT * FROM intake_members WHERE user_id=$1', [userId])).rows.length,
+        1,
+      );
+      assert.equal(
+        (
+          await db.query('SELECT * FROM case_access WHERE report_id=$1 AND user_id=$2', [
+            reportId,
+            userId,
+          ])
+        ).rows.length,
+        1,
+      );
+      await assert.rejects(db.query("UPDATE users SET role='MANAGER' WHERE id=$1", [userId]));
+    } finally {
+      await db.exec('ROLLBACK');
+    }
+  });
+  await t.test('akun Admin lama menjadi Super Admin tanpa mengganti kredensial', async () => {
+    const userId = randomUUID();
+    await db.exec('BEGIN; ALTER TABLE users DROP CONSTRAINT users_role_check;');
+    try {
+      await db.query(
+        "INSERT INTO users(id,name,email,password_hash,role,verified,auth_version) VALUES($1,'Admin lama','legacy-admin@example.test','existing-hash','ADMIN',true,7)",
+        [userId],
+      );
+      await db.exec(
+        "ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('REPORTER','INVESTIGATOR','OFFICIAL','EXECUTOR','ADMIN','SUPER_ADMIN'))",
+      );
+      await db.exec(
+        readFileSync(
+          'database/prisma/migrations/20261112000200_merge_admin_into_super_admin/migration.sql',
+          'utf8',
+        ),
+      );
+      const user = (
+        await db.query<{ role: string; password_hash: string; auth_version: number }>(
+          'SELECT role,password_hash,auth_version FROM users WHERE id=$1',
+          [userId],
+        )
+      ).rows[0]!;
+      assert.deepEqual(user, {
+        role: 'SUPER_ADMIN',
+        password_hash: 'existing-hash',
+        auth_version: 7,
+      });
+      await assert.rejects(db.query("UPDATE users SET role='ADMIN' WHERE id=$1", [userId]));
+    } finally {
+      await db.exec('ROLLBACK');
+    }
+  });
   const people: Record<string, User> = {};
-  for (const role of ['REPORTER', 'MANAGER', 'OFFICIAL', 'INVESTIGATOR', 'EXECUTOR']) {
+  for (const role of ['REPORTER', 'INVESTIGATOR', 'OFFICIAL', 'EXECUTOR']) {
     const result = await db.query<any>(
       "INSERT INTO users(name,email,password_hash,role,verified) VALUES($1,$2,'hash',$3,true) RETURNING *",
       [role, `${role.toLowerCase()}@example.test`, role],
     );
     people[role] = result.rows[0];
   }
+  const assignedInvestigator = await prisma.user.create({
+    data: {
+      name: 'Verifikator/Pemeriksa kedua',
+      email: 'assigned-investigator@example.test',
+      passwordHash: 'hash',
+      role: 'INVESTIGATOR',
+      verified: true,
+    },
+  });
   const reports = new ReportsService(prisma, new ReportsRepository(prisma), new WorkflowService());
   const reporter = people.REPORTER!,
-    manager = people.MANAGER!,
+    manager = people.INVESTIGATOR!,
     official = people.OFFICIAL!,
-    investigator = people.INVESTIGATOR!,
+    investigator = assignedInvestigator as User,
     executor = people.EXECUTOR!;
   await t.test('hanya pelapor dapat membuat draf dan menjalankan tindakan pelapor', async () => {
-    for (const role of ['MANAGER', 'INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'ADMIN'] as const) {
+    for (const role of ['INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'SUPER_ADMIN'] as const) {
       const internal = { ...manager, role };
       await assert.rejects(
         () => reports.create(internal, { payload: {} }),
@@ -126,7 +220,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     );
     assert.equal(
       await prisma.report.count({
-        where: { AND: [{ id: draft.id }, caseScope({ ...manager, role: 'ADMIN' })] },
+        where: { AND: [{ id: draft.id }, caseScope({ ...manager, role: 'SUPER_ADMIN' })] },
       }),
       0,
     );
@@ -285,7 +379,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       assert.ok((await reports.list(reporter, 1, 'prisma')).some((item) => item.id === draft.id));
     },
   );
-  await t.test('proposal penugasan memerlukan pengelola', async () => {
+  await t.test('proposal penugasan memerlukan verifikator/pemeriksa', async () => {
     await assert.rejects(
       command(reporter, {
         action: 'PROPOSE_ASSIGNMENT',
@@ -319,6 +413,12 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       (await db.query('SELECT * FROM assignments WHERE user_id=$1', [investigator.id])).rows.length,
       1,
     );
+    await assert.rejects(
+      command(manager, { action: 'FINDING', content: 'Role sama tetapi belum ditugaskan' }),
+      (error: any) => error.getStatus() === 403,
+    );
+    assert.equal((await reports.workspace(r.id, manager)).canSubmitFinding, false);
+    assert.equal((await reports.workspace(r.id, investigator)).canSubmitFinding, true);
   });
   await t.test('suspend menyimpan tahap dan memblokir proses biasa', async () => {
     await command(manager, {
@@ -406,7 +506,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     await assert.rejects(db.query("UPDATE findings SET content='tampered'"));
     await assert.rejects(db.query('DELETE FROM approval_decisions'));
   });
-  await t.test('scope objek melindungi draf, admin teknis, dan konflik', async () => {
+  await t.test('scope objek melindungi draf, super admin, dan konflik', async () => {
     const draft = (
       await db.query<any>('INSERT INTO reports(owner_id) VALUES($1) RETURNING id', [reporter.id])
     ).rows[0];
@@ -418,7 +518,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       (await prisma.report.findMany({ where: { id, AND: caseScope(user) } })).length;
     assert.equal(await read(draft.id, manager), 0);
     assert.equal(await read(draft.id, reporter), 1);
-    assert.equal(await read(r.id, { ...official, role: 'ADMIN' }), 0);
+    assert.equal(await read(r.id, { ...official, role: 'SUPER_ADMIN' }), 0);
     assert.equal(await read(r.id, investigator), 0);
   });
   await t.test('modul Nest, dependency injection, lifecycle Prisma dan guard HTTP', async () => {
@@ -856,7 +956,10 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
         data: { userId: manager.id, reportId: first.items[0]!.id },
       });
       assert.equal((await reports.listPage(manager, { category })).total, 1);
-      assert.equal((await reports.listPage({ ...manager, role: 'ADMIN' }, { category })).total, 0);
+      assert.equal(
+        (await reports.listPage({ ...manager, role: 'SUPER_ADMIN' }, { category })).total,
+        0,
+      );
       await assert.rejects(() => reports.listPage(reporter, { pageSize: 1000 }));
       await assert.rejects(() => reports.listPage(reporter, { stage: 'INVALID' }));
     },
@@ -943,7 +1046,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
         official,
         investigator,
         executor,
-        { ...manager, role: 'ADMIN' as const },
+        { ...manager, role: 'SUPER_ADMIN' as const, verified: false },
       ]) {
         assert.throws(
           () => admin.categories(person),

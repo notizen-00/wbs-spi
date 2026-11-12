@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-for (const role of ['MANAGER', 'INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'ADMIN']) {
+for (const role of ['INVESTIGATOR', 'OFFICIAL', 'EXECUTOR']) {
   test(`portal internal ${role} tidak menampilkan fitur pelapor`, async ({ page }) => {
     await page.route('**/api/v1/**', async (route) => {
       const path = new URL(route.request().url()).pathname;
@@ -24,15 +24,9 @@ for (const role of ['MANAGER', 'INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'ADMIN'])
       page.getByRole('button', { name: /Buat laporan|Panduan pelaporan|Pelajari alur/ }),
     ).toHaveCount(0);
     await expect(page.locator('.hero, .how-panel')).toHaveCount(0);
-    if (role !== 'ADMIN') {
-      await page.getByRole('button', { name: 'Buka antrean' }).click();
-      await expect(page.getByRole('heading', { name: 'Antrean perkara' })).toBeVisible();
-      await expect(page.getByRole('button', { name: /Buat laporan|Draf/ })).toHaveCount(0);
-    } else {
-      await expect(page.getByRole('button', { name: /Antrean perkara|Buka antrean/ })).toHaveCount(
-        0,
-      );
-    }
+    await page.getByRole('button', { name: 'Buka antrean' }).click();
+    await expect(page.getByRole('heading', { name: 'Antrean perkara' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Buat laporan|Draf/ })).toHaveCount(0);
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: 850 });
       await expect

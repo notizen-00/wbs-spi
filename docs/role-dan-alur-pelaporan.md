@@ -1,18 +1,18 @@
 # Role dan alur pelaporan WBS Universitas Jember
 
-Dokumen ini menjelaskan perilaku yang sudah diterapkan pada kode per 6 November 2026. Tujuannya sebagai panduan pengguna dan simulasi UAT lintas role. Fitur yang masih direncanakan dipisahkan pada bagian batas implementasi.
+Dokumen ini menjelaskan perilaku yang sudah diterapkan pada kode per 12 November 2026. Tujuannya sebagai panduan pengguna dan simulasi UAT lintas role. Fitur yang masih direncanakan dipisahkan pada bagian batas implementasi.
 
 ## 1. Role dan tanggung jawab
 
 | Role sistem | Nama pengguna | Tanggung jawab | Syarat akses perkara |
 | --- | --- | --- | --- |
 | `REPORTER` | Pelapor | Membuat dan mengedit draf, mengirim laporan, menjawab klarifikasi, memantau status, membaca jawaban resmi, serta meminta pembukaan kembali | Hanya laporan miliknya sendiri |
-| `MANAGER` | Pengelola | Menerima laporan, memulai verifikasi, meminta klarifikasi, mengusulkan pemeriksa, menelaah hasil, mengusulkan tindak lanjut, memverifikasi pelaksanaan, serta mengusulkan penutupan/pembukaan kembali | Memiliki akses perkara aktif; penerima laporan baru harus terdaftar sebagai anggota intake aktif |
+| `INVESTIGATOR` | Verifikator/Pemeriksa | Menerima dan memverifikasi laporan, meminta klarifikasi, mengusulkan penugasan, memeriksa sesuai penugasan aktif, menelaah hasil, mengusulkan tindak lanjut, memverifikasi pelaksanaan, serta mengusulkan penutupan/pembukaan kembali | Memiliki akses perkara aktif; penerima laporan baru harus anggota intake aktif; penyerahan hasil pemeriksaan memerlukan penugasan aktif yang disetujui pejabat |
 | `OFFICIAL` | Pejabat berwenang | Menyetujui atau mengembalikan usulan penugasan, hasil/tindak lanjut, penutupan, dan pembukaan kembali | Memiliki akses perkara dan mandat aktif sesuai jenis keputusan |
-| `INVESTIGATOR` | Pemeriksa | Melakukan pemeriksaan dan menyerahkan hasil serta rekomendasi | Akses diberikan setelah persetujuan penugasan; penyerahan hasil memerlukan penugasan aktif |
 | `EXECUTOR` | Pelaksana tindak lanjut | Menjalankan instruksi, mengunggah bukti, serta menyerahkan catatan pelaksanaan | Akses diberikan setelah persetujuan hasil/tindak lanjut; hanya dapat menyerahkan tugas miliknya |
-| `ADMIN` | Admin teknis | Role teknis yang dikenali sistem; pengelolaan administratif lengkap belum tersedia | Filter akses tidak memberikan akses isi perkara kepada admin teknis |
 | `SUPER_ADMIN` | Super admin | CRUD kategori laporan; pengaturan logo, nama aplikasi/institusi, tagline, dan kontak bantuan; melihat audit administrasi | Tidak mendapat akses isi perkara; akun dibuat melalui `db:seed:admin`, terpisah dari lima akun demo |
+
+Ada empat role operasional: Pelapor, Verifikator/Pemeriksa, Pejabat berwenang, dan Pelaksana tindak lanjut. Administrasi hanya menggunakan Super Admin. Role Pengelola lama (`MANAGER`) digabung ke `INVESTIGATOR` melalui migrasi database tanpa menghapus akun, penugasan, akses, atau riwayat perkara.
 
 Registrasi publik menghasilkan akun pelapor. Pengguna tidak memilih role internal melalui formulir registrasi. Role internal saja tidak otomatis membuka seluruh laporan: sistem memeriksa akses per perkara, konflik kepentingan, serta syarat tindakan.
 
@@ -21,36 +21,36 @@ Registrasi publik menghasilkan akun pelapor. Pengguna tidak memilih role interna
 | Email | Role |
 | --- | --- |
 | `pelapor@example.test` | Pelapor |
-| `pengelola@example.test` | Pengelola |
+| `pengelola@example.test` | Verifikator/Pemeriksa |
 | `pejabat@example.test` | Pejabat berwenang |
-| `pemeriksa@example.test` | Pemeriksa |
+| `pemeriksa@example.test` | Verifikator/Pemeriksa (petugas kedua) |
 | `pelaksana@example.test` | Pelaksana tindak lanjut |
 
-Password mengikuti `SEED_PASSWORD` saat menjalankan `npm.cmd run db:seed`, minimal 12 karakter. Seed membuat akun demo terverifikasi, mendaftarkan pengelola demo sebagai anggota intake, dan memberi pejabat demo mandat 30 hari untuk `ASSIGNMENT`, `RESULT`, `CLOSURE`, dan `REOPEN`. Seed tidak membuat akun `ADMIN` dan tidak mengganti password akun yang sudah ada. Jika persetujuan ditolak karena mandat kedaluwarsa, periksa mandat; seed dapat membuat mandat demo baru ketika tidak ada mandat aktif untuk jenis keputusan tersebut.
+Password mengikuti `SEED_PASSWORD` saat menjalankan `npm.cmd run db:seed`, minimal 12 karakter. Seed membuat akun demo terverifikasi, mendaftarkan verifikator/pemeriksa demo sebagai anggota intake, dan memberi pejabat demo mandat 30 hari untuk `ASSIGNMENT`, `RESULT`, `CLOSURE`, dan `REOPEN`. Super Admin dibuat secara terpisah melalui `db:seed:admin`; seed demo tidak membuat akun Super Admin dan tidak mengganti password akun yang sudah ada. Jika persetujuan ditolak karena mandat kedaluwarsa, periksa mandat; seed dapat membuat mandat demo baru ketika tidak ada mandat aktif untuk jenis keputusan tersebut.
 
 ## 2. Gambaran alur utama
 
 ```mermaid
 flowchart TD
     A[Pelapor: membuat draf] --> B[Pelapor: mengirim laporan]
-    B --> C[Pengelola: verifikasi awal]
-    C --> D[Pengelola: usulkan pemeriksa]
+    B --> C[Verifikator/Pemeriksa: verifikasi awal]
+    C --> D[Verifikator/Pemeriksa: usulkan pemeriksa]
     D --> E{Pejabat: keputusan penugasan}
     E -->|Kembalikan| C
     E -->|Setujui| F[Pemeriksa: pemeriksaan dan hasil]
-    F --> G[Pengelola: review hasil]
+    F --> G[Verifikator/Pemeriksa: review hasil]
     G -->|Perlu revisi| F
-    G --> H[Pengelola: usulkan hasil dan tindak lanjut]
+    G --> H[Verifikator/Pemeriksa: usulkan hasil dan tindak lanjut]
     H --> I{Pejabat: keputusan hasil}
     I -->|Kembalikan| G
     I -->|Setujui| J[Pelaksana: tindak lanjut dan bukti]
-    J --> K[Pengelola: review pelaksanaan]
+    J --> K[Verifikator/Pemeriksa: review pelaksanaan]
     K -->|Kembalikan tugas| J
-    K -->|Seluruh tugas terverifikasi| L[Pengelola: usulkan penutupan]
+    K -->|Seluruh tugas terverifikasi| L[Verifikator/Pemeriksa: usulkan penutupan]
     L --> M{Pejabat: keputusan penutupan}
     M -->|Kembalikan| K
     M -->|Setujui: selesai| N[Selesai dan jawaban resmi]
-    C --> O[Pengelola: usulkan penutupan dini]
+    C --> O[Verifikator/Pemeriksa: usulkan penutupan dini]
     O --> P{Pejabat: keputusan penutupan}
     P -->|Kembalikan| C
     P -->|Setujui: ditutup| Q[Ditutup dan jawaban resmi]
@@ -72,20 +72,20 @@ Validasi pengiriman saat ini mewajibkan keterangan bukti; kode pengiriman tidak 
 
 Saat pengiriman berhasil, status berubah dari `DRAFT` menjadi `SUBMITTED` dan sistem memberikan nomor penerimaan berformat `WBS/tahun/nomor`, misalnya `WBS/2026/00001`.
 
-Sistem memberikan akses kepada pengelola intake yang aktif, terverifikasi, dan tidak berkonflik pada perkara tersebut. Jika belum ada pengelola penerimaan yang memenuhi syarat, pengiriman ditolak dan draf tetap tersimpan. Isi laporan hanya dapat diedit langsung selama masih berstatus draf.
+Sistem memberikan akses kepada verifikator/pemeriksa intake yang aktif, terverifikasi, dan tidak berkonflik pada perkara tersebut. Jika belum ada verifikator/pemeriksa penerimaan yang memenuhi syarat, pengiriman ditolak dan draf tetap tersimpan. Isi laporan hanya dapat diedit langsung selama masih berstatus draf.
 
-### Langkah 3 — Pengelola melakukan verifikasi awal
+### Langkah 3 — Verifikator/Pemeriksa melakukan verifikasi awal
 
-Pengelola membuka laporan masuk dan memulai verifikasi (`ADVANCE`). Status menjadi `INITIAL_REVIEW`. Pengelola menelaah isi laporan dan dapat meminta klarifikasi kepada pelapor.
+Verifikator/Pemeriksa membuka laporan masuk dan memulai verifikasi (`ADVANCE`). Status menjadi `INITIAL_REVIEW`. Verifikator/Pemeriksa menelaah isi laporan dan dapat meminta klarifikasi kepada pelapor.
 
-Jika laporan dilanjutkan, pengelola memilih pemeriksa dan mengisi ringkasan tersamarkan melalui **Usulkan penugasan**. Status menjadi `ASSIGNMENT_APPROVAL`. Pemeriksa belum memperoleh penugasan melalui usulan saja.
+Jika laporan dilanjutkan, verifikator/pemeriksa memilih pemeriksa dan mengisi ringkasan tersamarkan melalui **Usulkan penugasan**. Status menjadi `ASSIGNMENT_APPROVAL`. Pemeriksa belum memperoleh penugasan melalui usulan saja.
 
 ### Langkah 4 — Pejabat memutus penugasan
 
 Pejabat dengan mandat `ASSIGNMENT` yang masih berlaku menelaah usulan dan memberikan alasan/catatan keputusan.
 
 - **Setujui:** sistem membuat penugasan pemeriksa, memberi akses perkara, dan mengubah status menjadi `INVESTIGATION`.
-- **Kembalikan:** status kembali ke `INITIAL_REVIEW` agar pengelola memperbaiki usulan.
+- **Kembalikan:** status kembali ke `INITIAL_REVIEW` agar verifikator/pemeriksa memperbaiki usulan.
 
 Pengusul dan pemilik laporan tidak dapat menyetujui usulan sendiri. Pemeriksa yang dipilih harus aktif, terverifikasi, bukan pemilik laporan, dan tidak memiliki konflik pada perkara tersebut.
 
@@ -93,16 +93,16 @@ Pengusul dan pemilik laporan tidak dapat menyetujui usulan sendiri. Pemeriksa ya
 
 Pemeriksa yang memiliki penugasan aktif melakukan pemeriksaan, lalu memilih **Serahkan hasil pemeriksaan** dengan mengisi hasil dan rekomendasi. Status menjadi `RESULT_REVIEW`. Hasil pemeriksaan disimpan sebagai catatan baru.
 
-Pengelola menelaah hasil. Jika belum memadai, **Kembalikan hasil** mengembalikan perkara ke `INVESTIGATION` untuk revisi. Hasil sebelumnya tetap tersimpan.
+Verifikator/Pemeriksa menelaah hasil. Jika belum memadai, **Kembalikan hasil** mengembalikan perkara ke `INVESTIGATION` untuk revisi. Hasil sebelumnya tetap tersimpan.
 
-### Langkah 6 — Pengelola mengusulkan hasil dan tindak lanjut
+### Langkah 6 — Verifikator/Pemeriksa mengusulkan hasil dan tindak lanjut
 
-Jika hasil memadai, pengelola memilih **Usulkan hasil & tindak lanjut**, menentukan pelaksana, dan mengisi instruksi/rencana tindak lanjut. Status menjadi `RESULT_APPROVAL`.
+Jika hasil memadai, verifikator/pemeriksa memilih **Usulkan hasil & tindak lanjut**, menentukan pelaksana, dan mengisi instruksi/rencana tindak lanjut. Status menjadi `RESULT_APPROVAL`.
 
 Pejabat dengan mandat `RESULT` memutus usulan:
 
 - **Setujui:** sistem membuat tugas tindak lanjut, memberi akses kepada pelaksana, dan mengubah status menjadi `FOLLOW_UP`.
-- **Kembalikan:** status kembali ke `RESULT_REVIEW` untuk penelaahan/perbaikan pengelola.
+- **Kembalikan:** status kembali ke `RESULT_REVIEW` untuk penelaahan/perbaikan verifikator/pemeriksa.
 
 ### Langkah 7 — Pelaksana menyerahkan pelaksanaan dan bukti
 
@@ -110,18 +110,18 @@ Pelaksana menjalankan instruksi tugasnya dan mengunggah bukti pelaksanaan. Tungg
 
 Bukti yang dipilih harus berasal dari laporan yang sama, diunggah oleh pelaksana tersebut, dan sudah lolos pemindaian. Tugas harus milik pelaksana dengan status `OPEN` atau `RETURNED`. Setelah diserahkan, status tugas menjadi `SUBMITTED`; status perkara tetap `FOLLOW_UP`.
 
-### Langkah 8 — Pengelola memverifikasi tindak lanjut
+### Langkah 8 — Verifikator/Pemeriksa memverifikasi tindak lanjut
 
-Pengelola menelaah pelaksanaan yang telah diserahkan:
+Verifikator/Pemeriksa menelaah pelaksanaan yang telah diserahkan:
 
 - **Verifikasi (`VERIFY`):** tugas menjadi `VERIFIED`; bukti harus masih berstatus `READY`.
 - **Kembalikan (`RETURN`):** tugas menjadi `RETURNED` agar pelaksana memperbaiki dan menyerahkan ulang.
 
-Pengelola tidak dapat memverifikasi tugas yang pelaksananya adalah dirinya sendiri. Penutupan dengan hasil **Selesai** membutuhkan setidaknya satu tugas dan seluruh tugas berstatus `VERIFIED`.
+Verifikator/Pemeriksa tidak dapat memverifikasi tugas yang pelaksananya adalah dirinya sendiri. Penutupan dengan hasil **Selesai** membutuhkan setidaknya satu tugas dan seluruh tugas berstatus `VERIFIED`.
 
-### Langkah 9 — Pengelola mengusulkan penutupan
+### Langkah 9 — Verifikator/Pemeriksa mengusulkan penutupan
 
-Pengelola memilih **Usulkan penutupan**, menentukan hasil penutupan, dan menulis jawaban resmi yang aman dibaca pelapor. Status berubah menjadi `CLOSURE_APPROVAL`.
+Verifikator/Pemeriksa memilih **Usulkan penutupan**, menentukan hasil penutupan, dan menulis jawaban resmi yang aman dibaca pelapor. Status berubah menjadi `CLOSURE_APPROVAL`.
 
 Pejabat dengan mandat `CLOSURE` memutus usulan:
 
@@ -135,13 +135,13 @@ Pelapor dapat membaca jawaban resmi melalui portal. Tersedianya jawaban resmi me
 | Status perkara | Tampilan | Penanggung jawab tindakan berikutnya |
 | --- | --- | --- |
 | `DRAFT` | Draf | Pelapor melengkapi dan mengirim |
-| `SUBMITTED` | Terkirim | Pengelola memulai verifikasi |
-| `INITIAL_REVIEW` | Verifikasi awal | Pengelola menelaah dan mengusulkan penugasan/penutupan dini |
+| `SUBMITTED` | Terkirim | Verifikator/Pemeriksa memulai verifikasi |
+| `INITIAL_REVIEW` | Verifikasi awal | Verifikator/Pemeriksa menelaah dan mengusulkan penugasan/penutupan dini |
 | `ASSIGNMENT_APPROVAL` | Persetujuan penugasan | Pejabat memutus usulan penugasan |
 | `INVESTIGATION` | Pemeriksaan | Pemeriksa menyerahkan hasil |
-| `RESULT_REVIEW` | Review hasil | Pengelola menelaah hasil |
+| `RESULT_REVIEW` | Review hasil | Verifikator/Pemeriksa menelaah hasil |
 | `RESULT_APPROVAL` | Persetujuan hasil | Pejabat memutus hasil/tindak lanjut |
-| `FOLLOW_UP` | Tindak lanjut | Pelaksana menjalankan tugas; pengelola memverifikasi dan mengusulkan penutupan |
+| `FOLLOW_UP` | Tindak lanjut | Pelaksana menjalankan tugas; verifikator/pemeriksa memverifikasi dan mengusulkan penutupan |
 | `CLOSURE_APPROVAL` | Persetujuan penutupan | Pejabat memutus penutupan |
 | `COMPLETED` | Selesai | Hasil akhir setelah tindak lanjut terverifikasi |
 | `CLOSED` | Ditutup | Hasil penutupan selain penyelesaian normal |
@@ -154,15 +154,15 @@ Status tugas tindak lanjut terpisah dari status perkara: `OPEN` → `SUBMITTED` 
 
 ### Klarifikasi
 
-Pengelola dapat meminta klarifikasi pada perkara yang belum final dan bukan draf, selama tidak ada klarifikasi yang belum dijawab. Pertanyaan dan tahap asal disimpan tanpa mengganti tahap perkara. Pelapor menjawab klarifikasi pada laporannya sendiri. Klarifikasi aktif harus dijawab sebelum alur workflow dilanjutkan; pernyataan konflik dan penundaan tetap diizinkan.
+Verifikator/Pemeriksa dapat meminta klarifikasi pada perkara yang belum final dan bukan draf, selama tidak ada klarifikasi yang belum dijawab. Pertanyaan dan tahap asal disimpan tanpa mengganti tahap perkara. Pelapor menjawab klarifikasi pada laporannya sendiri. Klarifikasi aktif harus dijawab sebelum alur workflow dilanjutkan; pernyataan konflik dan penundaan tetap diizinkan.
 
 ### Penutupan dini dan hasil Ditutup
 
-Dari `INITIAL_REVIEW`, pengelola dapat mengusulkan penutupan dengan hasil `CLOSED`, disertai alasan dan jawaban resmi. Keputusan tetap memerlukan pejabat bermandat `CLOSURE`. Jika disetujui, laporan menjadi **Ditutup** tanpa melalui pemeriksaan dan tindak lanjut. Kode juga mengizinkan usulan hasil `CLOSED` dari `FOLLOW_UP`. Hasil `COMPLETED` hanya tersedia dari `FOLLOW_UP` setelah seluruh tugas terverifikasi.
+Dari `INITIAL_REVIEW`, verifikator/pemeriksa dapat mengusulkan penutupan dengan hasil `CLOSED`, disertai alasan dan jawaban resmi. Keputusan tetap memerlukan pejabat bermandat `CLOSURE`. Jika disetujui, laporan menjadi **Ditutup** tanpa melalui pemeriksaan dan tindak lanjut. Kode juga mengizinkan usulan hasil `CLOSED` dari `FOLLOW_UP`. Hasil `COMPLETED` hanya tersedia dari `FOLLOW_UP` setelah seluruh tugas terverifikasi.
 
 ### Penundaan dan melanjutkan perkara
 
-Pengelola dapat menunda perkara yang bukan draf dan belum final. Pengelola mengisi alasan, tanggal evaluasi di masa mendatang, dan syarat melanjutkan. Sistem menyimpan tahap asal serta mengubah lifecycle menjadi `SUSPENDED`.
+Verifikator/Pemeriksa dapat menunda perkara yang bukan draf dan belum final. Verifikator/Pemeriksa mengisi alasan, tanggal evaluasi di masa mendatang, dan syarat melanjutkan. Sistem menyimpan tahap asal serta mengubah lifecycle menjadi `SUSPENDED`.
 
 Selama ditunda, command selain melanjutkan dan pernyataan konflik diblokir; unggah/retry bukti juga diblokir. **Evaluasi & lanjutkan** mengembalikan lifecycle ke `ACTIVE` dan tahap ke tahap asal. Tanggal evaluasi tidak otomatis menjalankan perkara kembali.
 
@@ -173,11 +173,11 @@ Petugas terkait dapat memilih **Nyatakan konflik kepentingan** dengan alasan. Si
 ### Pembukaan kembali
 
 1. Pada laporan `COMPLETED` atau `CLOSED`, pelapor memilih **Ajukan pembukaan kembali** dan memberikan alasan/informasi baru.
-2. Pengelola menelaah permintaan lalu **Usulkan pembukaan kembali**, dengan tujuan `INITIAL_REVIEW` atau `INVESTIGATION`.
+2. Verifikator/Pemeriksa menelaah permintaan lalu **Usulkan pembukaan kembali**, dengan tujuan `INITIAL_REVIEW` atau `INVESTIGATION`.
 3. Pejabat dengan mandat `REOPEN` menyetujui atau mengembalikan usulan.
 4. Jika disetujui, lifecycle menjadi `ACTIVE` dan tahap berubah ke tujuan usulan. Jika dikembalikan, permintaan pending ditandai `REJECTED` dan status akhir perkara tetap.
 
-Permintaan pelapor atau usulan pengelola saja belum membuka perkara. Jawaban resmi sebelumnya tetap tersimpan. Pembukaan kembali ke `INVESTIGATION` tidak membuat penugasan pemeriksa baru secara otomatis; penyerahan hasil tetap memerlukan penugasan aktif.
+Permintaan pelapor atau usulan verifikator/pemeriksa saja belum membuka perkara. Jawaban resmi sebelumnya tetap tersimpan. Pembukaan kembali ke `INVESTIGATION` tidak membuat penugasan pemeriksa baru secara otomatis; penyerahan hasil tetap memerlukan penugasan aktif.
 
 ## 6. Bukti, kerahasiaan, dan notifikasi
 
@@ -192,7 +192,7 @@ Lampiran disimpan di bucket MinIO privat, sedangkan database menyimpan metadata 
 
 Worker, MinIO, dan ClamAV harus tersedia untuk memproses pemindaian. Jeda retry otomatis adalah 15, 30, 60, dan 120 detik. Unduhan memeriksa ulang hak akses dan checksum, lalu mencatat audit.
 
-Pelapor melihat laporan sendiri, riwayat publik, klarifikasi, dan jawaban resmi. Pejabat dan pelaksana menerima payload laporan yang dibatasi pada judul generik perkara dan kategori; rincian klarifikasi tidak ikut dikirim dalam payload tersebut. Pelaksana hanya melihat tugasnya sendiri, tidak menerima riwayat event perkara, dan hanya dapat melihat/mengunduh bukti yang diunggahnya sendiri. Pengelola dan pemeriksa yang berhak menerima payload laporan lengkap. Workspace pejabat yang berhak tetap menyediakan proposal dan hasil pemeriksaan, sehingga isi ringkasan/hasil perlu ditulis dengan memperhatikan kerahasiaan.
+Pelapor melihat laporan sendiri, riwayat publik, klarifikasi, dan jawaban resmi. Pejabat dan pelaksana menerima payload laporan yang dibatasi pada judul generik perkara dan kategori; rincian klarifikasi tidak ikut dikirim dalam payload tersebut. Pelaksana hanya melihat tugasnya sendiri, tidak menerima riwayat event perkara, dan hanya dapat melihat/mengunduh bukti yang diunggahnya sendiri. Verifikator/Pemeriksa dan pemeriksa yang berhak menerima payload laporan lengkap. Workspace pejabat yang berhak tetap menyediakan proposal dan hasil pemeriksaan, sehingga isi ringkasan/hasil perlu ditulis dengan memperhatikan kerahasiaan.
 
 Pilihan `PROTECTED` belum berarti identitas telah dienkripsi terpisah. Mekanisme pembukaan identitas berbasis permohonan/grant belum tersedia.
 
@@ -203,17 +203,17 @@ Pembaruan command menyimpan notifikasi portal dan antrean email. WebSocket mempe
 Gunakan browser/profil terpisah atau logout sebelum berganti akun. Pastikan layanan berjalan sesuai [README](../README.md#menjalankan-native-di-windows-tanpa-dockerwsl).
 
 1. **Pelapor:** buat laporan lengkap, unggah bukti bila ada, dan kirim. Catat nomor laporan.
-2. **Pengelola:** buka laporan masuk, mulai verifikasi, lalu minta klarifikasi.
+2. **Verifikator/Pemeriksa:** buka laporan masuk, mulai verifikasi, lalu minta klarifikasi.
 3. **Pelapor:** jawab klarifikasi.
-4. **Pengelola:** usulkan `pemeriksa@example.test` dengan ringkasan tersamarkan.
+4. **Verifikator/Pemeriksa:** usulkan `pemeriksa@example.test` dengan ringkasan tersamarkan.
 5. **Pejabat:** setujui penugasan.
 6. **Pemeriksa:** serahkan hasil pemeriksaan dan rekomendasi.
-7. **Pengelola:** usulkan hasil dan instruksi tindak lanjut untuk `pelaksana@example.test`.
+7. **Verifikator/Pemeriksa:** usulkan hasil dan instruksi tindak lanjut untuk `pelaksana@example.test`.
 8. **Pejabat:** setujui hasil/tindak lanjut.
 9. **Pelaksana:** unggah bukti, tunggu `READY`, lalu serahkan catatan pelaksanaan beserta referensi bukti.
-10. **Pengelola:** verifikasi tugas, lalu usulkan penutupan dengan hasil Selesai dan jawaban resmi.
+10. **Verifikator/Pemeriksa:** verifikasi tugas, lalu usulkan penutupan dengan hasil Selesai dan jawaban resmi.
 11. **Pejabat:** setujui penutupan.
-12. **Pelapor:** pastikan status Selesai dan jawaban resmi terlihat. Untuk menguji reopen, ajukan pembukaan kembali lalu lanjutkan usulan pengelola dan keputusan pejabat.
+12. **Pelapor:** pastikan status Selesai dan jawaban resmi terlihat. Untuk menguji reopen, ajukan pembukaan kembali lalu lanjutkan usulan verifikator/pemeriksa dan keputusan pejabat.
 
 ## 8. Batas implementasi dan sumber kode
 

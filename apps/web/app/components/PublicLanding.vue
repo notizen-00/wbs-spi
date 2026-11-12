@@ -10,7 +10,17 @@ import {
   Files,
   Clock3,
   Archive,
+  Menu,
+  X,
 } from '@lucide/vue';
+const mobileNavOpen = ref(false);
+const mobileNavToggle = ref<HTMLButtonElement | null>(null);
+function closeMobileNav(event: KeyboardEvent) {
+  if (event.key === 'Escape' && mobileNavOpen.value) {
+    mobileNavOpen.value = false;
+    mobileNavToggle.value?.focus();
+  }
+}
 const props = defineProps<{ authPage: boolean; trackingPage?: boolean; demoAvailable?: boolean }>();
 const { site } = useSiteConfiguration();
 const {
@@ -71,7 +81,7 @@ const steps = [
   ],
   [
     'Pantau penanganan',
-    'Simpan nomor laporan dan pantau perkembangannya melalui dashboard. Jawab klarifikasi jika diminta oleh pengelola.',
+    'Simpan nomor laporan dan pantau perkembangannya melalui dashboard. Jawab klarifikasi jika diminta oleh verifikator/pemeriksa.',
   ],
   [
     'Terima jawaban resmi',
@@ -105,9 +115,35 @@ const faqs = [
 <template>
   <div class="public-portal">
     <a href="#public-content" class="public-skip">Lewati ke konten</a>
-    <header class="public-header">
-      <a href="/" class="public-brand" @click.prevent="$emit('home')"><SiteBrand /></a>
-      <nav aria-label="Navigasi publik">
+    <header
+      class="public-header"
+      @keydown="closeMobileNav"
+      @click="($event.target as HTMLElement).closest('a') && (mobileNavOpen = false)"
+    >
+      <a
+        href="/"
+        class="public-brand"
+        :aria-label="`${site.appName} ${site.institutionName} — Beranda`"
+        @click.prevent="$emit('home')"
+        ><SiteBrand logo-only
+      /></a>
+      <button
+        ref="mobileNavToggle"
+        type="button"
+        class="public-nav-toggle"
+        :aria-label="mobileNavOpen ? 'Tutup navigasi' : 'Buka navigasi'"
+        :aria-expanded="mobileNavOpen"
+        aria-controls="public-navigation"
+        @click="mobileNavOpen = !mobileNavOpen"
+      >
+        <X v-if="mobileNavOpen" :size="25" />
+        <Menu v-else :size="25" />
+      </button>
+      <nav
+        id="public-navigation"
+        :class="{ 'is-open': mobileNavOpen }"
+        aria-label="Navigasi publik"
+      >
         <a href="/guide" @click.prevent="$emit('section', 'guide')">Alur pelaporan</a
         ><a href="/privacy" @click.prevent="$emit('section', 'privacy')">Kerahasiaan</a
         ><a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a>
@@ -350,7 +386,8 @@ const faqs = [
             <div v-else class="public-contact">
               <HelpCircle :size="21" />
               <p>
-                Kontak resmi pengelola akan ditampilkan setelah ditetapkan oleh Universitas Jember.
+                Kontak resmi verifikator/pemeriksa akan ditampilkan setelah ditetapkan oleh
+                Universitas Jember.
               </p>
             </div>
           </div>
@@ -397,7 +434,6 @@ const faqs = [
         <a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a
         ><a href="/privacy" @click.prevent="$emit('section', 'privacy')">Kerahasiaan</a>
       </div>
-      <small>Versi pengembangan/UAT — gunakan data sintetis.</small>
     </footer>
   </div>
 </template>
@@ -567,8 +603,10 @@ const faqs = [
   top: 12px;
 }
 .public-header {
-  max-width: 1280px;
-  margin: auto;
+  color: #ffffff;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   padding: 27px 40px;
   display: flex;
   gap: 26px;
@@ -580,7 +618,7 @@ const faqs = [
   display: flex;
   align-items: center;
   gap: 11px;
-  color: var(--ink);
+  color: #ffffff;
   text-decoration: none;
   flex-shrink: 0;
 }
@@ -612,13 +650,29 @@ const faqs = [
   margin: 0;
   padding: 0;
 }
-.public-header nav a,
+.public-header nav a {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 8px 0;
+  transition: color 0.2s;
+}
 .public-footer a {
   font-size: 12px;
   text-decoration: none;
   color: #4f5d4b;
 }
 .public-header nav a:hover,
+.public-header nav a:focus-visible {
+  color: #f0d694;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+.public-header a:focus-visible {
+  outline: 2px solid #f0d694;
+  outline-offset: 5px;
+}
 .public-footer a:hover {
   color: var(--accent);
   text-decoration: underline;
@@ -1202,6 +1256,58 @@ main.public-main {
   }
   .public-steps h3 {
     margin: 0 0 8px;
+  }
+}
+.public-nav-toggle {
+  display: none;
+}
+@media (max-width: 700px) {
+  .public-header .public-brand {
+    margin-right: auto;
+  }
+  .public-header .public-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    order: 2;
+    width: 44px;
+    height: 44px;
+    color: #ffffff;
+    border: 1px solid #d6b56680;
+    border-radius: 8px;
+  }
+  .public-header .public-nav-toggle:hover {
+    background: #ffffff18;
+  }
+  .public-header .public-nav-toggle:focus-visible {
+    outline: 2px solid #f0d694;
+    outline-offset: 4px;
+  }
+  .public-header .public-login {
+    order: 1;
+  }
+  .public-header nav {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    width: 100%;
+    order: 3;
+    padding-top: 14px;
+    border-top: 1px solid #ffffff30;
+  }
+  .public-header nav.is-open {
+    display: flex;
+  }
+  .public-header nav a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 6px;
+  }
+  .public-header nav a:hover {
+    background: #ffffff0d;
   }
 }
 </style>

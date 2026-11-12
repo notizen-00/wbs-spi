@@ -27,15 +27,15 @@ Perintah ini juga menjalankan seed lima akun demo dan mandat pejabat. Password a
 | --- | --- | --- | --- |
 | 1 | Pelapor | Membuat draf dugaan pungutan Rp150.000 tanpa kuitansi pada layanan gratis; melampirkan PDF catatan kejadian | Draf privat dengan bukti sintetis |
 | 2 | Pelapor | Mengirim laporan lengkap 5W+1H | Nomor laporan diterbitkan, status Terkirim |
-| 3 | Pengelola | Memulai verifikasi awal dan menanyakan dasar tarif serta kuitansi | Klarifikasi tercatat |
+| 3 | Verifikator/Pemeriksa | Memulai verifikasi awal dan menanyakan dasar tarif serta kuitansi | Klarifikasi tercatat |
 | 4 | Pelapor | Menjelaskan bahwa tarif resmi gratis dan tidak ada kuitansi | Klarifikasi terjawab |
-| 5 | Pengelola | Mengusulkan pemeriksa dengan ringkasan tersamarkan | Menunggu persetujuan penugasan |
+| 5 | Verifikator/Pemeriksa | Mengusulkan pemeriksa dengan ringkasan tersamarkan | Menunggu persetujuan penugasan |
 | 6 | Pejabat | Menyetujui penugasan sesuai mandat | Pemeriksa mendapat akses dan penugasan |
 | 7 | Pemeriksa | Menyerahkan hasil pemeriksaan sintetis: pungutan tidak berdasar; rekomendasi penghentian, pengembalian dana simulasi, pengumuman tarif, dan pengarahan petugas | Review hasil |
-| 8 | Pengelola | Mengusulkan pelaksana dan instruksi perbaikan | Menunggu persetujuan hasil |
+| 8 | Verifikator/Pemeriksa | Mengusulkan pelaksana dan instruksi perbaikan | Menunggu persetujuan hasil |
 | 9 | Pejabat | Menyetujui hasil dan tindak lanjut | Tugas pelaksana dibuat |
 | 10 | Pelaksana | Mengunggah PDF berita acara sintetis dan menyerahkan pelaksanaan setelah bukti lolos scan | Tugas diserahkan |
-| 11 | Pengelola | Memverifikasi pelaksanaan dan bukti, lalu mengusulkan penutupan beserta jawaban resmi | Tugas VERIFIED, menunggu persetujuan penutupan |
+| 11 | Verifikator/Pemeriksa | Memverifikasi pelaksanaan dan bukti, lalu mengusulkan penutupan beserta jawaban resmi | Tugas VERIFIED, menunggu persetujuan penutupan |
 | 12 | Pejabat | Menyetujui penutupan | Perkara COMPLETED/Selesai; jawaban resmi terbit |
 
 Jawaban resmi menjelaskan penghentian pungutan, pencatatan pengembalian dana simulasi, pemasangan informasi layanan gratis, dan pengarahan petugas. Seeder tidak melakukan pembayaran atau menghubungi unit/orang nyata.

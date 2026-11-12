@@ -9,22 +9,22 @@ const accounts = [
     'Membuat laporan, melampirkan bukti, menjawab klarifikasi, dan menerima jawaban resmi.',
   ],
   [
-    'Pengelola',
+    'Verifikator/Pemeriksa',
     'pengelola@example.test',
-    'Memverifikasi laporan, meminta klarifikasi, mengusulkan penugasan, dan memverifikasi tindak lanjut.',
+    'Memverifikasi laporan, meminta klarifikasi, mengusulkan penugasan, melakukan pemeriksaan sesuai penugasan, dan memverifikasi tindak lanjut.',
   ],
   [
-    'Pejabat',
+    'Pejabat Berwenang',
     'pejabat@example.test',
     'Menyetujui penugasan, hasil pemeriksaan, dan penutupan sesuai mandat.',
   ],
   [
-    'Pemeriksa',
+    'Verifikator/Pemeriksa (petugas kedua)',
     'pemeriksa@example.test',
     'Memeriksa perkara yang ditugaskan dan menyerahkan hasil serta rekomendasi.',
   ],
   [
-    'Pelaksana',
+    'Pelaksana Tindak Lanjut',
     'pelaksana@example.test',
     'Melaksanakan rekomendasi dan menyerahkan bukti tindak lanjut.',
   ],
@@ -36,14 +36,14 @@ const steps = [
     'Masuk sebagai pelapor. Buat laporan baru, lengkapi 5W+1H, unggah bukti dan tunggu pemindaian selesai. Kirim laporan lalu simpan nomor dan kode pelacakannya.',
   ],
   [
-    'Pengelola → Pelapor',
+    'Verifikator/Pemeriksa → Pelapor',
     'Verifikasi dan klarifikasi',
-    'Pengelola membuka laporan masuk dan memulai verifikasi. Jika informasi kurang, minta klarifikasi. Ganti akun ke pelapor untuk menjawab, lalu kembali ke pengelola.',
+    'Verifikator/Pemeriksa membuka laporan masuk dan memulai verifikasi. Jika informasi kurang, minta klarifikasi. Ganti akun ke pelapor untuk menjawab, lalu kembali ke verifikator/pemeriksa.',
   ],
   [
-    'Pengelola → Pejabat',
+    'Verifikator/Pemeriksa → Pejabat',
     'Setujui penugasan pemeriksa',
-    'Pengelola mengusulkan pemeriksa beserta ringkasan perkara. Pejabat meninjau dan menyetujui usulan sesuai mandatnya. Pemeriksa kemudian mendapat akses perkara.',
+    'Verifikator/Pemeriksa mengusulkan pemeriksa beserta ringkasan perkara. Pejabat meninjau dan menyetujui usulan sesuai mandatnya. Pemeriksa kemudian mendapat akses perkara.',
   ],
   [
     'Pemeriksa',
@@ -51,9 +51,9 @@ const steps = [
     'Buka perkara yang ditugaskan. Catat hasil pemeriksaan dan rekomendasi tindak lanjut, kemudian serahkan hasil untuk ditinjau.',
   ],
   [
-    'Pengelola → Pejabat',
+    'Verifikator/Pemeriksa → Pejabat',
     'Setujui hasil dan tindak lanjut',
-    'Pengelola meninjau hasil, mengusulkan pelaksana serta instruksi perbaikan. Pejabat menyetujui hasil dan tindak lanjut sehingga tugas pelaksana terbentuk.',
+    'Verifikator/Pemeriksa meninjau hasil, mengusulkan pelaksana serta instruksi perbaikan. Pejabat menyetujui hasil dan tindak lanjut sehingga tugas pelaksana terbentuk.',
   ],
   [
     'Pelaksana',
@@ -61,9 +61,9 @@ const steps = [
     'Buka tugas, lakukan tindak lanjut, dan unggah bukti pelaksanaan. Tunggu bukti lolos pemindaian, lalu serahkan tugas.',
   ],
   [
-    'Pengelola → Pejabat',
+    'Verifikator/Pemeriksa → Pejabat',
     'Verifikasi dan tutup perkara',
-    'Pengelola memverifikasi hasil pelaksanaan lalu mengusulkan penutupan beserta jawaban resmi. Pejabat meninjau dan menyetujui penutupan.',
+    'Verifikator/Pemeriksa memverifikasi hasil pelaksanaan lalu mengusulkan penutupan beserta jawaban resmi. Pejabat meninjau dan menyetujui penutupan.',
   ],
   [
     'Pelapor',
@@ -80,7 +80,11 @@ const steps = [
     </button>
     <header class="demo-heading">
       <span class="demo-tag"><BookOpen :size="15" />DEVELOPMENT / DEMO</span>
-      <h1>Satu laporan.<br />Lima peran, sampai selesai.</h1>
+      <h1>Satu laporan.<br />Empat peran, sampai selesai.</h1>
+      <p>
+        Dua akun Verifikator/Pemeriksa di bawah memakai role yang sama untuk mencoba penugasan
+        antarpetugas. Administrasi hanya menggunakan Super Admin.
+      </p>
       <p>
         Panduan mencoba alur WBS dari pengiriman laporan hingga jawaban resmi. Gunakan data sintetis
         selama demonstrasi.
@@ -101,7 +105,7 @@ const steps = [
           </p>
           <p v-else>
             Belum dipublikasikan. Gunakan password yang ditetapkan melalui
-            <code>SEED_PASSWORD</code> saat seed, atau minta kepada pengelola demo.
+            <code>SEED_PASSWORD</code> saat seed, atau minta kepada verifikator/pemeriksa demo.
           </p>
           <small v-if="password"
             >Berlaku jika akun dibuat dengan password ini. Seed ulang tidak mengganti password akun

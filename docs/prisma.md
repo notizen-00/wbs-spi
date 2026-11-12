@@ -19,7 +19,7 @@ apps/worker/src/                    Nest context, OutboxService, ScannerService
 
 Field Prisma menggunakan camelCase dengan `@map`/`@@map` ke tabel dan kolom lama. Primary key, foreign key, JSONB, default, sequence nomor perkara, check constraint, unique partial index dan trigger immutable dipertahankan. Tabel `schema_migrations` dipetakan sebagai `LegacyMigration` hanya untuk mempertahankan riwayat runner lama; Prisma sendiri memakai `_prisma_migrations`.
 
-API tetap kompatibel dengan frontend yang ada; serializer mempertahankan field respons publik. Controller menerima request dan meneruskan ke service, tanpa query CRUD. Repository memeriksa scope dengan relation filter Prisma, termasuk penolakan draf pengguna lain, konflik, dan admin teknis.
+API tetap kompatibel dengan frontend yang ada; serializer mempertahankan field respons publik. Controller menerima request dan meneruskan ke service, tanpa query CRUD. Repository memeriksa scope dengan relation filter Prisma, termasuk penolakan draf pengguna lain, konflik, dan Super Admin.
 
 `PrismaService` dibuat sekali per proses melalui Nest DI, connect pada initialization dan disconnect pada shutdown. API dan worker memiliki proses/pool masing-masing. Transaksi command mencakup lock perkara, akses, versi, perubahan domain, keputusan, snapshot, audit, idempotensi dan outbox. Worker mengunci satu item lewat `FOR UPDATE SKIP LOCKED`, kemudian memakai ORM untuk membaca/memperbarui datanya.
 

@@ -1,12 +1,12 @@
 import type { Stage, Role, ReportPayload } from '@wbs/contracts';
 const transitions: Partial<Record<Stage, { next: Stage; role: Role }>> = {
-  SUBMITTED: { next: 'INITIAL_REVIEW', role: 'MANAGER' },
-  INITIAL_REVIEW: { next: 'ASSIGNMENT_APPROVAL', role: 'MANAGER' },
+  SUBMITTED: { next: 'INITIAL_REVIEW', role: 'INVESTIGATOR' },
+  INITIAL_REVIEW: { next: 'ASSIGNMENT_APPROVAL', role: 'INVESTIGATOR' },
   ASSIGNMENT_APPROVAL: { next: 'INVESTIGATION', role: 'OFFICIAL' },
   INVESTIGATION: { next: 'RESULT_REVIEW', role: 'INVESTIGATOR' },
-  RESULT_REVIEW: { next: 'RESULT_APPROVAL', role: 'MANAGER' },
+  RESULT_REVIEW: { next: 'RESULT_APPROVAL', role: 'INVESTIGATOR' },
   RESULT_APPROVAL: { next: 'FOLLOW_UP', role: 'OFFICIAL' },
-  FOLLOW_UP: { next: 'CLOSURE_APPROVAL', role: 'MANAGER' },
+  FOLLOW_UP: { next: 'CLOSURE_APPROVAL', role: 'INVESTIGATOR' },
   CLOSURE_APPROVAL: { next: 'COMPLETED', role: 'OFFICIAL' },
 };
 export function nextStage(stage: Stage, role: Role, actor: string, proposer: string | null): Stage {

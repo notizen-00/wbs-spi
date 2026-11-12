@@ -40,7 +40,7 @@ export class EvidenceService {
       scan_error:
         e.scanError ||
         (e.scanStatus === 'ERROR'
-          ? 'Pemindaian gagal. Coba ulang atau hubungi pengelola untuk memeriksa antivirus dan penyimpanan.'
+          ? 'Pemindaian gagal. Coba ulang atau hubungi administrator untuk memeriksa antivirus dan penyimpanan.'
           : null),
       retry_available: e.scanStatus === 'ERROR',
       retry_scheduled: e.scanStatus === 'ERROR' && e.attempts < 5,

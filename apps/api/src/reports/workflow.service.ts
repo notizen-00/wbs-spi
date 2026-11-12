@@ -28,9 +28,9 @@ export class WorkflowService {
       lifecycle: report.lifecycle,
       proposerId: report.proposerId,
     };
-    const manager = () => {
-      if (user.role !== 'MANAGER' || user.id === report.ownerId)
-        fail(403, 'Memerlukan pengelola perkara yang berbeda dari pelapor.');
+    const verifier = () => {
+      if (user.role !== 'INVESTIGATOR' || user.id === report.ownerId)
+        fail(403, 'Memerlukan verifikator/pemeriksa perkara yang berbeda dari pelapor.');
     };
     const stage = (...allowed: string[]) => {
       if (!allowed.includes(state.stage)) fail(409, 'Tindakan tidak sesuai tahap perkara.');
@@ -104,7 +104,7 @@ export class WorkflowService {
       fail(409, 'Selesaikan klarifikasi aktif sebelum melanjutkan.');
     switch (b.action) {
       case 'PROPOSE_ASSIGNMENT':
-        manager();
+        verifier();
         stage('INITIAL_REVIEW');
         await propose('ASSIGNMENT', {
           assigneeId: await target(b.assigneeId, 'INVESTIGATOR'),
@@ -215,13 +215,13 @@ export class WorkflowService {
         state.stage = 'RESULT_REVIEW';
         break;
       case 'REVIEW_FINDING':
-        manager();
+        verifier();
         stage('RESULT_REVIEW');
         if (b.decision !== 'RETURN') fail(422, 'Gunakan usulan hasil untuk hasil yang memadai.');
         state.stage = 'INVESTIGATION';
         break;
       case 'PROPOSE_RESULT':
-        manager();
+        verifier();
         stage('RESULT_REVIEW');
         await propose('RESULT', {
           executorId: await target(b.executorId, 'EXECUTOR'),
@@ -260,7 +260,7 @@ export class WorkflowService {
         break;
       }
       case 'REVIEW_EXECUTION': {
-        manager();
+        verifier();
         stage('FOLLOW_UP');
         validId(b.taskId);
         if (!['VERIFY', 'RETURN'].includes(b.decision)) fail(422, 'Keputusan tidak valid.');
@@ -278,7 +278,7 @@ export class WorkflowService {
         break;
       }
       case 'PROPOSE_CLOSURE':
-        manager();
+        verifier();
         stage('INITIAL_REVIEW', 'FOLLOW_UP');
         if (!['COMPLETED', 'CLOSED'].includes(b.outcome)) fail(422, 'Pilih hasil penutupan.');
         if (b.outcome === 'COMPLETED') {
@@ -293,7 +293,7 @@ export class WorkflowService {
         state.stage = 'CLOSURE_APPROVAL';
         break;
       case 'SUSPEND': {
-        manager();
+        verifier();
         if (['DRAFT', 'COMPLETED', 'CLOSED'].includes(state.stage))
           fail(422, 'Tahap tidak dapat ditunda.');
         const evaluationAt = new Date(b.evaluationAt);
@@ -313,7 +313,7 @@ export class WorkflowService {
         break;
       }
       case 'RESUME': {
-        manager();
+        verifier();
         if (state.lifecycle !== 'SUSPENDED') fail(422, 'Perkara tidak sedang ditunda.');
         const suspension = await tx.suspension.findFirst({
           where: { reportId: report.id, resumedAt: null },
@@ -335,7 +335,7 @@ export class WorkflowService {
         });
         break;
       case 'PROPOSE_REOPEN':
-        manager();
+        verifier();
         stage('COMPLETED', 'CLOSED');
         if (!['INITIAL_REVIEW', 'INVESTIGATION'].includes(b.targetStage))
           fail(422, 'Tahap tujuan tidak valid.');

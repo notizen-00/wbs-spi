@@ -63,7 +63,7 @@ export function caseNotification(
     title = 'Perkembangan penanganan laporan';
   let instruction = 'Buka portal WBS untuk melihat perkembangan laporan.';
   if (role === 'REPORTER' && action === 'CLARIFY')
-    instruction = 'Buka laporan dan jawab permintaan klarifikasi pengelola.';
+    instruction = 'Buka laporan dan jawab permintaan klarifikasi verifikator/pemeriksa.';
   else if (role === 'REPORTER' && ['COMPLETED', 'CLOSED'].includes(stage))
     instruction = 'Buka laporan untuk membaca jawaban resmi yang telah diterbitkan.';
   else if (role === 'OFFICIAL' && action.startsWith('PROPOSE_'))
@@ -73,7 +73,7 @@ export function caseNotification(
   else if (role === 'EXECUTOR' && stage === 'FOLLOW_UP')
     instruction = 'Periksa tugas Anda, laksanakan instruksi, dan lengkapi bukti pelaksanaan.';
   else if (
-    role === 'MANAGER' &&
+    role === 'INVESTIGATOR' &&
     ['SUBMIT', 'RESPOND', 'FINDING', 'EXECUTE', 'REQUEST_REOPEN'].includes(action)
   )
     instruction =

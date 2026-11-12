@@ -197,7 +197,7 @@ export class ReportsService {
             active: true,
             user: {
               is: {
-                role: 'MANAGER',
+                role: 'INVESTIGATOR',
                 active: true,
                 verified: true,
                 NOT: { id: user.id },
@@ -208,7 +208,7 @@ export class ReportsService {
           select: { userId: true },
         });
         if (!members.length)
-          fail(503, 'Pengelola penerimaan belum dikonfigurasi. Draf Anda tetap tersimpan.');
+          fail(503, 'Verifikator/Pemeriksa penerimaan belum dikonfigurasi. Draf Anda tetap tersimpan.');
         await tx.caseAccess.createMany({
           data: members.map((m) => ({ reportId: id, userId: m.userId })),
           skipDuplicates: true,
@@ -220,7 +220,7 @@ export class ReportsService {
         state.stage = 'SUBMITTED';
       } else if (b.action === 'CLARIFY') {
         if (
-          user.role !== 'MANAGER' ||
+          user.role !== 'INVESTIGATOR' ||
           report.ownerId === user.id ||
           ['DRAFT', 'COMPLETED', 'CLOSED'].includes(report.stage) ||
           (clarification && !object(clarification).response)
@@ -398,8 +398,14 @@ export class ReportsService {
       orderBy: { createdAt: 'desc' },
       select: { id: true, content: true, createdAt: true },
     });
+    const canSubmitFinding =
+      user.role === 'INVESTIGATOR' &&
+      !!(await this.prisma.assignment.findFirst({
+        where: { reportId: id, userId: user.id, revokedAt: null },
+        select: { id: true },
+      }));
     const users =
-      user.role === 'MANAGER'
+      user.role === 'INVESTIGATOR'
         ? await this.prisma.user.findMany({
             where: { role: { in: ['INVESTIGATOR', 'EXECUTOR'] }, active: true, verified: true },
             orderBy: { name: 'asc' },
@@ -414,6 +420,7 @@ export class ReportsService {
       findings: findings.map((f) => ({ id: f.id, content: f.content, created_at: f.createdAt })),
       tasks,
       users,
+      canSubmitFinding,
       lifecycle: report.lifecycle,
     };
   }

@@ -146,7 +146,7 @@ Tidak ada estimasi tanggal tanpa kapasitas tim dan dependensi institusi. Fitur l
 12. Penutupan dini butuh persetujuan dan menghasilkan Ditutup dengan alasan aman.
 13. Penundaan dievaluasi dan lanjut ke tahap asal; timer mengikuti kebijakan yang disepakati.
 14. Pembukaan kembali disetujui ke tahap tertentu; histori lama utuh.
-15. Pengguna berperan admin teknis tetap tidak otomatis melihat identitas.
+15. Pengguna berperan Super Admin tetap tidak otomatis melihat identitas.
 16. Redis/worker/email terganggu: keputusan tersimpan, pekerjaan tertunda dapat dipulihkan.
 17. Restore database dan bukti berhasil; relasi/checksum konsisten dan sistem dapat masuk kembali.
 

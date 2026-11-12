@@ -24,7 +24,7 @@ export function scan(body: Buffer): Promise<string> {
       fail(
         new ScanError(
           'SCAN_TIMEOUT',
-          'Pemindaian melewati batas waktu. Coba ulang atau hubungi pengelola.',
+          'Pemindaian melewati batas waktu. Coba ulang atau hubungi administrator.',
         ),
       ),
     );
@@ -32,7 +32,7 @@ export function scan(body: Buffer): Promise<string> {
       fail(
         new ScanError(
           'SCANNER_UNAVAILABLE',
-          'Layanan antivirus tidak dapat dihubungi. Pengelola perlu menjalankan ClamAV dan memeriksa koneksinya.',
+          'Layanan antivirus tidak dapat dihubungi. Administrator perlu menjalankan ClamAV dan memeriksa koneksinya.',
         ),
       ),
     );
@@ -47,14 +47,14 @@ export function scan(body: Buffer): Promise<string> {
         reject(
           new ScanError(
             'SCAN_SIZE_LIMIT',
-            'Batas ukuran antivirus terlalu kecil. Pengelola perlu mengatur StreamMaxLength minimal 25M.',
+            'Batas ukuran antivirus terlalu kecil. Administrator perlu mengatur StreamMaxLength minimal 25M.',
           ),
         );
       else
         reject(
           new ScanError(
             'SCAN_FAILED',
-            'Antivirus gagal menyelesaikan pemindaian. Pengelola perlu memeriksa layanan dan database definisi virus.',
+            'Antivirus gagal menyelesaikan pemindaian. Administrator perlu memeriksa layanan dan database definisi virus.',
           ),
         );
     });

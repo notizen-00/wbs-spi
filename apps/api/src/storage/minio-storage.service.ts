@@ -67,13 +67,13 @@ export class MinioStorageService implements OnModuleDestroy {
     if (details?.name === 'NoSuchKey')
       throw new NotFoundException({
         code: 'EVIDENCE_OBJECT_MISSING',
-        message: 'Berkas bukti tidak ditemukan di storage. Hubungi pengelola.',
+        message: 'Berkas bukti tidak ditemukan di storage. Hubungi administrator.',
       });
     if (details?.$metadata?.httpStatusCode === 403)
       throw new ServiceUnavailableException({
         code: 'STORAGE_ACCESS_DENIED',
         message:
-          'Penyimpanan bukti menolak akses. Hubungi pengelola untuk memeriksa konfigurasi penyimpanan.',
+          'Penyimpanan bukti menolak akses. Hubungi administrator untuk memeriksa konfigurasi penyimpanan.',
       });
     if (details?.name === 'NoSuchBucket' || details?.$metadata?.httpStatusCode === 404)
       throw new ServiceUnavailableException({

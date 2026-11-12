@@ -265,7 +265,7 @@ function navigate(p: string, replace = false) {
   if (internal.value && ['create', 'guide', 'privacy', 'help'].includes(p)) p = 'dashboard';
   if (p.startsWith('admin') && user.value?.role !== 'SUPER_ADMIN') p = 'dashboard';
   if (
-    ['ADMIN', 'SUPER_ADMIN'].includes(user.value?.role || '') &&
+    user.value?.role === 'SUPER_ADMIN' &&
     ['reports', 'detail'].includes(p)
   )
     p = 'dashboard';
@@ -556,7 +556,7 @@ onMounted(async () => {
             </button></template
           >
           <button
-            v-if="!['ADMIN', 'SUPER_ADMIN'].includes(user?.role || '')"
+            v-if="user?.role !== 'SUPER_ADMIN'"
             :class="{ active: ['reports', 'detail', 'create'].includes(page) }"
             @click="navigate('reports')"
           >
@@ -1197,14 +1197,14 @@ onMounted(async () => {
                     </label>
                     <div class="hero-actions">
                       <button
-                        v-if="user?.role === 'MANAGER'"
+                        v-if="user?.role === 'INVESTIGATOR'"
                         class="button secondary"
                         :disabled="busy || !commandReason.trim()"
                         @click="command('CLARIFY')"
                       >
                         <MessageSquare :size="17" aria-hidden="true" />Minta klarifikasi</button
                       ><button
-                        v-if="selected.stage === 'SUBMITTED' && user?.role === 'MANAGER'"
+                        v-if="selected.stage === 'SUBMITTED' && user?.role === 'INVESTIGATOR'"
                         class="button"
                         :disabled="busy || !commandReason.trim()"
                         @click="command('ADVANCE')"
@@ -1347,7 +1347,7 @@ onMounted(async () => {
                   <div class="info-box">
                     <HelpCircle :size="22" />
                     <p>
-                      Kontak resmi pengelola akan ditampilkan setelah ditetapkan oleh Universitas
+                      Kontak resmi verifikator/pemeriksa akan ditampilkan setelah ditetapkan oleh Universitas
                       Jember.
                     </p>
                   </div></template

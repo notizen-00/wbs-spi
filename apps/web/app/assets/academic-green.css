@@ -1,0 +1,164 @@
+/* Academic Green: shared palette for the public portal and all workspaces. */
+:root {
+  --green: #176047;
+  --dark: #123e30;
+  --muted: #586e62;
+  --border: #d5e3d8;
+  --academic-gold: #d6b566;
+  --academic-soft: #edf4ee;
+  --academic-paper: #f7faf6;
+  background: var(--academic-soft);
+  color: #243f33;
+}
+
+.shell { background: var(--academic-soft); }
+.sidebar {
+  background: #e4efe5;
+  border-right-color: #cbdccf;
+}
+.sidebar .workspace-label,
+.sidebar nav button { color: #4c6757; }
+.sidebar nav button:hover { background: #d7e7da; }
+.sidebar nav button.active {
+  background: var(--dark);
+  color: #fffdf5;
+  box-shadow: 0 3px 10px #123e3015;
+}
+.sidebar nav button.active:before { background: var(--academic-gold); }
+.sidebar .brand-icon { background: #d2e3d5; color: var(--dark); }
+.sidebar .institution { border-color: #cbdccf; }
+.topbar {
+  background: var(--dark);
+  border-bottom: 3px solid var(--academic-gold);
+  color: #fffdf5;
+}
+.topbar .breadcrumb,
+.topbar .secure-label,
+.topbar .profile-name small { color: #ffffff; }
+.topbar .breadcrumb strong,
+.topbar .icon-button { color: #fffdf5; }
+.topbar .icon-button:hover { background: #ffffff18; }
+.topbar .header-divider { background: #ffffff36; }
+.topbar .secure-label > span { background: var(--academic-gold); }
+.topbar .avatar { background: #e9dfbd; color: var(--dark); }
+.topbar .notification-panel { color: #243f33; }
+.eyebrow { color: var(--green); }
+.hero { background: linear-gradient(115deg, #123e30, #216449); }
+.hero .hero-tag { border-color: #d6b56670; color: #f4e5ba; }
+.panel { border-color: var(--border); box-shadow: 0 4px 18px #123e3005; }
+.how-panel,
+.form-aside,
+.steps,
+.support-strip { background: #e7f0e6; border-color: var(--border); }
+
+.stats-grid .stat,
+.public-portal .public-statistics .statistics-cards article:nth-child(n) {
+  --card-bg: #e8f0fc;
+  --card-ink: #254e80;
+  --card-border: #cbdbef;
+  background: var(--card-bg);
+  color: var(--card-ink);
+  border: 1px solid var(--card-border);
+  border-top: 3px solid var(--card-ink);
+  border-radius: 12px;
+}
+.stats-grid .stat:nth-child(4n + 2),
+.public-portal .public-statistics .statistics-cards article:nth-child(4n + 2) {
+  --card-bg: #e1f2ee;
+  --card-ink: #17645c;
+  --card-border: #bedfd6;
+}
+.stats-grid .stat:nth-child(4n + 3),
+.public-portal .public-statistics .statistics-cards article:nth-child(4n + 3) {
+  --card-bg: #e5efdf;
+  --card-ink: #365f2b;
+  --card-border: #cadcbe;
+}
+.stats-grid .stat:nth-child(4n + 4),
+.public-portal .public-statistics .statistics-cards article:nth-child(4n + 4) {
+  --card-bg: #f7efd9;
+  --card-ink: #765a20;
+  --card-border: #e7d8ad;
+}
+.stats-grid .stat > div,
+.stats-grid .stat > small,
+.stats-grid .stat svg,
+.public-portal .statistics-cards article strong,
+.public-portal .statistics-cards article span { color: var(--card-ink); }
+
+/* Every report stage has a shared treatment, wherever its badge appears. */
+.badge { font-weight: 600; }
+.badge.draft { background: #edf0ed; color: #526055; border-color: #d4dbd4; }
+.badge.submitted { background: #e8f0fc; color: #254e80; border-color: #cbdbef; }
+.badge.initial_review,
+.badge.result_review { background: #fff2d7; color: #795514; border-color: #e9d49e; }
+.badge.assignment_approval,
+.badge.result_approval,
+.badge.closure_approval { background: #eee8f6; color: #66468a; border-color: #dbceed; }
+.badge.investigation { background: #e1eef9; color: #235c8b; border-color: #bfd7eb; }
+.badge.follow_up { background: #def1ed; color: #17645c; border-color: #b8dbd3; }
+.badge.completed { background: #e3f1df; color: #315f28; border-color: #c3dcb9; }
+.badge.closed { background: #f3eadc; color: #735c35; border-color: #dfcfb6; }
+
+.button { background: var(--green); color: white; border: 1px solid transparent; border-radius: 8px; }
+.button:hover { background: var(--dark); }
+.button.secondary { background: #edf4ee; color: var(--dark); border-color: #c6d9cb; }
+.button.secondary:hover { background: #dceade; }
+.button.white { background: #fffdf5; color: var(--dark); border-color: #e7d9ae; }
+.button.white:hover { background: #f6edda; }
+input, textarea, select { border-color: #c9dacd; background: #fdfefb; }
+input:focus, textarea:focus, select:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px #17604718;
+}
+input::placeholder, textarea::placeholder { color: #6a7d70; }
+.report-row:hover { background: #f0f6ee; }
+.report-icon { background: #e7f0e6; color: var(--green); }
+.panel-title, .panel-footer { background: #f5f9f3; }
+.shell table { border-collapse: collapse; width: 100%; }
+.shell .report-table thead th { background: #e7f0e6; color: var(--dark); }
+.shell .report-table th, .shell .report-table td { border-bottom: 1px solid var(--border); }
+.shell .report-table tbody tr:nth-child(even):not(.needs-action) { background: #f7faf5; }
+.shell .report-table tbody tr:not(.needs-action):hover { background: #edf4e9; }
+
+.public-portal {
+  --ink: #243f33;
+  --paper: #f1f6ee;
+  --accent: #8a6725;
+}
+.public-portal .public-header {
+  width: 100%;
+  background: var(--dark);
+  border-bottom: 3px solid var(--academic-gold);
+  max-width: none;
+}
+.public-portal .public-header .public-brand,
+.public-portal .public-header nav a { color: #ffffff; }
+.public-portal .public-header nav a:hover,
+.public-portal .public-header nav a:focus-visible { color: #f0d694; }
+.public-portal .public-header .site-brand-mark { color: var(--academic-gold); border: 0; border-radius: 0; }
+.public-portal .public-header .site-brand-mark {
+  width: 76px;
+  height: 76px;
+}
+.public-portal .public-header .site-brand-mark svg {
+  width: 54px;
+  height: 54px;
+}
+@media (max-width: 700px) {
+  .public-portal .public-header .site-brand-mark {
+    width: 64px;
+    height: 64px;
+  }
+}
+.public-portal .public-header .public-login {
+  background: #ffffff0d;
+  color: #ffffff;
+  border-color: var(--academic-gold);
+  border-radius: 8px;
+}
+.public-portal .public-header .public-login:hover,
+.public-portal .public-header .public-login:focus-visible { background: #ffffff18; color: #f0d694; }
+.public-portal .public-primary { background: var(--green); border-color: var(--green); border-radius: 8px; }
+.public-portal .public-primary:hover { background: var(--dark); }
+.public-portal .public-footer { background: #e4efe2; border-top: 1px solid var(--border); }

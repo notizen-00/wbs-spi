@@ -75,7 +75,7 @@ test('notifikasi realtime menambah badge, deduplikasi, sinkronisasi reconnect da
     id: 'notification-one',
     title: 'Klarifikasi laporan diperlukan',
     subject: 'Laporan WBS/2026/00042: Klarifikasi laporan diperlukan',
-    message: 'Buka laporan dan jawab permintaan klarifikasi pengelola.',
+    message: 'Buka laporan dan jawab permintaan klarifikasi verifikator/pemeriksa.',
     created_at: new Date().toISOString(),
     kind: 'CLARIFY',
     targetPath: '/reports/' + reportId,

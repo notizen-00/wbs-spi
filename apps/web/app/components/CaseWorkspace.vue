@@ -58,7 +58,7 @@ const fields = reactive({
   evaluationAt: '',
   conditions: '',
 });
-const manager = computed(() => props.user.role === 'MANAGER');
+const verifier = computed(() => props.user.role === 'INVESTIGATOR');
 const pending = computed(() => data.value.proposals?.find((p: any) => p.status === 'PENDING'));
 async function load() {
   try {
@@ -108,10 +108,10 @@ const actions = computed(() => {
     return result;
   }
   if (r.lifecycle === 'SUSPENDED') {
-    if (manager.value) result.push({ id: 'RESUME', label: 'Evaluasi & lanjutkan' });
+    if (verifier.value) result.push({ id: 'RESUME', label: 'Evaluasi & lanjutkan' });
     return result;
   }
-  if (manager.value) {
+  if (verifier.value) {
     if (r.stage === 'INITIAL_REVIEW')
       result.push(
         { id: 'PROPOSE_ASSIGNMENT', label: 'Usulkan penugasan' },
@@ -137,7 +137,7 @@ const actions = computed(() => {
   }
   if (props.user.role === 'OFFICIAL' && pending.value)
     result.push({ id: 'DECIDE', label: 'Tinjau & putuskan proposal' });
-  if (props.user.role === 'INVESTIGATOR' && r.stage === 'INVESTIGATION')
+  if (props.user.role === 'INVESTIGATOR' && r.stage === 'INVESTIGATION' && data.value.canSubmitFinding)
     result.push({ id: 'FINDING', label: 'Serahkan hasil pemeriksaan' });
   if (props.user.role === 'EXECUTOR' && r.stage === 'FOLLOW_UP')
     result.push({ id: 'EXECUTE', label: 'Catat pelaksanaan' });
