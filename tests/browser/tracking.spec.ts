@@ -285,8 +285,19 @@ test('pelacakan publik membutuhkan CAPTCHA dan menampilkan rincian dan timeline 
     'saluran resmi terkait penyampaian',
   );
   await expect(page.locator('.report-elements > div')).toHaveCount(6);
+  await expect(page.locator('.report-types-list > li')).toHaveCount(0);
+  await page
+    .getByRole('navigation', { name: 'Navigasi publik' })
+    .getByRole('link', { name: 'Jenis aduan', exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/jenis-aduan$/);
+  await expect(page.locator('.public-hero')).toHaveCount(0);
+  await expect(page.locator('.report-types-list > li')).toHaveCount(9);
+  await page.reload();
   await expect(page.locator('.report-types-list > li')).toHaveCount(9);
   await expect(page.locator('.report-types-list')).toContainText('cyberbullying');
+  await page.getByRole('link', { name: 'Kembali ke beranda', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /Ada yang perlu/ })).toBeVisible();
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 950 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

@@ -125,7 +125,7 @@ async function openPublic(section = '', replace = false) {
   error.value = '';
   setPath(section ? `/${section}` : '/', replace);
   await nextTick();
-  if (section && section !== 'tracking')
+  if (section && !['tracking', 'jenis-aduan'].includes(section))
     document.getElementById(section)?.scrollIntoView({ block: 'start' });
   else window.scrollTo(0, 0);
 }
@@ -135,8 +135,8 @@ async function applyPath(replace = true) {
     openAuth('login', replace);
     return;
   }
-  if (path === '/tracking') {
-    await openPublic('tracking', replace);
+  if (['/tracking', '/jenis-aduan'].includes(path)) {
+    await openPublic(path.slice(1), replace);
     return;
   }
   if (!user.value) {
@@ -558,10 +558,15 @@ onMounted(async () => {
       <p>Memuat portal WBS…</p>
     </div>
     <PublicLanding
-      v-else-if="!user || publicSection === 'tracking' || (!internal && page === 'dashboard')"
+      v-else-if="
+        !user ||
+        ['tracking', 'jenis-aduan'].includes(publicSection) ||
+        (!internal && page === 'dashboard')
+      "
       :service-error="error"
       :auth-page="publicAuthPage"
       :tracking-page="!publicAuthPage && publicSection === 'tracking'"
+      :report-types-page="!publicAuthPage && publicSection === 'jenis-aduan'"
       @login="newReport()"
       @staff-login="openAuth()"
       @report="newReport()"
@@ -671,6 +676,7 @@ onMounted(async () => {
               :aria-current="page === 'create' ? 'page' : undefined"
               >Laporkan</a
             >
+            <a href="/jenis-aduan" @click.prevent="openPublic('jenis-aduan')">Jenis aduan</a>
             <a href="/tracking" @click.prevent="openPublic('tracking')">Monitoring aduan</a>
           </nav>
         </header>
@@ -1012,8 +1018,10 @@ onMounted(async () => {
                   <h3>Jenis aduan yang dapat dilaporkan</h3>
 
                   <ol class="wbs-complaint-types">
-                    <li v-for="type in reportTypes" :key="type[0]">
-                      <strong>{{ type[0] }}</strong>
+                    <li v-for="(type, index) in reportTypes" :key="type[0]">
+                      <div class="wbs-type-heading">
+                        <ReportTypeIcon :index="index" compact /><strong>{{ type[0] }}</strong>
+                      </div>
                       <p>{{ type[1] }}</p>
                     </li>
                   </ol>

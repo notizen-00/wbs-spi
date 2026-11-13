@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Directive } from 'vue';
 import { reportElements, reportTypes, wbsIntroduction, wbsHandling } from '../utils/wbs-content';
 import {
   ShieldCheck,
@@ -15,6 +16,32 @@ import {
   X,
 } from '@lucide/vue';
 const mobileNavOpen = ref(false);
+const revealObservers = new WeakMap<HTMLElement, IntersectionObserver>();
+const vReveal: Directive<HTMLElement, number | undefined> = {
+  mounted(element, binding) {
+    if (
+      !('IntersectionObserver' in window) ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+      return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        element.style.setProperty('--reveal-delay', `${binding.value ?? 0}ms`);
+        element.classList.add('scroll-revealed');
+        observer.disconnect();
+        revealObservers.delete(element);
+      },
+      { threshold: 0, rootMargin: '0px 0px -40px 0px' },
+    );
+    revealObservers.set(element, observer);
+    observer.observe(element);
+  },
+  unmounted(element) {
+    revealObservers.get(element)?.disconnect();
+    revealObservers.delete(element);
+  },
+};
 const mobileNavToggle = ref<HTMLButtonElement | null>(null);
 function closeMobileNav(event: KeyboardEvent) {
   if (event.key === 'Escape' && mobileNavOpen.value) {
@@ -25,6 +52,7 @@ function closeMobileNav(event: KeyboardEvent) {
 const props = defineProps<{
   authPage: boolean;
   trackingPage?: boolean;
+  reportTypesPage?: boolean;
   serviceError?: string;
 }>();
 const { site } = useSiteConfiguration();
@@ -45,10 +73,10 @@ const {
       monthly: { month: string; count: number }[];
       updatedAt: string;
     }>('/api/v1/public/statistics', { timeout: 5000, retry: 0 }),
-  { immediate: !props.authPage && !props.trackingPage },
+  { immediate: !props.authPage && !props.trackingPage && !props.reportTypesPage },
 );
 watch(
-  () => !props.authPage && !props.trackingPage,
+  () => !props.authPage && !props.trackingPage && !props.reportTypesPage,
   (landing) => {
     if (landing && !statistics.value) void refreshStatistics();
   },
@@ -149,6 +177,12 @@ const faqs = [
         :class="{ 'is-open': mobileNavOpen }"
         aria-label="Navigasi publik"
       >
+        <a
+          href="/jenis-aduan"
+          :aria-current="reportTypesPage ? 'page' : undefined"
+          @click.prevent="$emit('section', 'jenis-aduan')"
+          >Jenis aduan</a
+        >
         <a href="/guide" @click.prevent="$emit('section', 'guide')">Alur pelaporan</a
         ><a href="/privacy" @click.prevent="$emit('section', 'privacy')">Kerahasiaan</a
         ><a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a>
@@ -172,9 +206,34 @@ const faqs = [
         /></a>
         <PublicTracking />
       </section>
+      <section
+        v-else-if="reportTypesPage"
+        id="report-types"
+        class="public-section report-types"
+        aria-labelledby="report-types-title"
+      >
+        <a href="/" class="public-text-link" @click.prevent="$emit('home')"
+          >Kembali ke beranda<ArrowRight :size="16"
+        /></a>
+        <div v-reveal class="public-section-heading">
+          <div>
+            <span class="public-eyebrow">RUANG LINGKUP PELAPORAN</span>
+            <h2 id="report-types-title">Jenis aduan yang dapat dilaporkan</h2>
+          </div>
+        </div>
+        <ol class="report-types-list">
+          <li v-for="(type, index) in reportTypes" :key="type[0]">
+            <ReportTypeIcon :index="index" />
+            <div>
+              <h3>{{ type[0] }}</h3>
+              <p>{{ type[1] }}</p>
+            </div>
+          </li>
+        </ol>
+      </section>
       <template v-else-if="!authPage">
         <section class="public-hero" aria-labelledby="public-title">
-          <div class="public-hero-copy">
+          <div v-reveal class="public-hero-copy">
             <div class="public-kicker"><span>01 / KANAL PELAPORAN</span> WHISTLEBLOWING SYSTEM</div>
             <h1 id="public-title">Ada yang perlu<br /><em>dilaporkan?</em></h1>
             <p><strong>Whistleblowing System (WBS)</strong> {{ wbsIntroduction }}</p>
@@ -190,7 +249,7 @@ const faqs = [
               <LockKeyhole :size="15" />Akses laporan dibatasi sesuai kewenangan
             </div>
           </div>
-          <aside class="public-illustration" aria-label="Catatan sebelum melapor">
+          <aside v-reveal="120" class="public-illustration" aria-label="Catatan sebelum melapor">
             <span class="folder-tab">PANDUAN PELAPOR</span>
             <div class="public-paper">
               <div class="paper-masthead"><span>WBS / UNEJ</span><span>CATATAN 01</span></div>
@@ -233,7 +292,7 @@ const faqs = [
           class="public-section report-requirements"
           aria-labelledby="requirements-title"
         >
-          <div class="public-section-heading">
+          <div v-reveal class="public-section-heading">
             <div>
               <span class="public-eyebrow">PANDUAN ISI ADUAN</span>
               <h2 id="requirements-title">Apa yang dapat dilaporkan?</h2>
@@ -244,7 +303,11 @@ const faqs = [
             </p>
           </div>
           <dl class="report-elements">
-            <div v-for="element in reportElements" :key="element[0]">
+            <div
+              v-for="(element, index) in reportElements"
+              :key="element[0]"
+              v-reveal="(index % 3) * 70"
+            >
               <dt>
                 <strong>{{ element[0] }}</strong
                 ><span>{{ element[1] }}</span>
@@ -253,43 +316,20 @@ const faqs = [
             </div>
           </dl>
         </section>
-        <section
-          id="report-types"
-          class="public-section report-types"
-          aria-labelledby="report-types-title"
-        >
-          <div class="public-section-heading">
-            <div>
-              <span class="public-eyebrow">RUANG LINGKUP PELAPORAN</span>
-              <h2 id="report-types-title">Jenis aduan yang dapat dilaporkan</h2>
-            </div>
-          </div>
-          <ol class="report-types-list">
-            <li v-for="(type, index) in reportTypes" :key="type[0]">
-              <span class="report-type-number" aria-hidden="true">{{
-                String(index + 1).padStart(2, '0')
-              }}</span>
-              <div>
-                <h3>{{ type[0] }}</h3>
-                <p>{{ type[1] }}</p>
-              </div>
-            </li>
-          </ol>
-        </section>
         <section class="public-values" aria-label="Tentang layanan">
-          <article>
+          <article v-reveal>
             <span class="service-index">I.</span>
             <h2>Berangkat dari fakta</h2>
             <p>
               Susun kronologi dan informasi pendukung agar laporan dapat ditelaah dengan cermat.
             </p>
           </article>
-          <article>
+          <article v-reveal>
             <span class="service-index">II.</span>
             <h2>Tidak dipublikasikan</h2>
             <p>Laporan hanya tersedia bagi pelapor dan petugas yang memiliki hak akses perkara.</p>
           </article>
-          <article>
+          <article v-reveal>
             <span class="service-index">III.</span>
             <h2>Ada catatan penanganan</h2>
             <p>Ikuti perkembangan, jawab klarifikasi, dan baca jawaban resmi dalam satu tempat.</p>
@@ -301,7 +341,7 @@ const faqs = [
           aria-labelledby="statistics-title"
           :aria-busy="statisticsStatus === 'pending'"
         >
-          <div class="public-section-heading">
+          <div v-reveal class="public-section-heading">
             <div>
               <span class="public-eyebrow">GAMBARAN PELAPORAN</span>
               <h2 id="statistics-title">Setiap laporan berarti.</h2>
@@ -318,7 +358,11 @@ const faqs = [
           </div>
           <template v-else-if="statistics">
             <div class="statistics-cards">
-              <article v-for="card in statisticCards" :key="card.label">
+              <article
+                v-for="(card, index) in statisticCards"
+                :key="card.label"
+                v-reveal="index * 70"
+              >
                 <component :is="card.icon" :size="20" aria-hidden="true" /><strong>{{
                   number(card.value)
                 }}</strong
@@ -377,7 +421,7 @@ const faqs = [
           </template>
         </section>
         <section id="guide" class="public-section" aria-labelledby="guide-title">
-          <div class="public-section-heading">
+          <div v-reveal class="public-section-heading">
             <div>
               <span class="public-eyebrow">02 / PROSES PELAPORAN</span>
               <h2 id="guide-title">Alur pelaporan</h2>
@@ -385,14 +429,14 @@ const faqs = [
             <p>Empat langkah untuk mengirim laporan dan mengikuti perkembangannya.</p>
           </div>
           <ol class="public-steps">
-            <li v-for="(step, index) in steps" :key="step[0]">
+            <li v-for="(step, index) in steps" :key="step[0]" v-reveal="index * 70">
               <span class="public-step-number">0{{ index + 1 }}</span>
               <h3>{{ step[0] }}</h3>
               <p>{{ step[1] }}</p>
             </li>
           </ol>
         </section>
-        <section id="privacy" class="public-privacy" aria-labelledby="privacy-title">
+        <section v-reveal id="privacy" class="public-privacy" aria-labelledby="privacy-title">
           <div class="privacy-symbol"><ShieldCheck :size="37" /></div>
           <div>
             <span class="public-eyebrow">03 / AKSES INFORMASI</span>
@@ -408,7 +452,7 @@ const faqs = [
           </div>
         </section>
         <section id="help" class="public-section public-help" aria-labelledby="help-title">
-          <div class="public-help-intro">
+          <div v-reveal class="public-help-intro">
             <span class="public-eyebrow">04 / TANYA JAWAB</span>
             <h2 id="help-title">Pusat bantuan</h2>
             <p>
@@ -439,14 +483,14 @@ const faqs = [
               </p>
             </div>
           </div>
-          <div class="public-faq">
+          <div v-reveal="100" class="public-faq">
             <details v-for="faq in faqs" :key="faq[0]">
               <summary>{{ faq[0] }}</summary>
               <p>{{ faq[1] }}</p>
             </details>
           </div>
         </section>
-        <section class="public-cta">
+        <section v-reveal class="public-cta">
           <div>
             <h2>Sudah pernah mengirim laporan?</h2>
             <p>Laporkan kejadian tanpa login dan simpan nomor tiket untuk memantau penanganan.</p>
@@ -486,6 +530,26 @@ const faqs = [
 </template>
 
 <style scoped>
+.scroll-revealed {
+  animation: landing-scroll-reveal 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+@keyframes landing-scroll-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-revealed {
+    animation: none;
+  }
+}
+
 .report-elements {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
