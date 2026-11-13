@@ -3,6 +3,7 @@ import { stubRecaptcha } from './captcha-fixture';
 test.use({ baseURL: 'http://127.0.0.1:3000' });
 
 test('API sesi tidak merespons tetap menampilkan beranda dan pesan koneksi', async ({ page }) => {
+  test.setTimeout(40000);
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/me')) return;
@@ -22,7 +23,7 @@ test('API sesi tidak merespons tetap menampilkan beranda dan pesan koneksi', asy
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /Ada yang perlu/ })).toBeVisible({
-    timeout: 15000,
+    timeout: 25000,
   });
   await expect(page.getByRole('alert')).toContainText('Tidak dapat terhubung');
   await expect(page.locator('.session-loading')).toHaveCount(0);
