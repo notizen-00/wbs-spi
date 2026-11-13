@@ -7,11 +7,11 @@ defineEmits<{ open: [report: Report]; queue: [] }>();
 const roles = {
   INVESTIGATOR: [
     'Verifikator/Pemeriksa',
-    'Verifikasi laporan, usulkan penugasan, lakukan pemeriksaan yang ditugaskan, dan verifikasi tindak lanjut.',
+    'Verifikasi laporan, tolak dengan alasan atau teruskan ke pejabat, dan lakukan pemeriksaan yang ditugaskan.',
   ],
   OFFICIAL: [
     'Pejabat berwenang',
-    'Tinjau usulan penugasan, hasil pemeriksaan, dan penutupan sesuai kewenangan.',
+    'Tinjau laporan yang diteruskan verifikator, tetapkan instruksi dan penugasan langsung ke pelaksana, atau tolak dengan alasan.',
   ],
   EXECUTOR: [
     'Pelaksana tindak lanjut',

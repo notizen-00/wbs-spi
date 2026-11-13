@@ -20,11 +20,14 @@ import {
 } from '@lucide/vue';
 import type { Report, User } from '@wbs/contracts';
 import { formatDateTime } from '../utils/date-time';
+import { createRequestKey } from '../utils/request-key';
 const props = defineProps<{ report: Report; user: User }>();
 const emit = defineEmits<{ updated: [] }>();
 const actionIcons = {
   PROPOSE_ASSIGNMENT: UserRoundPlus,
+  FORWARD_TO_OFFICIAL: ArrowRight,
   PROPOSE_CLOSURE: Archive,
+  CLOSE_NO_FOLLOW_UP: Archive,
   REVIEW_FINDING: Undo2,
   PROPOSE_RESULT: FileCheck2,
   REVIEW_EXECUTION: ClipboardCheck,
@@ -77,7 +80,7 @@ async function send(decision?: string) {
   try {
     await $fetch(`/api/v1/reports/${props.report.id}/commands`, {
       method: 'POST',
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Idempotency-Key': createRequestKey() },
       body: {
         action: action.value,
         reason: reason.value,
@@ -108,40 +111,51 @@ const actions = computed(() => {
     return result;
   }
   if (r.lifecycle === 'SUSPENDED') {
-    if (verifier.value) result.push({ id: 'RESUME', label: 'Evaluasi & lanjutkan' });
+    if (props.user.role === 'OFFICIAL')
+      result.push({ id: 'RESUME', label: 'Evaluasi & lanjutkan' });
     return result;
   }
+  const reopenPending = data.value.reopenRequests?.some((v: any) => v.status === 'PENDING');
   if (verifier.value) {
-    if (r.stage === 'INITIAL_REVIEW')
+    if (['INITIAL_REVIEW', 'RESULT_REVIEW'].includes(r.stage))
       result.push(
-        { id: 'PROPOSE_ASSIGNMENT', label: 'Usulkan penugasan' },
-        { id: 'PROPOSE_CLOSURE', label: 'Usulkan penutupan dini' },
-      );
-    if (r.stage === 'RESULT_REVIEW')
-      result.push(
-        { id: 'REVIEW_FINDING', label: 'Kembalikan hasil' },
-        { id: 'PROPOSE_RESULT', label: 'Usulkan hasil & tindak lanjut' },
+        { id: 'FORWARD_TO_OFFICIAL', label: 'Teruskan ke pejabat' },
+        { id: 'CLOSE_NO_FOLLOW_UP', label: 'Tolak laporan' },
       );
     if (r.stage === 'FOLLOW_UP')
       result.push(
-        { id: 'REVIEW_EXECUTION', label: 'Review pelaksanaan' },
-        { id: 'PROPOSE_CLOSURE', label: 'Usulkan penutupan' },
+        { id: 'REVIEW_EXECUTION', label: 'Periksa pelaksanaan' },
+        { id: 'FORWARD_TO_OFFICIAL', label: 'Teruskan ke pejabat' },
       );
-    if (
-      ['COMPLETED', 'CLOSED'].includes(r.stage) &&
-      data.value.reopenRequests?.some((v: any) => v.status === 'PENDING')
-    )
-      result.push({ id: 'PROPOSE_REOPEN', label: 'Usulkan pembukaan kembali' });
-    if (!['DRAFT', 'COMPLETED', 'CLOSED'].includes(r.stage))
+    if (['COMPLETED', 'CLOSED'].includes(r.stage) && reopenPending && !data.value.reopenForwarded)
+      result.push({ id: 'FORWARD_TO_OFFICIAL', label: 'Teruskan ke pejabat' });
+  }
+  if (props.user.role === 'OFFICIAL') {
+    if (r.stage === 'ASSIGNMENT_APPROVAL')
+      result.push(
+        { id: 'PROPOSE_RESULT', label: 'Tugaskan pelaksana' },
+        { id: 'CLOSE_NO_FOLLOW_UP', label: 'Tolak laporan' },
+      );
+    if (r.stage === 'RESULT_APPROVAL')
+      result.push(
+        { id: 'PROPOSE_RESULT', label: 'Tugaskan pelaksana' },
+        { id: 'CLOSE_NO_FOLLOW_UP', label: 'Tolak laporan' },
+      );
+    if (r.stage === 'CLOSURE_APPROVAL')
+      result.push({ id: 'PROPOSE_CLOSURE', label: 'Tetapkan penutupan' });
+    if (['COMPLETED', 'CLOSED'].includes(r.stage) && reopenPending && data.value.reopenForwarded)
+      result.push({ id: 'PROPOSE_REOPEN', label: 'Buka kembali laporan' });
+    if (['INVESTIGATION', 'FOLLOW_UP'].includes(r.stage))
       result.push({ id: 'SUSPEND', label: 'Tunda perkara' });
   }
-  if (props.user.role === 'OFFICIAL' && pending.value)
-    result.push({ id: 'DECIDE', label: 'Tinjau & putuskan proposal' });
-  if (props.user.role === 'INVESTIGATOR' && r.stage === 'INVESTIGATION' && data.value.canSubmitFinding)
+  if (
+    props.user.role === 'INVESTIGATOR' &&
+    r.stage === 'INVESTIGATION' &&
+    data.value.canSubmitFinding
+  )
     result.push({ id: 'FINDING', label: 'Serahkan hasil pemeriksaan' });
   if (props.user.role === 'EXECUTOR' && r.stage === 'FOLLOW_UP')
     result.push({ id: 'EXECUTE', label: 'Catat pelaksanaan' });
-  result.push({ id: 'CONFLICT', label: 'Nyatakan konflik kepentingan' });
   return result;
 });
 </script>
@@ -159,9 +173,12 @@ const actions = computed(() => {
         class="button action-button"
         :class="{
           chosen: action === a.id,
-          caution: ['SUSPEND', 'CONFLICT', 'PROPOSE_CLOSURE', 'REVIEW_FINDING'].includes(a.id),
+          danger: a.id === 'CLOSE_NO_FOLLOW_UP',
+          warning: ['SUSPEND', 'CONFLICT', 'REVIEW_FINDING'].includes(a.id),
+          positive: !['CLOSE_NO_FOLLOW_UP', 'SUSPEND', 'CONFLICT', 'REVIEW_FINDING'].includes(a.id),
         }"
         :aria-pressed="action === a.id"
+        :disabled="busy"
         @click="
           action = a.id;
           error = '';
@@ -197,6 +214,7 @@ const actions = computed(() => {
       <article v-for="t in data.tasks" class="workspace-card">
         <strong>Tugas tindak lanjut · {{ t.status }}</strong>
         <p>{{ t.instruction }}</p>
+        <p v-if="t.executor">Pelaksana: {{ t.executor.name }}</p>
         <p v-if="t.execution">Pelaksanaan: {{ t.execution }}</p>
       </article>
       <article v-if="pending" class="workspace-card proposal">
@@ -214,28 +232,18 @@ const actions = computed(() => {
       @submit.prevent="send(action === 'REVIEW_FINDING' ? 'RETURN' : undefined)"
     >
       <h4>{{ actions.find((a) => a.id === action)?.label }}</h4>
-      <template v-if="action === 'PROPOSE_ASSIGNMENT'"
-        ><label
-          >Tim pemeriksa<select v-model="fields.assigneeId" required>
-            <option value="" disabled>Pilih pemeriksa</option>
-            <option
-              v-for="u in data.users?.filter((u: any) => u.role === 'INVESTIGATOR')"
-              :value="u.id"
-            >
-              {{ u.name }}
-            </option>
-          </select></label
-        ><label
-          >Ringkasan tersamarkan<textarea
-            v-model="fields.summary"
-            rows="4"
+      <template
+        v-if="
+          action === 'PROPOSE_RESULT' ||
+          (action === 'DECIDE' && ['RESULT', 'ASSIGNMENT'].includes(pending?.type))
+        "
+      >
+        <label
+          >Pelaksana tindak lanjut (ditentukan pejabat)<select
+            v-model="fields.executorId"
+            aria-label="Pelaksana tindak lanjut"
             required
-            placeholder="Hindari identitas pelapor dan data yang tidak diperlukan."
-          ></textarea></label
-      ></template>
-      <template v-if="action === 'PROPOSE_RESULT'"
-        ><label
-          >Pelaksana tindak lanjut<select v-model="fields.executorId" required>
+          >
             <option value="" disabled>Pilih pelaksana</option>
             <option
               v-for="u in data.users?.filter((u: any) => u.role === 'EXECUTOR')"
@@ -244,6 +252,9 @@ const actions = computed(() => {
               {{ u.name }}
             </option>
           </select></label
+        >
+      </template>
+      <template v-if="action === 'PROPOSE_RESULT'"
         ><label
           >Rencana & bukti pelaksanaan yang dibutuhkan<textarea
             v-model="fields.instruction"
@@ -316,14 +327,25 @@ const actions = computed(() => {
         akses dilakukan oleh pihak berwenang.
       </div>
       <label
-        >{{ action === 'REQUEST_REOPEN' ? 'Alasan & informasi baru' : 'Alasan / catatan keputusan'
+        >{{
+          action === 'FORWARD_TO_OFFICIAL'
+            ? 'Catatan penerusan (ditampilkan kepada pelapor)'
+            : action === 'CLOSE_NO_FOLLOW_UP'
+              ? 'Alasan penolakan (ditampilkan kepada pelapor)'
+              : action === 'REQUEST_REOPEN'
+                ? 'Alasan & informasi baru'
+                : 'Alasan / catatan keputusan'
         }}<textarea v-model="reason" rows="4" required maxlength="10000"></textarea>
       </label>
+      <p v-if="action === 'CLOSE_NO_FOLLOW_UP'" class="info-box">
+        Laporan ditolak dan langsung ditutup. Alasan yang Anda tulis akan ditampilkan pada timeline
+        pelapor.
+      </p>
       <div class="workspace-submit">
         <template v-if="action === 'DECIDE'"
           ><button
             type="button"
-            class="button secondary"
+            class="button warning"
             :disabled="busy || !reason.trim()"
             @click="send('RETURN')"
           >
@@ -331,14 +353,19 @@ const actions = computed(() => {
           ><button
             type="button"
             class="button"
-            :disabled="busy || !reason.trim()"
+            :disabled="
+              busy ||
+              !reason.trim() ||
+              (pending?.type === 'RESULT' && !fields.executorId) ||
+              (pending?.type === 'ASSIGNMENT' && !fields.executorId)
+            "
             @click="send('APPROVE')"
           >
             Setujui<CheckCircle2 :size="16" /></button></template
         ><template v-else-if="action === 'REVIEW_EXECUTION'"
           ><button
             type="button"
-            class="button secondary"
+            class="button warning"
             :disabled="busy || !reason.trim()"
             @click="send('RETURN')"
           >
@@ -351,8 +378,33 @@ const actions = computed(() => {
           >
             Verifikasi
           </button></template
-        ><button v-else class="button" :disabled="busy">
-          {{ busy ? 'Menyimpan…' : 'Simpan tindakan' }}<ArrowRight :size="16" />
+        ><button
+          v-else
+          class="button"
+          :class="{
+            danger: action === 'CLOSE_NO_FOLLOW_UP',
+            warning: ['SUSPEND', 'REVIEW_FINDING', 'CONFLICT'].includes(action),
+          }"
+          :disabled="busy"
+        >
+          {{
+            busy
+              ? 'Menyimpan…'
+              : action === 'CLOSE_NO_FOLLOW_UP'
+                ? 'Tolak dan tutup laporan'
+                : 'Simpan tindakan'
+          }}<ArrowRight :size="16" />
+        </button>
+        <button
+          type="button"
+          class="button secondary neutral"
+          :disabled="busy"
+          @click="
+            action = '';
+            reason = '';
+          "
+        >
+          Batal
         </button>
       </div>
     </form>

@@ -29,6 +29,7 @@ import {
   notificationChannel,
 } from '../apps/api/src/notifications/notification-publisher';
 import { AuthService } from '../apps/api/src/auth/auth.service';
+import { passwordMatches } from '../apps/api/src/security';
 import { UnauthorizedException } from '@nestjs/common';
 import { createServer } from 'node:http';
 import { EventEmitter } from 'node:events';
@@ -74,8 +75,33 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     assert.equal(
       (await db.query('SELECT * FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows
         .length,
-      11,
+      13,
     );
+  });
+  await t.test('katalog kategori dan 25 subkategori tersimpan di database', async () => {
+    assert.equal(await prisma.reportCategory.count(), 5);
+    const names = [
+      'Pelanggaran BMN',
+      'Pelanggaran Umum (Zona Integritas)',
+      'Divisi Akuntansi dan Keuangan',
+      'Divisi PBJ',
+      'Divisi SDM',
+    ];
+    const rows = await prisma.reportCategory.findMany({
+      where: { name: { in: names } },
+      orderBy: { sortOrder: 'asc' },
+    });
+    assert.deepEqual(
+      rows.map((row) => row.name),
+      names,
+    );
+    assert.deepEqual(
+      rows.map((row) => row.subcategories.length),
+      [5, 9, 5, 3, 3],
+    );
+    assert.ok(rows.every((row) => row.active));
+    const settings = await new AdminService(prisma).publicSettings();
+    assert.deepEqual(settings.subcategories['Divisi SDM'], rows[4]!.subcategories);
   });
   await t.test('schema Prisma sesuai dengan database hasil migrasi', async () => {
     await cli([
@@ -326,7 +352,8 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     async () => {
       const payload = {
         title: 'Laporan sintetis Prisma',
-        category: 'Pelanggaran akademik',
+        category: 'Pelanggaran Umum (Zona Integritas)',
+        subcategory: 'Pelanggaran disiplin atau kode etik',
         what: 'Kejadian sintetis',
         who: 'Pihak sintetis',
         when: '2026-11-01',
@@ -379,75 +406,149 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       assert.ok((await reports.list(reporter, 1, 'prisma')).some((item) => item.id === draft.id));
     },
   );
-  await t.test('proposal penugasan memerlukan verifikator/pemeriksa', async () => {
+  await t.test('verifikator hanya meneruskan dan tidak membuat usulan penugasan', async () => {
     await assert.rejects(
-      command(reporter, {
+      command(manager, {
         action: 'PROPOSE_ASSIGNMENT',
         assigneeId: investigator.id,
-        summary: 'Ringkasan',
+        summary: 'Bukan kewenangan verifikator',
       }),
+      (e: any) => e.getStatus() === 403,
     );
-    await command(manager, {
-      action: 'PROPOSE_ASSIGNMENT',
-      assigneeId: investigator.id,
-      summary: 'Ringkasan tersamarkan',
-    });
+    await assert.rejects(
+      command(reporter, { action: 'FORWARD_TO_OFFICIAL' }),
+      (e: any) => e.getStatus() === 403,
+    );
+    await assert.rejects(
+      command(official, {
+        action: 'PROPOSE_ASSIGNMENT',
+        assigneeId: investigator.id,
+        summary: 'Belum diteruskan',
+      }),
+      (e: any) => e.getStatus() === 409,
+    );
+    await command(manager, { action: 'FORWARD_TO_OFFICIAL' });
     assert.equal(r.stage, 'ASSIGNMENT_APPROVAL');
-  });
-  await t.test('pejabat tanpa mandat gagal menyetujui', async () => {
-    await assert.rejects(command(official, { action: 'DECIDE', decision: 'APPROVE' }));
-  });
-  await t.test('pengusul yang memiliki role pejabat tetap gagal menyetujui sendiri', async () => {
-    await assert.rejects(
-      command({ ...manager, role: 'OFFICIAL' }, { action: 'DECIDE', decision: 'APPROVE' }),
+    assert.equal(await prisma.proposal.count({ where: { reportId: r.id } }), 0);
+    assert.ok(
+      (await reports.detail(r.id, reporter)).events.some(
+        (event) => event.action === 'FORWARD_TO_OFFICIAL',
+      ),
     );
+    assert.deepEqual(((await reports.workspace(r.id, manager)) as any).users, []);
   });
-  await db.query(
-    "INSERT INTO authority_mandates(user_id,decision_type,valid_until) SELECT $1,t,now()+interval '1 day' FROM unnest(ARRAY['ASSIGNMENT','RESULT','CLOSURE','REOPEN']) t",
-    [official.id],
+  await t.test(
+    'pejabat langsung menugaskan pelaksana setelah verifikasi tanpa penugasan pemeriksa ulang',
+    async () => {
+      await assert.rejects(
+        command(official, {
+          action: 'PROPOSE_RESULT',
+          executorId: investigator.id,
+          instruction: 'Harus pelaksana',
+        }),
+      );
+      await command(official, {
+        action: 'PROPOSE_RESULT',
+        executorId: executor.id,
+        instruction: 'Periksa dan laksanakan tindak lanjut',
+      });
+      assert.equal(r.stage, 'FOLLOW_UP');
+      assert.equal(await prisma.assignment.count({ where: { reportId: r.id } }), 0);
+      const task = await prisma.followUpTask.findFirstOrThrow({ where: { reportId: r.id } });
+      assert.equal(task.executorId, executor.id);
+      assert.ok(
+        ((await reports.workspace(r.id, official)) as any).users.every(
+          (person: any) => person.role === 'EXECUTOR',
+        ),
+      );
+    },
   );
-  await t.test('persetujuan memberikan akses dan penugasan', async () => {
-    await command(official, { action: 'DECIDE', decision: 'APPROVE' });
-    assert.equal(r.stage, 'INVESTIGATION');
-    assert.equal(
-      (await db.query('SELECT * FROM assignments WHERE user_id=$1', [investigator.id])).rows.length,
-      1,
-    );
-    await assert.rejects(
-      command(manager, { action: 'FINDING', content: 'Role sama tetapi belum ditugaskan' }),
-      (error: any) => error.getStatus() === 403,
-    );
-    assert.equal((await reports.workspace(r.id, manager)).canSubmitFinding, false);
-    assert.equal((await reports.workspace(r.id, investigator)).canSubmitFinding, true);
+  // Retain coverage for investigation-stage reports created under the previous workflow.
+  const legacyInvestigation = await prisma.report.create({
+    data: { ownerId: reporter.id, stage: 'INVESTIGATION', payload: {} },
   });
+  const legacyAssignment = await prisma.proposal.create({
+    data: {
+      reportId: legacyInvestigation.id,
+      type: 'ASSIGNMENT',
+      proposerId: official.id,
+      status: 'APPROVED',
+      payload: { assigneeId: investigator.id },
+    },
+  });
+  await prisma.assignment.create({
+    data: {
+      reportId: legacyInvestigation.id,
+      userId: investigator.id,
+      proposalId: legacyAssignment.id,
+    },
+  });
+  await prisma.caseAccess.createMany({
+    data: [manager, official, investigator].map((person) => ({
+      reportId: legacyInvestigation.id,
+      userId: person.id,
+    })),
+  });
+  r = (await db.query<any>('SELECT * FROM reports WHERE id=$1', [legacyInvestigation.id])).rows[0];
   await t.test('suspend menyimpan tahap dan memblokir proses biasa', async () => {
-    await command(manager, {
+    await command(official, {
       action: 'SUSPEND',
       evaluationAt: new Date(Date.now() + 86400000).toISOString(),
       conditions: 'Sumber bukti tersedia',
     });
     assert.equal(r.lifecycle, 'SUSPENDED');
     await assert.rejects(command(investigator, { action: 'FINDING', content: 'hasil' }));
-    await command(manager, { action: 'RESUME' });
+    await command(official, { action: 'RESUME' });
     assert.equal(r.stage, 'INVESTIGATION');
   });
   await t.test('hasil pemeriksaan dapat dikembalikan tanpa menghapus versi', async () => {
     await command(investigator, { action: 'FINDING', content: 'Hasil pemeriksaan pertama' });
     assert.equal(r.stage, 'RESULT_REVIEW');
-    await command(manager, { action: 'REVIEW_FINDING', decision: 'RETURN' });
+    await command(manager, { action: 'FORWARD_TO_OFFICIAL' });
+    await command(official, { action: 'REVIEW_FINDING', decision: 'RETURN' });
     await command(investigator, { action: 'FINDING', content: 'Hasil pemeriksaan revisi' });
     assert.equal((await db.query('SELECT * FROM findings')).rows.length, 2);
   });
-  await t.test('persetujuan hasil membuat tugas pelaksana', async () => {
-    await command(manager, {
-      action: 'PROPOSE_RESULT',
-      executorId: executor.id,
-      instruction: 'Laksanakan perbaikan dan lampirkan bukti',
-    });
-    await command(official, { action: 'DECIDE', decision: 'APPROVE' });
-    assert.equal(r.stage, 'FOLLOW_UP');
-  });
-  const task = (await db.query<any>('SELECT * FROM follow_up_tasks')).rows[0];
+  await t.test(
+    'pejabat membuat rencana dan penugasan pelaksana setelah verifikator meneruskan hasil',
+    async () => {
+      await assert.rejects(
+        command(manager, {
+          action: 'PROPOSE_RESULT',
+          executorId: executor.id,
+          instruction: 'Tidak boleh mengusulkan',
+        }),
+        (e: any) => e.getStatus() === 403,
+      );
+      await command(manager, { action: 'FORWARD_TO_OFFICIAL' });
+      assert.equal(r.stage, 'RESULT_APPROVAL');
+      await assert.rejects(
+        command(official, { action: 'PROPOSE_RESULT', instruction: 'Pelaksana wajib dipilih' }),
+      );
+      await assert.rejects(
+        command(official, {
+          action: 'PROPOSE_RESULT',
+          executorId: reporter.id,
+          instruction: 'Tidak boleh pelapor',
+        }),
+      );
+      await command(official, {
+        action: 'PROPOSE_RESULT',
+        executorId: executor.id,
+        instruction: 'Laksanakan perbaikan dan lampirkan bukti',
+      });
+      const plan = await prisma.proposal.findFirstOrThrow({
+        where: { reportId: r.id, type: 'RESULT' },
+      });
+      assert.equal(plan.proposerId, official.id);
+      assert.equal(plan.status, 'APPROVED');
+      assert.equal((plan.payload as any).executorId, executor.id);
+      assert.equal(await prisma.approvalDecision.count({ where: { proposalId: plan.id } }), 0);
+      assert.equal(r.stage, 'FOLLOW_UP');
+    },
+  );
+  const task = (await db.query<any>('SELECT * FROM follow_up_tasks WHERE report_id=$1', [r.id]))
+    .rows[0];
   await t.test('tanpa bukti bersih, pelaksanaan gagal', async () => {
     await assert.rejects(
       command(executor, {
@@ -475,19 +576,19 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       command(manager, { action: 'PROPOSE_CLOSURE', outcome: 'COMPLETED', response: 'Selesai' }),
     );
     await command(manager, { action: 'REVIEW_EXECUTION', taskId: task.id, decision: 'VERIFY' });
-    await command(manager, {
+    await command(manager, { action: 'FORWARD_TO_OFFICIAL' });
+    await command(official, {
       action: 'PROPOSE_CLOSURE',
       outcome: 'COMPLETED',
       response: 'Tindak lanjut telah selesai.',
     });
-    await command(official, { action: 'DECIDE', decision: 'APPROVE' });
     assert.equal(r.stage, 'COMPLETED');
   });
   await t.test('reopen perlu keputusan, jawaban lama tetap ada', async () => {
     await command(reporter, { action: 'REQUEST_REOPEN', reason: 'Ada bukti baru' });
     assert.equal(r.stage, 'COMPLETED');
-    await command(manager, { action: 'PROPOSE_REOPEN', targetStage: 'INVESTIGATION' });
-    await command(official, { action: 'DECIDE', decision: 'APPROVE' });
+    await command(manager, { action: 'FORWARD_TO_OFFICIAL' });
+    await command(official, { action: 'PROPOSE_REOPEN', targetStage: 'INVESTIGATION' });
     assert.equal(r.stage, 'INVESTIGATION');
     assert.equal((await db.query('SELECT * FROM official_responses')).rows.length, 1);
   });
@@ -502,10 +603,95 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     );
     await assert.rejects(command(investigator, { action: 'FINDING', content: 'Tidak boleh' }));
   });
+  await t.test(
+    'proposal lama tetap dapat diselesaikan pejabat dengan penerima tugas pilihannya',
+    async () => {
+      const legacy = await prisma.report.create({
+        data: { ownerId: reporter.id, stage: 'ASSIGNMENT_APPROVAL', payload: {} },
+      });
+      await prisma.caseAccess.createMany({
+        data: [manager, official].map((person) => ({ reportId: legacy.id, userId: person.id })),
+      });
+      const proposal = await prisma.proposal.create({
+        data: {
+          reportId: legacy.id,
+          type: 'ASSIGNMENT',
+          proposerId: manager.id,
+          payload: { assigneeId: investigator.id, summary: 'Proposal lama' },
+        },
+      });
+      await prisma.authorityMandate.create({
+        data: {
+          userId: official.id,
+          decisionType: 'ASSIGNMENT',
+          validUntil: new Date(Date.now() + 86400000),
+        },
+      });
+      const request = {
+        action: 'DECIDE',
+        decision: 'APPROVE',
+        reason: 'Pejabat menetapkan pelaksana',
+        executorId: executor.id,
+        instruction: 'Laksanakan tindak lanjut',
+        expectedVersion: legacy.version,
+      };
+      await assert.rejects(
+        () => reports.command(legacy.id, { ...manager, role: 'OFFICIAL' }, request, randomUUID()),
+        (e: any) => e.getStatus() === 403,
+      );
+      const assigned = await reports.command(legacy.id, official, request, randomUUID());
+      assert.equal(assigned.stage, 'FOLLOW_UP');
+      assert.equal(await prisma.approvalDecision.count({ where: { proposalId: proposal.id } }), 1);
+    },
+  );
   await t.test('audit immutable', async () => {
     await assert.rejects(db.query("UPDATE findings SET content='tampered'"));
     await assert.rejects(db.query('DELETE FROM approval_decisions'));
   });
+  await t.test(
+    'pejabat dapat menetapkan ulang proposal lama tanpa persetujuan tambahan',
+    async () => {
+      const oldReport = await prisma.report.create({
+        data: { ownerId: reporter.id, stage: 'RESULT_APPROVAL', payload: {} },
+      });
+      await prisma.caseAccess.create({ data: { reportId: oldReport.id, userId: official.id } });
+      const oldPlan = await prisma.proposal.create({
+        data: {
+          reportId: oldReport.id,
+          proposerId: manager.id,
+          type: 'RESULT',
+          payload: { instruction: 'Rencana lama', executorId: reporter.id },
+        },
+      });
+      const assigned = await reports.command(
+        oldReport.id,
+        official,
+        {
+          action: 'PROPOSE_RESULT',
+          reason: 'Penugasan ditetapkan pejabat',
+          instruction: 'Rencana dari pejabat',
+          executorId: executor.id,
+          expectedVersion: oldReport.version,
+        },
+        randomUUID(),
+      );
+      assert.equal(assigned.stage, 'FOLLOW_UP');
+      assert.equal(
+        (await prisma.proposal.findUniqueOrThrow({ where: { id: oldPlan.id } })).status,
+        'RETURNED',
+      );
+      const newPlan = await prisma.proposal.findFirstOrThrow({
+        where: { reportId: oldReport.id, status: 'APPROVED' },
+      });
+      assert.equal(newPlan.proposerId, official.id);
+      assert.equal(await prisma.approvalDecision.count({ where: { proposalId: newPlan.id } }), 0);
+      assert.equal(
+        (await prisma.followUpTask.findFirstOrThrow({ where: { reportId: oldReport.id } }))
+          .executorId,
+        executor.id,
+      );
+    },
+  );
   await t.test('scope objek melindungi draf, super admin, dan konflik', async () => {
     const draft = (
       await db.query<any>('INSERT INTO reports(owner_id) VALUES($1) RETURNING id', [reporter.id])
@@ -869,10 +1055,10 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       assert.equal(result.lifecycle, 'COMPLETED');
       assert.ok(result.number?.startsWith('WBS/'));
       const where = { reportId: completedCaseId };
-      assert.equal(await prisma.proposal.count({ where: { ...where, status: 'APPROVED' } }), 3);
+      assert.equal(await prisma.proposal.count({ where: { ...where, status: 'APPROVED' } }), 2);
       assert.equal(
         await prisma.approvalDecision.count({ where: { proposal: { reportId: completedCaseId } } }),
-        3,
+        0,
       );
       assert.equal(await prisma.followUpTask.count({ where: { ...where, status: 'VERIFIED' } }), 1);
       assert.equal(
@@ -924,6 +1110,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
           payload: {
             title: index === 60 ? 'Pagination needle' : `Pagination sample ${index}`,
             category,
+            subcategory: index % 2 === 0 ? 'Sub A' : 'Sub B',
           },
           updatedAt: timestamp,
         })),
@@ -931,6 +1118,14 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       await prisma.report.create({
         data: { ownerId: investigator.id, payload: { title: 'Pagination foreign', category } },
       });
+      assert.equal(
+        (await reports.listPage(reporter, { category, subcategory: 'Sub A' })).total,
+        31,
+      );
+      assert.equal(
+        (await reports.listPage(reporter, { category, subcategory: 'Tidak ada' })).total,
+        0,
+      );
       const first = await reports.listPage(reporter, { category, pageSize: 50 });
       const second = await reports.listPage(reporter, { category, pageSize: 50, page: 2 });
       assert.equal(first.total, 61);
@@ -962,6 +1157,90 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       );
       await assert.rejects(() => reports.listPage(reporter, { pageSize: 1000 }));
       await assert.rejects(() => reports.listPage(reporter, { stage: 'INVALID' }));
+    },
+  );
+  await t.test(
+    'verifikator menutup laporan tanpa tindak lanjut dengan alasan publik tanpa persetujuan pejabat',
+    async () => {
+      for (const stage of [
+        'INITIAL_REVIEW',
+        'RESULT_REVIEW',
+        'ASSIGNMENT_APPROVAL',
+        'RESULT_APPROVAL',
+      ]) {
+        const report = await prisma.report.create({
+          data: { ownerId: reporter.id, stage, payload: {} },
+        });
+        await prisma.caseAccess.createMany({
+          data: [manager, official, executor].map((person) => ({
+            reportId: report.id,
+            userId: person.id,
+          })),
+        });
+        const close = {
+          action: 'CLOSE_NO_FOLLOW_UP',
+          reason: 'Informasi tidak menunjukkan adanya pelanggaran.',
+          expectedVersion: report.version,
+        };
+        const actor = ['ASSIGNMENT_APPROVAL', 'RESULT_APPROVAL'].includes(stage)
+          ? official
+          : manager;
+        const otherActor = actor.id === manager.id ? official : manager;
+        await assert.rejects(
+          () => reports.command(report.id, otherActor, close, randomUUID()),
+          (e: any) => e.getStatus() === 409,
+        );
+        await assert.rejects(
+          () => reports.command(report.id, executor, close, randomUUID()),
+          (e: any) => e.getStatus() === 403,
+        );
+        await assert.rejects(
+          () => reports.command(report.id, reporter, close, randomUUID()),
+          (e: any) => e.getStatus() === 403,
+        );
+        await assert.rejects(
+          () => reports.command(report.id, actor, { ...close, reason: '' }, randomUUID()),
+          (e: any) => e.getStatus() === 422,
+        );
+        const closed = await reports.command(report.id, actor, close, randomUUID());
+        assert.equal(closed.stage, 'CLOSED');
+        assert.equal(closed.lifecycle, 'CLOSED');
+        assert.equal(await prisma.proposal.count({ where: { reportId: report.id } }), 0);
+        assert.equal(
+          await prisma.approvalDecision.count({ where: { proposal: { reportId: report.id } } }),
+          0,
+        );
+        const detail = await reports.detail(report.id, reporter);
+        assert.ok(
+          detail.events.some(
+            (event) => event.action === 'CLOSE_NO_FOLLOW_UP' && event.reason === close.reason,
+          ),
+        );
+        const tracking = await new TrackingService(prisma).status(report.trackingCode);
+        assert.ok(
+          tracking.report.events.some(
+            (event) => event.action === 'CLOSE_NO_FOLLOW_UP' && event.reason === close.reason,
+          ),
+        );
+      }
+      const report = await prisma.report.create({
+        data: { ownerId: reporter.id, stage: 'INVESTIGATION', payload: {} },
+      });
+      await prisma.caseAccess.create({ data: { reportId: report.id, userId: manager.id } });
+      await assert.rejects(
+        () =>
+          reports.command(
+            report.id,
+            manager,
+            {
+              action: 'CLOSE_NO_FOLLOW_UP',
+              reason: 'Belum selesai diperiksa',
+              expectedVersion: report.version,
+            },
+            randomUUID(),
+          ),
+        (e: any) => e.getStatus() === 409,
+      );
     },
   );
   await t.test(
@@ -1065,11 +1344,176 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
           () => admin.categories(person),
           (e: any) => e.getStatus() === 403,
         );
+        assert.throws(
+          () => admin.users(person),
+          (e: any) => e.getStatus() === 403,
+        );
+        await assert.rejects(
+          () => admin.createUser(person, {}),
+          (e: any) => e.getStatus() === 403,
+        );
         await assert.rejects(
           () => admin.saveSettings(person, {}),
           (e: any) => e.getStatus() === 403,
         );
       }
+      const staffPassword = 'Abc123';
+      for (const role of ['INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'SUPER_ADMIN']) {
+        const staff = await admin.createUser(superAdmin, {
+          name: `Petugas ${role}`,
+          email: `Staff-${role}@example.test`,
+          password: staffPassword,
+          role,
+        });
+        assert.equal(staff.role, role);
+        assert.equal(staff.active, true);
+        assert.equal(staff.verified, true);
+        assert.equal(staff.email, `staff-${role.toLowerCase()}@example.test`);
+        assert.equal('passwordHash' in staff, false);
+        const saved = await prisma.user.findUniqueOrThrow({ where: { id: staff.id } });
+        assert.notEqual(saved.passwordHash, staffPassword);
+        assert.ok(passwordMatches(staffPassword, saved.passwordHash));
+        assert.equal(
+          !!(await prisma.intakeMember.findUnique({ where: { userId: staff.id } })),
+          role === 'INVESTIGATOR',
+        );
+        const audit = await prisma.adminAudit.findFirstOrThrow({
+          where: { action: 'CREATE_USER', targetId: staff.id },
+        });
+        assert.equal(audit.actorId, superAdmin.id);
+        assert.ok(!JSON.stringify(audit.details).includes(staffPassword));
+      }
+      const staffInput = {
+        name: 'Duplikat',
+        email: 'staff-investigator@example.test',
+        password: staffPassword,
+        role: 'INVESTIGATOR',
+      };
+      await assert.rejects(
+        () => admin.createUser(superAdmin, staffInput),
+        (e: any) => e.getStatus() === 409,
+      );
+      await assert.rejects(
+        () =>
+          admin.createUser(superAdmin, {
+            ...staffInput,
+            email: 'baru@example.test',
+            role: 'ADMIN',
+          }),
+        (e: any) => e.getStatus() === 422,
+      );
+      await assert.rejects(
+        () =>
+          admin.createUser(superAdmin, {
+            ...staffInput,
+            email: 'baru@example.test',
+            password: 'short',
+          }),
+        (e: any) => e.getStatus() === 422,
+      );
+      await assert.rejects(
+        () => admin.createUser(superAdmin, { ...staffInput, email: 'invalid' }),
+        (e: any) => e.getStatus() === 422,
+      );
+      const staffList = await admin.users(superAdmin);
+      const editable = staffList.find(
+        (person) => person.email === 'staff-investigator@example.test',
+      )!;
+      const originalHash = (await prisma.user.findUniqueOrThrow({ where: { id: editable.id } }))
+        .passwordHash;
+      const referencedReport = await prisma.report.findFirstOrThrow();
+      await prisma.caseAccess.create({
+        data: { userId: editable.id, reportId: referencedReport.id },
+      });
+      const updatedStaff = await admin.updateUser(superAdmin, editable.id, {
+        name: 'Pelaksana Diperbarui',
+        email: editable.email,
+        role: 'EXECUTOR',
+        active: true,
+        password: '',
+        expectedVersion: editable.authVersion,
+      });
+      assert.equal(updatedStaff.authVersion, editable.authVersion + 1);
+      assert.equal(updatedStaff.role, 'EXECUTOR');
+      assert.equal(
+        (await prisma.user.findUniqueOrThrow({ where: { id: editable.id } })).passwordHash,
+        originalHash,
+      );
+      assert.equal(
+        (await prisma.intakeMember.findUniqueOrThrow({ where: { userId: editable.id } })).active,
+        false,
+      );
+      assert.ok(
+        (
+          await prisma.caseAccess.findUniqueOrThrow({
+            where: { reportId_userId: { reportId: referencedReport.id, userId: editable.id } },
+          })
+        ).revokedAt,
+      );
+      await assert.rejects(
+        () =>
+          admin.updateUser(superAdmin, editable.id, {
+            ...updatedStaff,
+            password: '',
+            expectedVersion: editable.authVersion,
+          }),
+        (e: any) => e.getStatus() === 409,
+      );
+      await assert.rejects(
+        () =>
+          admin.deleteUser(superAdmin, editable.id, { expectedVersion: updatedStaff.authVersion }),
+        (e: any) => e.getStatus() === 409,
+      );
+      assert.ok(await prisma.user.findUnique({ where: { id: editable.id } }));
+      const disabled = await admin.updateUser(superAdmin, editable.id, {
+        ...updatedStaff,
+        active: false,
+        password: 'New123',
+        expectedVersion: updatedStaff.authVersion,
+      });
+      assert.equal(disabled.active, false);
+      assert.ok(
+        passwordMatches(
+          'New123',
+          (await prisma.user.findUniqueOrThrow({ where: { id: editable.id } })).passwordHash,
+        ),
+      );
+      const disposable = await admin.createUser(superAdmin, {
+        name: 'Disposable',
+        email: 'disposable@example.test',
+        role: 'INVESTIGATOR',
+        password: staffPassword,
+      });
+      await admin.deleteUser(superAdmin, disposable.id, {
+        expectedVersion: disposable.authVersion,
+      });
+      assert.equal(await prisma.user.findUnique({ where: { id: disposable.id } }), null);
+      const selfInput = {
+        name: stored.name,
+        email: stored.email,
+        role: 'EXECUTOR',
+        active: true,
+        expectedVersion: stored.authVersion,
+      };
+      await assert.rejects(
+        () => admin.updateUser(superAdmin, superAdmin.id, selfInput),
+        (e: any) => e.getStatus() === 409,
+      );
+      await assert.rejects(
+        () => admin.deleteUser(superAdmin, superAdmin.id, { expectedVersion: stored.authVersion }),
+        (e: any) => e.getStatus() === 409,
+      );
+      await assert.rejects(
+        () => admin.updateUser(manager, editable.id, {}),
+        (e: any) => e.getStatus() === 403,
+      );
+      await assert.rejects(
+        () => admin.deleteUser(manager, editable.id, {}),
+        (e: any) => e.getStatus() === 403,
+      );
+      assert.ok(
+        staffList.every((person) => person.role !== 'REPORTER' && !('passwordHash' in person)),
+      );
       let category = await admin.saveCategory(superAdmin, {
         name: 'Kategori integrasi',
         description: 'Deskripsi',

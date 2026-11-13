@@ -3,6 +3,18 @@ import type { User } from '@wbs/contracts';
 import { fileTypeFromBuffer } from 'file-type';
 import { PrismaService } from '../prisma/prisma.service';
 import { fail, object, text, validId, json } from '../common/validation';
+import { passwordHash } from '../security';
+import { Prisma } from '../generated/prisma/client';
+const staffRoles = ['INVESTIGATOR', 'OFFICIAL', 'EXECUTOR', 'SUPER_ADMIN'];
+const staffSelect = {
+  authVersion: true,
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  active: true,
+  verified: true,
+} as const;
 export function requireSuperAdmin(user: User) {
   if (user.role !== 'SUPER_ADMIN' || !user.verified)
     fail(403, 'Hanya super admin yang dapat mengelola pengaturan situs.');
@@ -15,6 +27,184 @@ function expectedVersion(value: unknown) {
 @Injectable()
 export class AdminService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  users(user: User) {
+    requireSuperAdmin(user);
+    return this.prisma.user.findMany({
+      where: { role: { in: staffRoles } },
+      orderBy: { name: 'asc' },
+      select: staffSelect,
+    });
+  }
+  async createUser(actor: User, input: unknown) {
+    requireSuperAdmin(actor);
+    const b = object(input);
+    const name = text(b.name, 'nama pengguna', 120);
+    const email = text(b.email, 'email', 200).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(422, 'Isi email yang valid.');
+    if (!staffRoles.includes(b.role)) fail(422, 'Pilih peran petugas yang valid.');
+    if (typeof b.password !== 'string' || b.password.length < 6 || b.password.length > 128)
+      fail(422, 'Kata sandi harus 6–128 karakter.');
+    const hashed = passwordHash(b.password);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: { name, email, role: b.role, passwordHash: hashed, active: true, verified: true },
+          select: staffSelect,
+        });
+        if (created.role === 'INVESTIGATOR')
+          await tx.intakeMember.create({ data: { userId: created.id } });
+        await tx.adminAudit.create({
+          data: {
+            actorId: actor.id,
+            action: 'CREATE_USER',
+            targetId: created.id,
+            details: { name, email, role: created.role },
+          },
+        });
+        return created;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
+        fail(409, 'Email sudah digunakan pengguna lain.');
+      throw error;
+    }
+  }
+  private async editableStaff(
+    tx: Prisma.TransactionClient,
+    actor: User,
+    id: string,
+    version: unknown,
+  ) {
+    await tx.$queryRaw`SELECT id FROM users WHERE role='SUPER_ADMIN' ORDER BY id FOR UPDATE`;
+    const currentActor = await tx.user.findUnique({ where: { id: actor.id } });
+    if (!currentActor?.active || !currentActor.verified || currentActor.role !== 'SUPER_ADMIN')
+      fail(403, 'Akses super admin diperlukan.');
+    await tx.$queryRaw`SELECT id FROM users WHERE id=${id}::uuid FOR UPDATE`;
+    const target = await tx.user.findUnique({ where: { id } });
+    if (!target || !staffRoles.includes(target.role))
+      fail(404, 'Pengguna petugas tidak ditemukan.');
+    if (target.authVersion !== expectedVersion(version))
+      fail(409, 'Data pengguna telah berubah. Muat ulang sebelum melanjutkan.');
+    return target;
+  }
+  async updateUser(actor: User, id: string, input: unknown) {
+    requireSuperAdmin(actor);
+    validId(id);
+    const b = object(input);
+    const name = text(b.name, 'nama pengguna', 120),
+      email = text(b.email, 'email', 200).toLowerCase();
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      !staffRoles.includes(b.role) ||
+      typeof b.active !== 'boolean'
+    )
+      fail(422, 'Email, peran, atau status pengguna tidak valid.');
+    if (
+      b.password !== undefined &&
+      b.password !== '' &&
+      (typeof b.password !== 'string' || b.password.length < 6 || b.password.length > 128)
+    )
+      fail(422, 'Kata sandi harus 6–128 karakter.');
+    const hashed = b.password ? passwordHash(b.password) : undefined;
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const old = await this.editableStaff(tx, actor, id, b.expectedVersion);
+        if (id === actor.id && (!b.active || b.role !== 'SUPER_ADMIN'))
+          fail(409, 'Anda tidak dapat menonaktifkan atau menurunkan peran akun sendiri.');
+        if (
+          old.role === 'SUPER_ADMIN' &&
+          old.active &&
+          (!b.active || b.role !== 'SUPER_ADMIN') &&
+          (await tx.user.count({ where: { role: 'SUPER_ADMIN', active: true, verified: true } })) <=
+            1
+        )
+          fail(409, 'Minimal satu super admin aktif harus tersedia.');
+        if (old.role !== b.role || !b.active) {
+          const revokedAt = new Date();
+          await tx.caseAccess.updateMany({
+            where: { userId: id, revokedAt: null },
+            data: { revokedAt },
+          });
+          await tx.assignment.updateMany({
+            where: { userId: id, revokedAt: null },
+            data: { revokedAt },
+          });
+          await tx.authorityMandate.updateMany({
+            where: { userId: id, revokedAt: null },
+            data: { revokedAt },
+          });
+        }
+        if (b.role === 'INVESTIGATOR')
+          await tx.intakeMember.upsert({
+            where: { userId: id },
+            create: { userId: id, active: b.active },
+            update: { active: b.active },
+          });
+        else await tx.intakeMember.updateMany({ where: { userId: id }, data: { active: false } });
+        const result = await tx.user.update({
+          where: { id },
+          data: {
+            name,
+            email,
+            role: b.role,
+            active: b.active,
+            ...(hashed ? { passwordHash: hashed } : {}),
+            authVersion: { increment: 1 },
+          },
+          select: staffSelect,
+        });
+        await tx.adminAudit.create({
+          data: {
+            actorId: actor.id,
+            action: 'UPDATE_USER',
+            targetId: id,
+            details: { name, email, role: b.role, active: b.active, passwordChanged: !!hashed },
+          },
+        });
+        return result;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
+        fail(409, 'Email sudah digunakan pengguna lain.');
+      throw error;
+    }
+  }
+  async deleteUser(actor: User, id: string, input: unknown) {
+    requireSuperAdmin(actor);
+    validId(id);
+    if (id === actor.id) fail(409, 'Anda tidak dapat menghapus akun sendiri.');
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const old = await this.editableStaff(tx, actor, id, object(input).expectedVersion);
+        if (
+          old.role === 'SUPER_ADMIN' &&
+          old.active &&
+          (await tx.user.count({ where: { role: 'SUPER_ADMIN', active: true, verified: true } })) <=
+            1
+        )
+          fail(409, 'Minimal satu super admin aktif harus tersedia.');
+        await tx.intakeMember.deleteMany({ where: { userId: id } });
+        await tx.accountToken.deleteMany({ where: { userId: id } });
+        await tx.user.delete({ where: { id } });
+        await tx.adminAudit.create({
+          data: {
+            actorId: actor.id,
+            action: 'DELETE_USER',
+            targetId: id,
+            details: { name: old.name, email: old.email, role: old.role },
+          },
+        });
+        return { ok: true };
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003')
+        fail(
+          409,
+          'Pengguna terkait riwayat laporan atau audit. Nonaktifkan akun melalui Ubah pengguna agar riwayat tetap tersimpan.',
+        );
+      throw error;
+    }
+  }
   async publicStatistics() {
     const rows = await this.prisma.$queryRaw<{ category: string; stage: string; count: bigint }[]>`
       SELECT COALESCE(NULLIF(payload->>'category', ''), 'Lainnya') AS category,
@@ -70,11 +260,15 @@ export class AdminService {
       this.prisma.reportCategory.findMany({
         where: { active: true },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-        select: { name: true },
+        select: { name: true, subcategories: true },
       }),
     ]);
     const { id, version, updatedAt, ...publicValues } = settings;
-    return { ...publicValues, categories: categories.map((row) => row.name) };
+    return {
+      ...publicValues,
+      categories: categories.map((row) => row.name),
+      subcategories: Object.fromEntries(categories.map((row) => [row.name, row.subcategories])),
+    };
   }
   categories(user: User) {
     requireSuperAdmin(user);
@@ -85,6 +279,15 @@ export class AdminService {
   private categoryData(input: unknown) {
     const b = object(input);
     if (
+      b.subcategories !== undefined &&
+      (!Array.isArray(b.subcategories) ||
+        b.subcategories.length > 100 ||
+        b.subcategories.some(
+          (value: unknown) => typeof value !== 'string' || !value.trim() || value.length > 200,
+        ))
+    )
+      fail(422, 'Subkategori harus berupa daftar teks, maksimal 200 karakter per pilihan.');
+    if (
       typeof b.active !== 'boolean' ||
       !Number.isInteger(b.sortOrder) ||
       b.sortOrder < 0 ||
@@ -93,6 +296,13 @@ export class AdminService {
       fail(422, 'Status atau urutan kategori tidak valid.');
     return {
       name: text(b.name, 'nama kategori', 120).replace(/\s+/g, ' '),
+      ...(b.subcategories !== undefined
+        ? {
+            subcategories: [
+              ...new Set<string>(b.subcategories.map((value: string) => value.trim())),
+            ],
+          }
+        : {}),
       description: typeof b.description === 'string' ? b.description.trim().slice(0, 1000) : '',
       active: b.active,
       sortOrder: b.sortOrder as number,

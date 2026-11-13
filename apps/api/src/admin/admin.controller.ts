@@ -27,8 +27,37 @@ export class AdminController {
     requireSuperAdmin(user);
     await this.auth.rate(req, 'admin-mutation', 60);
   }
+  @Get('users') users(@CurrentUser() user: User) {
+    return this.admin.users(user);
+  }
+  @Post('users') async createUser(
+    @CurrentUser() user: User,
+    @Req() req: Request,
+    @Body() body: unknown,
+  ) {
+    await this.mutation(req, user);
+    return this.admin.createUser(user, body);
+  }
   @Get('categories') categories(@CurrentUser() user: User) {
     return this.admin.categories(user);
+  }
+  @Patch('users/:id') async updateUser(
+    @CurrentUser() user: User,
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    await this.mutation(req, user);
+    return this.admin.updateUser(user, id, body);
+  }
+  @Delete('users/:id') async deleteUser(
+    @CurrentUser() user: User,
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    await this.mutation(req, user);
+    return this.admin.deleteUser(user, id, body);
   }
   @Post('categories') async create(
     @CurrentUser() user: User,

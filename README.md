@@ -90,7 +90,7 @@ Instalasi awal dapat memerlukan beberapa menit. MinIO dan ClamAV berjalan di bac
 npm.cmd run db:generate
 npm.cmd run db:migrate
 
-# Opsional: buat akun UAT sintetis, password minimal 12 karakter.
+# Opsional: buat akun UAT sintetis, password minimal 6 karakter.
 $env:SEED_PASSWORD = 'Ganti-Dengan-Sandi-Uji-Anda'
 npm.cmd run db:seed
 Remove-Item Env:SEED_PASSWORD
@@ -154,7 +154,7 @@ npm.cmd run db:generate
 docker compose -f deploy/compose.yml up -d
 npm.cmd run db:migrate
 
-# Tentukan kata sandi akun sintetis sendiri, minimal 12 karakter.
+# Tentukan kata sandi akun sintetis sendiri, minimal 6 karakter.
 $env:SEED_PASSWORD = 'Ganti-Dengan-Sandi-Uji-Anda'
 npm.cmd run db:seed
 Remove-Item Env:SEED_PASSWORD
@@ -201,14 +201,14 @@ Verifikator/Pemeriksa demo terdaftar sebagai penerima intake. Akun internal lain
 ### Uji alur utama
 
 1. Pelapor membuat draf, mengisi 5W+1H, sumber bukti dan pilihan kerahasiaan; pratinjau dan konfirmasi kirim.
-2. Verifikator/Pemeriksa melihat laporan masuk, mulai verifikasi, meminta klarifikasi bila perlu, lalu mengusulkan pemeriksa dengan ringkasan tersamarkan.
-3. Pejabat melihat proposal dan menyetujui atau mengembalikan dengan alasan; mandat dan pemisahan pengusul diperiksa backend.
-4. Pemeriksa menyerahkan hasil. Verifikator/Pemeriksa dapat mengembalikan hasil atau mengusulkan tindak lanjut; pejabat memutus.
+2. Verifikator/Pemeriksa memeriksa laporan masuk, kemudian menolak dengan alasan atau meneruskan ke pejabat. Verifikator tidak membuat usulan atau memilih penerima tugas.
+3. Pejabat melihat laporan yang diteruskan, lalu memilih pelaksana dan mengisi instruksi tugas, atau menolak dengan alasan. Penugasan langsung berlaku tanpa persetujuan tambahan dari pejabat lain.
+4. Penugasan langsung masuk ke pelaksana. Pejabat tidak memilih atau meneruskan ke pemeriksa/verifikator lagi.
 5. Pelaksana mengunggah bukti, menunggu scan lolos, lalu menyerahkan pelaksanaan dengan referensi bukti.
-6. Verifikator/Pemeriksa memverifikasi pelaksanaan dan mengusulkan penutupan beserta jawaban resmi aman. Pejabat menyetujui.
+6. Verifikator/Pemeriksa memeriksa pelaksanaan dan meneruskan ke pejabat. Pejabat menetapkan penutupan beserta jawaban resmi yang aman untuk pelapor.
 7. Pelapor melihat jawaban resmi dan dapat mengajukan pembukaan kembali dengan informasi baru. Status akhir baru berubah setelah keputusan pejabat.
 
-Penutupan dini tersedia dari verifikasi awal. Penundaan menyimpan tahap asal, penanggung jawab, jadwal evaluasi dan syarat lanjut. Pernyataan konflik mencabut akses pelaku dan penugasan aktifnya; penyelesaian/pengalihan konflik secara institusional masih perlu dilengkapi sebelum operasional.
+Penolakan dilakukan oleh verifikator pada tahap verifikasi/review hasil, atau oleh pejabat setelah laporan diteruskan. Alasan wajib diisi dan ditampilkan di timeline pelapor. Penundaan menyimpan tahap asal, penanggung jawab, jadwal evaluasi dan syarat lanjut. Pernyataan konflik mencabut akses pelaku dan penugasan aktifnya; penyelesaian/pengalihan konflik secara institusional masih perlu dilengkapi sebelum operasional.
 
 ### Seluruh aplikasi dalam container
 

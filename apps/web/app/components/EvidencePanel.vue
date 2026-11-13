@@ -6,8 +6,12 @@ import {
   evidenceExtensions,
   evidenceFormatLabel,
 } from '@wbs/contracts';
-const props = defineProps<{ reportId: string; readonly?: boolean }>();
-const emit = defineEmits<{ updated: [] }>();
+const props = defineProps<{
+  reportId?: string;
+  readonly?: boolean;
+  prepareReport?: () => Promise<string>;
+}>();
+const emit = defineEmits<{ updated: []; uploading: [value: boolean] }>();
 const preview = ref<any>(null);
 const files = ref<any[]>([]),
   busy = ref(false),
@@ -18,6 +22,7 @@ const labels: Record<string, string> = {
   REJECTED: 'Ditolak',
   ERROR: 'Terkunci — scan gagal',
 };
+watch(busy, (value) => emit('uploading', value));
 const snackbar = ref('');
 let snackbarTimer: ReturnType<typeof setTimeout> | undefined;
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
@@ -33,6 +38,7 @@ function notify(message: string) {
 async function refresh() {
   try {
     const reportId = props.reportId;
+    if (!reportId) return;
     const result = await $fetch<any[]>(`/api/v1/reports/${reportId}/evidence`);
     if (disposed || reportId !== props.reportId) return;
     files.value = result;
@@ -112,13 +118,15 @@ async function upload(event: Event) {
   busy.value = true;
   error.value = '';
   try {
+    const reportId = props.reportId || (await props.prepareReport?.());
+    if (!reportId) throw new Error('Laporan belum dapat disiapkan untuk unggahan.');
     const data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result).split(',')[1]!);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
-    await $fetch(`/api/v1/reports/${props.reportId}/evidence`, {
+    await $fetch(`/api/v1/reports/${reportId}/evidence`, {
       method: 'POST',
       body: { name: file.name, data },
     });

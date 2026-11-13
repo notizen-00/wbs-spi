@@ -41,10 +41,12 @@ export function reportPayload(value: unknown): ReportPayload {
     'how',
     'evidenceReason',
     'confidentiality',
+    'contactEmail',
   ]) {
     if (input[field] !== undefined && typeof input[field] !== 'string')
       fail(422, 'Format isian tidak valid.');
     output[field] = String(input[field] ?? '').slice(0, field === 'title' ? 200 : 20000);
   }
+  output.contactEmail = output.confidentiality === 'IDENTIFIED' ? output.contactEmail!.trim() : '';
   return output as unknown as ReportPayload;
 }

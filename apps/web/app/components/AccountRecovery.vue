@@ -46,7 +46,7 @@ async function submit() {
       <p>
         {{
           token
-            ? 'Gunakan kata sandi baru minimal 12 karakter.'
+            ? 'Gunakan kata sandi baru minimal 6 karakter.'
             : 'Kami akan mengirim tautan ke email akun Anda.'
         }}
       </p>
@@ -57,7 +57,7 @@ async function submit() {
             v-model="password"
             type="password"
             autocomplete="new-password"
-            minlength="12"
+            minlength="6"
             maxlength="128"
             required
             autofocus /></label

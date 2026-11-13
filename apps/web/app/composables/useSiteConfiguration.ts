@@ -7,6 +7,7 @@ export interface SiteConfiguration {
   helpAddress: string;
   logoDataUrl: string | null;
   categories: string[];
+  subcategories?: Record<string, string[]>;
 }
 export function useSiteConfiguration() {
   const site = useState<SiteConfiguration>('site-configuration', () => ({
@@ -17,15 +18,8 @@ export function useSiteConfiguration() {
     helpPhone: '',
     helpAddress: '',
     logoDataUrl: null,
-    categories: [
-      'Penyalahgunaan wewenang',
-      'Korupsi & gratifikasi',
-      'Pelanggaran akademik',
-      'Pelanggaran etika',
-      'Pengadaan barang & jasa',
-      'Pelanggaran lainnya',
-      'Pungutan liar',
-    ],
+    categories: [],
+    subcategories: {},
   }));
   async function reloadSite() {
     const result = await $fetch<SiteConfiguration>('/api/v1/public/settings', {

@@ -53,7 +53,7 @@ const labels: Record<
     tone: 'green',
   },
   PROPOSE_ASSIGNMENT: {
-    title: 'Penugasan pemeriksa diusulkan',
+    title: 'Penugasan ditetapkan',
     category: 'Penugasan',
     icon: FileText,
     tone: 'blue',
@@ -77,7 +77,7 @@ const labels: Record<
     tone: 'amber',
   },
   PROPOSE_RESULT: {
-    title: 'Hasil dan tindak lanjut diusulkan',
+    title: 'Penugasan tindak lanjut ditetapkan',
     category: 'Tindak lanjut',
     icon: FileText,
     tone: 'blue',
@@ -95,9 +95,21 @@ const labels: Record<
     tone: 'blue',
   },
   PROPOSE_CLOSURE: {
-    title: 'Penutupan laporan diusulkan',
+    title: 'Penutupan laporan ditetapkan',
     category: 'Penutupan',
     icon: FileText,
+    tone: 'blue',
+  },
+  CLOSE_NO_FOLLOW_UP: {
+    title: 'Laporan ditolak',
+    category: 'Penutupan',
+    icon: FileText,
+    tone: 'amber',
+  },
+  FORWARD_TO_OFFICIAL: {
+    title: 'Laporan diteruskan ke pejabat',
+    category: 'Verifikasi',
+    icon: ArrowRight,
     tone: 'blue',
   },
   SUSPEND: {

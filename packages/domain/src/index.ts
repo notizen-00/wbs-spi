@@ -2,7 +2,7 @@ import type { Stage, Role, ReportPayload } from '@wbs/contracts';
 const transitions: Partial<Record<Stage, { next: Stage; role: Role }>> = {
   SUBMITTED: { next: 'INITIAL_REVIEW', role: 'INVESTIGATOR' },
   INITIAL_REVIEW: { next: 'ASSIGNMENT_APPROVAL', role: 'INVESTIGATOR' },
-  ASSIGNMENT_APPROVAL: { next: 'INVESTIGATION', role: 'OFFICIAL' },
+  ASSIGNMENT_APPROVAL: { next: 'FOLLOW_UP', role: 'OFFICIAL' },
   INVESTIGATION: { next: 'RESULT_REVIEW', role: 'INVESTIGATOR' },
   RESULT_REVIEW: { next: 'RESULT_APPROVAL', role: 'INVESTIGATOR' },
   RESULT_APPROVAL: { next: 'FOLLOW_UP', role: 'OFFICIAL' },
@@ -32,6 +32,13 @@ export function validateSubmission(p: ReportPayload) {
       throw new Error(`Lengkapi kolom ${field}.`);
   if (!['PROTECTED', 'IDENTIFIED'].includes(p.confidentiality))
     throw new Error('Pilihan kerahasiaan tidak valid.');
+  if (
+    p.confidentiality === 'IDENTIFIED' &&
+    (typeof p.contactEmail !== 'string' ||
+      p.contactEmail.length > 200 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.contactEmail.trim()))
+  )
+    throw new Error('Isi email yang valid agar dapat dihubungi.');
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(p.when) ||
     !Number.isFinite(Date.parse(p.when)) ||

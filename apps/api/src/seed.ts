@@ -4,7 +4,7 @@ import { passwordHash } from './security';
 export async function seed(prisma: PrismaService, password: string) {
   if (process.env.NODE_ENV === 'production')
     throw new Error('Synthetic seed disabled in production');
-  if (password.length < 12) throw new Error('Set SEED_PASSWORD to at least 12 characters');
+  if (password.length < 6) throw new Error('Set SEED_PASSWORD to at least 6 characters');
   await prisma.$transaction(async (tx) => {
     for (const [name, email, role] of [
       ['Pelapor Demo', 'pelapor@example.test', 'REPORTER'],

@@ -362,6 +362,7 @@ model ReportCategory {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String   @unique
   description String   @default("")
+  subcategories String[] @default([])
   active      Boolean  @default(true)
   sortOrder   Int      @default(0) @map("sort_order")
   version     Int      @default(1)

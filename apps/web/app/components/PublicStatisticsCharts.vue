@@ -18,7 +18,7 @@ const categories = computed(() => {
     ? rows
     : [
         ...rows.slice(0, 5),
-        { name: 'Bidang lainnya', count: rows.slice(5).reduce((sum, row) => sum + row.count, 0) },
+        { name: 'Kategori lainnya', count: rows.slice(5).reduce((sum, row) => sum + row.count, 0) },
       ];
 });
 const slices = computed(() => {
@@ -79,16 +79,16 @@ const area = computed(() =>
     <section class="visual-card category-donut" aria-labelledby="donut-title">
       <div class="chart-heading">
         <ChartPie :size="20" aria-hidden="true" />
-        <h3 id="donut-title">Komposisi bidang</h3>
+        <h3 id="donut-title">Komposisi kategori</h3>
       </div>
-      <p>Proporsi seluruh laporan terkirim. Pilih bidang untuk melihat rinciannya.</p>
+      <p>Proporsi seluruh laporan terkirim. Pilih kategori untuk melihat rinciannya.</p>
       <div class="donut-layout">
         <div class="donut-container">
           <svg
             viewBox="0 0 220 220"
             class="donut"
             role="img"
-            aria-label="Diagram donat proporsi laporan per bidang; rincian tersedia pada legenda"
+            aria-label="Diagram donat proporsi laporan per kategori; rincian tersedia pada legenda"
           >
             <circle cx="110" cy="110" r="82" fill="none" stroke="#e9eee3" stroke-width="30" />
             <circle

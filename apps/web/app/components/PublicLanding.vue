@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportElements, reportTypes, wbsIntroduction, wbsHandling } from '../utils/wbs-content';
 import {
   ShieldCheck,
   ArrowUpRight,
@@ -24,7 +25,6 @@ function closeMobileNav(event: KeyboardEvent) {
 const props = defineProps<{
   authPage: boolean;
   trackingPage?: boolean;
-  demoAvailable?: boolean;
   serviceError?: string;
 }>();
 const { site } = useSiteConfiguration();
@@ -65,7 +65,7 @@ const chartCategories = computed(() => {
   if (rows.length <= 6) return rows;
   return [
     ...rows.slice(0, 5),
-    { name: 'Bidang lainnya', count: rows.slice(5).reduce((sum, row) => sum + row.count, 0) },
+    { name: 'Kategori lainnya', count: rows.slice(5).reduce((sum, row) => sum + row.count, 0) },
   ];
 });
 const chartMax = computed(() => Math.max(1, ...chartCategories.value.map((row) => row.count)));
@@ -74,15 +74,15 @@ const percentage = (count: number) =>
     statistics.value?.total ? (count / statistics.value.total) * 100 : 0,
   );
 
-defineEmits<{ login: []; report: []; home: []; section: [section: string] }>();
+defineEmits<{ login: []; 'staff-login': []; report: []; home: []; section: [section: string] }>();
 const steps = [
   [
     'Siapkan informasi',
-    'Tuliskan kejadian secara jelas: apa, siapa, kapan, di mana, mengapa, dan bagaimana. Sertakan sumber bukti yang tersedia.',
+    'Lengkapi unsur 4W + 1H & E: apa, siapa, di mana, kapan, bagaimana, dan alat bukti yang tersedia.',
   ],
   [
     'Lengkapi dan kirim laporan',
-    'Klik Laporkan dan lengkapi formulir tanpa membuat akun atau login. Anda dapat menyimpannya sebagai draf sebelum mengirim.',
+    'Klik Laporkan dan lengkapi formulir tanpa membuat akun atau login. Unggah bukti pendukung langsung pada formulir sebelum mengirim.',
   ],
   [
     'Pantau penanganan',
@@ -96,7 +96,7 @@ const steps = [
 const faqs = [
   [
     'Apa yang dapat dilaporkan?',
-    'Dugaan penyalahgunaan wewenang, korupsi atau gratifikasi, pelanggaran akademik dan etika, serta pelanggaran pengadaan di lingkungan Universitas Jember. Sampaikan fakta dengan itikad baik.',
+    'Pelanggaran kode etik dan disiplin berat, KKN, kecurangan dan pencurian, penyalahgunaan wewenang, benturan kepentingan, kecurangan akademik, diskriminasi, pelecehan seksual atau tindakan asusila, serta perundungan. Lengkapi aduan dengan unsur 4W + 1H & Evidence.',
   ],
   [
     'Apakah saya perlu membuat akun?',
@@ -153,15 +153,12 @@ const faqs = [
         ><a href="/privacy" @click.prevent="$emit('section', 'privacy')">Kerahasiaan</a
         ><a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a>
         <a href="/tracking" @click.prevent="$emit('section', 'tracking')">Cek status</a>
-        <a v-if="demoAvailable" href="/demo" @click.prevent="$emit('section', 'demo')"
-          >Alur aplikasi demo</a
-        >
       </nav>
       <a href="/reports/new" class="button secondary public-login" @click.prevent="$emit('login')"
         >Laporkan<ArrowRight :size="16"
       /></a>
     </header>
-    <main id="public-content" class="public-main">
+    <main id="public-content" class="public-main" :class="{ 'tracking-main': trackingPage }">
       <div v-if="serviceError && !authPage" class="alert error" role="alert">
         {{ serviceError }}
       </div>
@@ -180,11 +177,8 @@ const faqs = [
           <div class="public-hero-copy">
             <div class="public-kicker"><span>01 / KANAL PELAPORAN</span> WHISTLEBLOWING SYSTEM</div>
             <h1 id="public-title">Ada yang perlu<br /><em>dilaporkan?</em></h1>
-            <p>
-              Sampaikan dugaan pelanggaran di lingkungan {{ site.institutionName }}. Tuliskan
-              kejadiannya, sertakan informasi yang Anda ketahui, lalu ikuti penanganannya melalui
-              portal ini.
-            </p>
+            <p><strong>Whistleblowing System (WBS)</strong> {{ wbsIntroduction }}</p>
+            <p>{{ wbsHandling }}</p>
             <div class="public-actions">
               <a href="/reports/new" class="button public-primary" @click.prevent="$emit('report')"
                 >Buat laporan<ArrowUpRight :size="18" /></a
@@ -219,8 +213,11 @@ const faqs = [
                 <li>
                   <span>03</span>
                   <div>
-                    <strong>Gunakan email yang aktif.</strong>
-                    <p>Untuk verifikasi akun dan pemberitahuan perkembangan laporan.</p>
+                    <strong>Simpan nomor tiket Anda.</strong>
+                    <p>
+                      Pantau timeline dan jawaban resmi tanpa login. Isi email jika bersedia
+                      dihubungi.
+                    </p>
                   </div>
                 </li>
               </ol>
@@ -230,6 +227,54 @@ const faqs = [
             </div>
             <span class="folder-caption">Laporan yang rinci membantu proses penelaahan.</span>
           </aside>
+        </section>
+        <section
+          id="report-requirements"
+          class="public-section report-requirements"
+          aria-labelledby="requirements-title"
+        >
+          <div class="public-section-heading">
+            <div>
+              <span class="public-eyebrow">PANDUAN ISI ADUAN</span>
+              <h2 id="requirements-title">Apa yang dapat dilaporkan?</h2>
+            </div>
+            <p>
+              Aduan pada WBS harus memenuhi unsur <strong>4W + 1H &amp; E</strong> (What, Who,
+              Where, When + How &amp; Evidence).
+            </p>
+          </div>
+          <dl class="report-elements">
+            <div v-for="element in reportElements" :key="element[0]">
+              <dt>
+                <strong>{{ element[0] }}</strong
+                ><span>{{ element[1] }}</span>
+              </dt>
+              <dd>{{ element[2] }}</dd>
+            </div>
+          </dl>
+        </section>
+        <section
+          id="report-types"
+          class="public-section report-types"
+          aria-labelledby="report-types-title"
+        >
+          <div class="public-section-heading">
+            <div>
+              <span class="public-eyebrow">RUANG LINGKUP PELAPORAN</span>
+              <h2 id="report-types-title">Jenis aduan yang dapat dilaporkan</h2>
+            </div>
+          </div>
+          <ol class="report-types-list">
+            <li v-for="(type, index) in reportTypes" :key="type[0]">
+              <span class="report-type-number" aria-hidden="true">{{
+                String(index + 1).padStart(2, '0')
+              }}</span>
+              <div>
+                <h3>{{ type[0] }}</h3>
+                <p>{{ type[1] }}</p>
+              </div>
+            </li>
+          </ol>
         </section>
         <section class="public-values" aria-label="Tentang layanan">
           <article>
@@ -261,10 +306,6 @@ const faqs = [
               <span class="public-eyebrow">GAMBARAN PELAPORAN</span>
               <h2 id="statistics-title">Setiap laporan berarti.</h2>
             </div>
-            <p>
-              Ringkasan laporan yang telah dikirim. Data ditampilkan secara agregat tanpa identitas
-              dan isi perkara.
-            </p>
           </div>
           <div v-if="statisticsStatus === 'pending'" class="statistics-message" role="status">
             Memuat statistik laporan...
@@ -357,13 +398,12 @@ const faqs = [
             <span class="public-eyebrow">03 / AKSES INFORMASI</span>
             <h2 id="privacy-title">Kerahasiaan & akses informasi</h2>
             <p>
-              Draf hanya terlihat oleh pemiliknya. Laporan yang dikirim diberikan kepada petugas
-              sesuai kewenangan dan penugasan. Identitas, kronologi, dan bukti bukan informasi
-              publik.
+              WBS menjamin kerahasiaan identitas pelapor (whistleblower) serta memberikan
+              perlindungan dari segala bentuk ancaman atau tindakan balasan.
             </p>
             <p>
-              Pilihan kerahasiaan tidak berarti laporan anonim. Sampaikan data seperlunya dan
-              hindari mencantumkan informasi pribadi yang tidak berkaitan dengan kejadian.
+              Seluruh laporan ditangani secara profesional, objektif, independen, dan rahasia, serta
+              diproses sesuai dengan peraturan perundang-undangan yang berlaku.
             </p>
           </div>
         </section>
@@ -424,7 +464,7 @@ const faqs = [
             Masuk dengan akun petugas untuk memverifikasi laporan dan mengelola penanganan aduan.
           </p>
           <ul>
-            <li><CheckCircle2 :size="18" />Simpan laporan sebagai draf privat</li>
+            <li><CheckCircle2 :size="18" />Tinjau laporan dan bukti pendukung</li>
             <li><CheckCircle2 :size="18" />Pantau status dan riwayat penanganan</li>
             <li><CheckCircle2 :size="18" />Baca jawaban resmi melalui portal</li>
           </ul>
@@ -436,7 +476,6 @@ const faqs = [
       </section>
     </main>
     <footer class="public-footer">
-      <a href="/login">Akses petugas</a>
       <span>© {{ new Date().getFullYear() }} {{ site.institutionName }} · {{ site.tagline }}</span>
       <div>
         <a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a
@@ -447,6 +486,91 @@ const faqs = [
 </template>
 
 <style scoped>
+.report-elements {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 28px 0 0;
+}
+.report-elements > div {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+}
+.report-elements dt {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--green);
+}
+.report-elements dt strong {
+  font-size: 20px;
+}
+.report-elements dt span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.report-elements dd {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.report-types {
+  border-top: 1px solid var(--border);
+}
+.report-types-list {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 36px;
+}
+.report-types-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 28px 0;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.report-type-number {
+  flex-shrink: 0;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+  padding-top: 3px;
+}
+.report-types-list h3 {
+  margin: 0 0 12px;
+  color: var(--dark);
+  font-size: 18px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.report-types-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.9;
+}
+@media (max-width: 800px) {
+  .report-elements {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .report-types-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .report-elements {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .public-statistics {
   padding: 56px 0;
   border-bottom: 1px solid #d5dbc8;
@@ -1316,6 +1440,19 @@ main.public-main {
   }
   .public-header nav a:hover {
     background: #ffffff0d;
+  }
+}
+</style>
+
+<style scoped>
+main.public-main.tracking-main {
+  width: 100%;
+  max-width: none;
+  padding: 0 32px;
+}
+@media (max-width: 700px) {
+  main.public-main.tracking-main {
+    padding: 0 16px;
   }
 }
 </style>

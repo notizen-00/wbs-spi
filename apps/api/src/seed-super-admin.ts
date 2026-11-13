@@ -14,12 +14,12 @@ export async function createSuperAdmin(
   if (
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     email.length > 200 ||
-    password.length < 12 ||
+    password.length < 6 ||
     password.length > 128 ||
     !name.trim() ||
     name.length > 120
   )
-    throw new Error('Email, nama, dan password minimal 12 karakter wajib valid.');
+    throw new Error('Email, nama, dan password minimal 6 karakter wajib valid.');
   return prisma.$transaction(async (tx) => {
     const existing = await tx.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     if (existing) {

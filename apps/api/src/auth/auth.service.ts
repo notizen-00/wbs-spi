@@ -59,7 +59,7 @@ export class AuthService implements OnModuleDestroy {
       !this.validEmail(b.email) ||
       !this.validPassword(b.password)
     )
-      fail(422, 'Isi nama, email valid, dan kata sandi 12–128 karakter.');
+      fail(422, 'Isi nama, email valid, dan kata sandi 6–128 karakter.');
     try {
       await this.prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
@@ -100,7 +100,7 @@ export class AuthService implements OnModuleDestroy {
     await this.rate(req, kind === 'VERIFY' ? 'verify' : 'reset');
     const b = object(input);
     if (kind === 'RESET' && !this.validPassword(b.password))
-      fail(422, 'Gunakan kata sandi 12–128 karakter.');
+      fail(422, 'Gunakan kata sandi 6–128 karakter.');
     await this.prisma.$transaction(async (tx) => {
       const tokenHash = hash(String(b.token ?? ''));
       const t = await tx.accountToken.findUnique({ where: { tokenHash } });
@@ -203,6 +203,6 @@ export class AuthService implements OnModuleDestroy {
     return typeof value === 'string' && /^\S+@\S+\.\S+$/.test(value);
   }
   private validPassword(value: unknown): value is string {
-    return typeof value === 'string' && value.length >= 12 && value.length <= 128;
+    return typeof value === 'string' && value.length >= 6 && value.length <= 128;
   }
 }

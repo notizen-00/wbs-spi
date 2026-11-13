@@ -2,6 +2,7 @@
 import { ShieldCheck, LockKeyhole, ArrowRight, LoaderCircle } from '@lucide/vue';
 const { site } = useSiteConfiguration();
 const props = defineProps<{
+  staffOnly?: boolean;
   mode: string;
   credentials: { name: string; email: string; password: string };
   busy: boolean;
@@ -26,12 +27,18 @@ watch(
   <section class="auth-modal public-auth-card" aria-labelledby="auth-title">
     <SiteBrand />
     <div class="eyebrow">{{ site.tagline }}</div>
-    <h2 id="auth-title">{{ mode === 'register' ? 'Buat akun pelapor' : 'Masuk ke akun' }}</h2>
+    <h2 id="auth-title">
+      {{
+        staffOnly ? 'Login petugas' : mode === 'register' ? 'Buat akun pelapor' : 'Masuk ke akun'
+      }}
+    </h2>
     <p>
       {{
-        mode === 'register'
-          ? 'Daftarkan email Anda untuk mulai menyampaikan laporan.'
-          : 'Gunakan email dan kata sandi yang terdaftar.'
+        staffOnly
+          ? 'Untuk verifikator/pemeriksa, pejabat, pelaksana, dan super admin. Gunakan email dan kata sandi akun petugas.'
+          : mode === 'register'
+            ? 'Daftarkan email Anda untuk mulai menyampaikan laporan.'
+            : 'Gunakan email dan kata sandi yang terdaftar.'
       }}
     </p>
     <div v-if="error" class="alert error" role="alert">{{ error }}</div>
@@ -53,9 +60,9 @@ watch(
           v-model="credentials.password"
           type="password"
           :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
-          :minlength="mode === 'register' ? 12 : 1"
+          :minlength="mode === 'register' ? 6 : 1"
           maxlength="128"
-          :placeholder="mode === 'register' ? 'Minimal 12 karakter' : 'Masukkan kata sandi'"
+          :placeholder="mode === 'register' ? 'Minimal 6 karakter' : 'Masukkan kata sandi'"
           required
       /></label>
       <RecaptchaWidget ref="captcha" v-model="captchaToken" />
@@ -68,7 +75,7 @@ watch(
     <p v-if="mode !== 'register'" class="auth-switch">
       <button type="button" @click="$emit('recovery')">Lupa kata sandi / verifikasi ulang</button>
     </p>
-    <p class="auth-switch">
+    <p v-if="!staffOnly" class="auth-switch">
       {{ mode === 'register' ? 'Sudah punya akun?' : 'Belum punya akun?'
       }}<button type="button" @click="$emit('mode', mode === 'register' ? 'login' : 'register')">
         {{ mode === 'register' ? 'Masuk' : 'Daftar sekarang' }}

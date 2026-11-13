@@ -71,17 +71,22 @@ async function check() {
         }}
       </button>
       <p v-if="error" class="tracking-error" role="alert">{{ error }}</p>
-      <div v-if="result" class="tracking-result" role="status">
+    </form>
+    <div v-if="result" class="tracking-result" role="status">
+      <header class="tracking-summary">
         <strong>{{ result.label }}</strong
         ><span v-if="result.lifecycle === 'SUSPENDED'">Penanganan sedang ditunda.</span
         ><span>Diperbarui {{ formatDateTime(result.updatedAt) }}</span>
-        <h3>{{ result.report.payload.title }}</h3>
+      </header>
+      <section class="tracking-description">
+        <h3>Keterangan laporan</h3>
+        <h4>{{ result.report.payload.title }}</h4>
         <p>Nomor laporan: {{ result.report.number }}</p>
         <dl>
           <template
             v-for="(label, key) in {
-              category: 'Bidang',
-              subcategory: 'Sub kategori pelanggaran',
+              category: 'Kategori',
+              subcategory: 'Subkategori',
               when: 'Tanggal kejadian',
               where: 'Lokasi',
               what: 'Kejadian',
@@ -101,21 +106,25 @@ async function check() {
           <p>{{ result.report.clarification.question }}</p>
           <p>{{ result.report.clarification.response || 'Menunggu jawaban pelapor.' }}</p>
         </section>
-        <ReportTimeline :report="result.report" />
-        <section v-for="answer in result.officialResponses" :key="answer.createdAt">
-          <h3>Jawaban resmi</h3>
-          <p>{{ answer.content }}</p>
-          <small>{{ formatDateTime(answer.createdAt) }}</small>
-        </section>
-      </div>
-    </form>
+      </section>
+      <ReportTimeline :report="result.report" />
+      <section
+        v-for="answer in result.officialResponses"
+        :key="answer.createdAt"
+        class="tracking-description"
+      >
+        <h3>Jawaban resmi</h3>
+        <p>{{ answer.content }}</p>
+        <small>{{ formatDateTime(answer.createdAt) }}</small>
+      </section>
+    </div>
   </section>
 </template>
 <style scoped>
 .tracking-section {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: 60px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
   padding: 45px 0 60px;
   border-top: 1px solid #cbd1c1;
   scroll-margin-top: 25px;
@@ -136,7 +145,7 @@ async function check() {
   font-size: 13px;
   line-height: 1.9;
   color: #626f58;
-  max-width: 350px;
+  max-width: none;
 }
 .tracking-section form {
   min-width: 0;
@@ -169,19 +178,94 @@ async function check() {
 .tracking-result {
   min-width: 0;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
   display: grid;
-  gap: 9px;
-  border-left: 3px solid #5b7d45;
-  padding: 15px;
-  background: #f3f6ed;
-  margin-top: 20px;
-  font-size: 12px;
+  gap: 24px;
+  width: 100%;
+  margin-top: 4px;
+  font-size: 14px;
 }
 .tracking-result strong {
   font-size: 17px;
 }
+.tracking-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  padding: 22px 28px;
+  border-left: 4px solid var(--green);
+  background: var(--academic-soft);
+  border-radius: 8px;
+}
+.tracking-summary > span:last-child {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+.tracking-description {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px;
+  min-width: 0;
+}
+.tracking-description h3 {
+  margin: 0 0 20px;
+  color: var(--green);
+  font-size: 21px;
+}
+.tracking-description h4 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+.tracking-description dl {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  margin: 24px 0 0;
+}
+.tracking-description dt,
+.tracking-description dd {
+  margin: 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  line-height: 1.8;
+}
+.tracking-description dt {
+  color: var(--muted);
+  padding-right: 20px;
+  font-weight: 600;
+}
+.tracking-description dd,
+.tracking-description p {
+  white-space: pre-wrap;
+}
+.tracking-result :deep(.report-timeline) {
+  width: 100%;
+  padding: 28px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
 @media (max-width: 700px) {
+  .tracking-description,
+  .tracking-summary,
+  .tracking-result :deep(.report-timeline) {
+    padding: 20px;
+  }
+  .tracking-description dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tracking-description dt {
+    padding-bottom: 0;
+  }
+  .tracking-description dd {
+    border-top: 0;
+    padding-top: 6px;
+  }
+  .tracking-summary > span:last-child {
+    margin-left: 0;
+  }
+
   .tracking-section {
     grid-template-columns: minmax(0, 1fr);
     gap: 22px;

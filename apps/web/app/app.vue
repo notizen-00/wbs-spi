@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { formatDateTime } from './utils/date-time';
+import { createRequestKey } from './utils/request-key';
+import { reportElements, reportTypes, wbsIntroduction, wbsHandling } from './utils/wbs-content';
 import {
   ShieldCheck,
   LayoutDashboard,
@@ -21,13 +23,15 @@ import {
   Menu,
   X,
   Eye,
-  Save,
   Send,
   CheckCircle2,
   AlertCircle,
   UserRound,
   Mail,
   LoaderCircle,
+  Maximize2,
+  Minimize2,
+  Expand,
 } from '@lucide/vue';
 import {
   stageLabels,
@@ -51,16 +55,48 @@ const user = ref<User | null>(null),
   showNotifications = ref(false);
 const showTimeline = ref(true);
 const submissionToken = ref('');
+const evidenceUploading = ref(false);
+const submittedTicketId = ref('');
+const formDisplay = ref<'normal' | 'wide' | 'fullscreen'>('normal');
+let previousFormDisplay: 'normal' | 'wide' = 'normal';
+let previousBodyOverflow: string | null = null;
+async function changeFormDisplay(mode: 'normal' | 'wide' | 'fullscreen') {
+  if (mode === 'fullscreen') {
+    if (formDisplay.value === 'fullscreen') formDisplay.value = previousFormDisplay;
+    else {
+      previousFormDisplay = formDisplay.value;
+      formDisplay.value = 'fullscreen';
+    }
+  } else formDisplay.value = mode;
+  await nextTick();
+  if (formDisplay.value !== 'fullscreen')
+    document.getElementById('public-report-form')?.scrollIntoView({ block: 'start' });
+}
+watch(
+  () => page.value === 'create' && formDisplay.value === 'fullscreen',
+  (active) => {
+    if (!import.meta.client) return;
+    if (active) {
+      previousBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    } else if (previousBodyOverflow !== null) {
+      document.body.style.overflow = previousBodyOverflow;
+      previousBodyOverflow = null;
+    }
+  },
+);
+watch(page, (value) => {
+  if (value !== 'create') formDisplay.value = 'normal';
+});
 const submissionCaptcha = ref<{ reset: () => void } | null>(null);
 const sessionReady = ref(false);
 const publicAuthPage = ref(false);
 const publicSection = ref('');
-const demoGuide = ref<{ password: string | null } | null>(null);
 const routePaths: Record<string, string> = {
   dashboard: '/dashboard',
-  demo: '/demo',
   adminCategories: '/admin/categories',
   adminSettings: '/admin/settings',
+  adminUsers: '/admin/users',
   reports: '/reports',
   create: '/reports/new',
   guide: '/guide',
@@ -72,6 +108,7 @@ function setPath(path: string, replace = false) {
   window.history[replace ? 'replaceState' : 'pushState'](window.history.state, '', path);
 }
 function openAuth(mode = 'login', replace = false) {
+  publicSection.value = '';
   page.value = 'dashboard';
   auth.value = mode;
   publicAuthPage.value = true;
@@ -84,7 +121,7 @@ async function openPublic(section = '', replace = false) {
   auth.value = '';
   publicAuthPage.value = false;
   publicSection.value = section;
-  page.value = section === 'demo' && demoGuide.value ? 'demo' : 'dashboard';
+  page.value = 'dashboard';
   error.value = '';
   setPath(section ? `/${section}` : '/', replace);
   await nextTick();
@@ -94,13 +131,12 @@ async function openPublic(section = '', replace = false) {
 }
 async function applyPath(replace = true) {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
-  if (path === '/tracking') {
-    await openPublic('tracking', replace);
+  if (path === '/login' && (!user.value || user.value.role === 'REPORTER')) {
+    openAuth('login', replace);
     return;
   }
-  if (path === '/demo' && demoGuide.value) {
-    page.value = 'demo';
-    setPath('/demo', replace);
+  if (path === '/tracking') {
+    await openPublic('tracking', replace);
     return;
   }
   if (!user.value) {
@@ -153,6 +189,7 @@ watch(auth, async (value) => {
 });
 function keydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    if (formDisplay.value === 'fullscreen') formDisplay.value = previousFormDisplay;
     if (['recovery', 'reset'].includes(auth.value))
       auth.value = publicAuthPage.value ? 'login' : '';
     mobile.value = false;
@@ -175,6 +212,7 @@ function keydown(event: KeyboardEvent) {
   }
 }
 onUnmounted(() => {
+  if (previousBodyOverflow !== null) document.body.style.overflow = previousBodyOverflow;
   window.removeEventListener('keydown', keydown);
   window.removeEventListener('popstate', popstate);
 });
@@ -189,6 +227,7 @@ const empty = (): ReportPayload => ({
   why: '',
   how: '',
   confidentiality: 'PROTECTED',
+  contactEmail: '',
   evidenceReason: '',
 });
 const form = reactive<ReportPayload>(empty());
@@ -196,6 +235,8 @@ const confirmed = ref(false),
   response = ref(''),
   commandReason = ref('');
 const categories = computed(() => site.value.categories);
+const subcategories = computed(() => site.value.subcategories?.[form.category] ?? []);
+
 const active = computed(() =>
   reports.value.filter((r) => !['DRAFT', 'COMPLETED', 'CLOSED'].includes(r.stage)),
 );
@@ -257,7 +298,6 @@ watch(
   },
 );
 function navigate(p: string, replace = false) {
-  if (p === 'demo' && !demoGuide.value) p = 'dashboard';
   if (!user.value) {
     if (['guide', 'privacy', 'help'].includes(p)) void openPublic(p, replace);
     else openAuth('login', replace);
@@ -343,11 +383,14 @@ async function saveDraft() {
   }
   await load();
 }
-async function save() {
-  await run(async () => {
-    await saveDraft();
-    notice.value = 'Draf berhasil disimpan. Hanya Anda yang dapat mengaksesnya.';
+async function prepareEvidenceReport() {
+  if (selected.value?.stage === 'DRAFT') return selected.value.id;
+  selected.value = await api<Report>('/reports/drafts', {
+    method: 'POST',
+    body: { payload: form },
   });
+  await nextTick();
+  return selected.value.id;
 }
 async function submit() {
   await run(async () => {
@@ -368,6 +411,17 @@ async function submit() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       throw { data: { message: 'Lengkapi semua kolom wajib sebelum mengirim laporan.' } };
     }
+    if (evidenceUploading.value)
+      throw { data: { message: 'Tunggu unggahan bukti selesai sebelum mengirim laporan.' } };
+    if (
+      form.confidentiality === 'IDENTIFIED' &&
+      (!form.contactEmail ||
+        form.contactEmail.length > 200 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactEmail.trim()))
+    ) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      throw { data: { message: 'Isi email yang valid agar dapat dihubungi.' } };
+    }
     if (!confirmed.value)
       throw { data: { message: 'Konfirmasi kebenaran laporan terlebih dahulu.' } };
     if (!submissionToken.value)
@@ -385,6 +439,11 @@ async function submit() {
     });
     selected.value = await api<Report>(`/reports/${selected.value!.id}`);
     navigate('detail');
+    submittedTicketId.value = selected.value!.id;
+    await nextTick();
+    const ticket = document.getElementById('report-ticket');
+    ticket?.focus({ preventScroll: true });
+    ticket?.scrollIntoView({ block: 'start', behavior: 'instant' });
     await load();
     notice.value =
       'Laporan berhasil dikirim. Simpan nomor tiket rahasia Anda untuk monitoring tanpa login.';
@@ -419,7 +478,7 @@ async function command(action: string) {
   await run(async () => {
     await api(`/reports/${selected.value!.id}/commands`, {
       method: 'POST',
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Idempotency-Key': createRequestKey() },
       body: {
         action,
         expectedVersion: selected.value!.version,
@@ -474,10 +533,6 @@ onMounted(async () => {
   } catch (e: any) {
     if (e?.statusCode !== 401) error.value = message(e);
   }
-  demoGuide.value = await $fetch<{ password: string | null }>('/api/v1/public/demo-guide', {
-    timeout: 3000,
-    retry: 0,
-  }).catch(() => null);
   sessionReady.value = true;
   const startupError = error.value;
   await applyPath();
@@ -502,25 +557,20 @@ onMounted(async () => {
       <LoaderCircle class="spin" :size="25" />
       <p>Memuat portal WBS…</p>
     </div>
-    <DemoGuide
-      v-else-if="page === 'demo' && demoGuide"
-      :password="demoGuide.password"
-      @home="user ? navigate('dashboard') : openPublic()"
-      @login="user ? navigate('dashboard') : openAuth()"
-    />
     <PublicLanding
       v-else-if="!user || publicSection === 'tracking' || (!internal && page === 'dashboard')"
-      :demo-available="!!demoGuide"
       :service-error="error"
       :auth-page="publicAuthPage"
       :tracking-page="!publicAuthPage && publicSection === 'tracking'"
       @login="newReport()"
+      @staff-login="openAuth()"
       @report="newReport()"
       @home="openPublic()"
       @section="openPublic"
     >
       <template #auth
         ><PublicAuthForm
+          staff-only
           :mode="auth === 'register' ? 'register' : 'login'"
           :credentials="credentials"
           :busy="busy"
@@ -558,12 +608,14 @@ onMounted(async () => {
               :class="{ active: page === 'adminCategories' }"
               @click="navigate('adminCategories')"
             >
-              <Files :size="19" />Bidang laporan</button
+              <Files :size="19" />Kategori laporan</button
             ><button
               :class="{ active: page === 'adminSettings' }"
               @click="navigate('adminSettings')"
             >
-              <ShieldCheck :size="19" />Pengaturan situs
+              <ShieldCheck :size="19" />Pengaturan situs</button
+            ><button :class="{ active: page === 'adminUsers' }" @click="navigate('adminUsers')">
+              <UserRound :size="19" />Pengguna &amp; peran
             </button></template
           >
           <button
@@ -635,22 +687,24 @@ onMounted(async () => {
               page === 'dashboard'
                 ? 'Dashboard'
                 : page === 'adminCategories'
-                  ? 'Bidang laporan'
-                  : page === 'adminSettings'
-                    ? 'Pengaturan situs'
-                    : page === 'create'
-                      ? 'Buat laporan'
-                      : page === 'detail'
-                        ? 'Detail laporan'
-                        : page === 'reports'
-                          ? internal
-                            ? 'Antrean perkara'
-                            : 'Laporan saya'
-                          : page === 'guide'
-                            ? 'Panduan'
-                            : page === 'privacy'
-                              ? 'Kerahasiaan'
-                              : 'Bantuan'
+                  ? 'Kategori laporan'
+                  : page === 'adminUsers'
+                    ? 'Pengguna & peran'
+                    : page === 'adminSettings'
+                      ? 'Pengaturan situs'
+                      : page === 'create'
+                        ? 'Buat laporan'
+                        : page === 'detail'
+                          ? 'Detail laporan'
+                          : page === 'reports'
+                            ? internal
+                              ? 'Antrean perkara'
+                              : 'Laporan saya'
+                            : page === 'guide'
+                              ? 'Panduan'
+                              : page === 'privacy'
+                                ? 'Kerahasiaan'
+                                : 'Bantuan'
             }}</strong>
           </div>
           <div class="header-right">
@@ -670,7 +724,15 @@ onMounted(async () => {
               ><span class="avatar">{{ initials }}</span
               ><span class="profile-name"
                 >{{ user.name
-                }}<small>{{ internal ? 'Petugas internal' : 'Pelapor terdaftar' }}</small></span
+                }}<small>{{
+                  {
+                    REPORTER: 'Pelapor',
+                    INVESTIGATOR: 'Verifikator / Pemeriksa',
+                    OFFICIAL: 'Pejabat',
+                    EXECUTOR: 'Pelaksana',
+                    SUPER_ADMIN: 'Super Admin',
+                  }[user.role]
+                }}</small></span
               ><button class="icon-button" aria-label="Keluar" @click="logout">
                 <LogOut :size="17" /></button></template
             ><button v-else class="button small" @click="auth = 'login'">
@@ -702,8 +764,9 @@ onMounted(async () => {
           <div v-if="notice" class="alert success" role="status">
             <CheckCircle2 :size="19" /><span>{{ notice }}</span>
           </div>
+          <AdminUsers v-if="user?.role === 'SUPER_ADMIN' && page === 'adminUsers'" />
           <SuperAdminPanel
-            v-if="
+            v-else-if="
               user?.role === 'SUPER_ADMIN' &&
               ['dashboard', 'adminCategories', 'adminSettings'].includes(page)
             "
@@ -924,70 +987,36 @@ onMounted(async () => {
                 <h1>Sampaikan laporan Anda.</h1>
                 <p>Isi dengan jelas dan sesuai fakta yang Anda ketahui.</p>
               </div>
-              <span class="badge draft"><LockKeyhole :size="13" />Tanpa login</span>
+              <!-- <span class="badge draft"><LockKeyhole :size="13" />Tanpa login</span> -->
             </div>
-            <div class="form-layout">
+            <div class="form-layout" :class="{ 'form-layout-wide': formDisplay !== 'normal' }">
               <article class="panel wbs-explanation" aria-labelledby="wbs-explanation-title">
                 <div class="wbs-column-heading">
                   <h2 id="wbs-explanation-title">Whistleblowing System</h2>
                   <a href="/" @click.prevent="openPublic()">Beranda <ArrowUpRight :size="15" /></a>
                 </div>
                 <div class="wbs-explanation-content">
+                  <p><strong>Whistleblowing System (WBS)</strong> {{ wbsIntroduction }}</p>
+                  <p>{{ wbsHandling }}</p>
+                  <h3>Apa yang dapat dilaporkan?</h3>
                   <p>
-                    <strong>Whistleblowing System (WBS)</strong> adalah sarana untuk menyampaikan
-                    dugaan pelanggaran di lingkungan {{ site.institutionName }} secara aman dan
-                    rahasia. Sampaikan kejadian berdasarkan fakta dan informasi yang Anda ketahui.
+                    Aduan pada WBS harus memenuhi unsur <strong>4W + 1H &amp; E</strong> (What, Who,
+                    Where, When + How &amp; Evidence).
                   </p>
-                  <p>
-                    Mahasiswa, dosen, tenaga kependidikan, maupun masyarakat dapat menyampaikan
-                    laporan tanpa membuat akun. Simpan nomor tiket rahasia setelah laporan dikirim
-                    untuk memantau penanganannya.
-                  </p>
-                  <h3>Tujuan WBS</h3>
-                  <ol>
-                    <li>
-                      <strong>Menjaga integritas</strong>
-                      <p>
-                        Mendukung lingkungan kampus yang jujur, transparan, dan bertanggung jawab.
-                      </p>
-                    </li>
-                    <li>
-                      <strong>Mencegah dan menangani pelanggaran</strong>
-                      <p>
-                        Memberikan jalur pelaporan agar dugaan pelanggaran dapat diverifikasi dan
-                        ditindaklanjuti oleh petugas yang berwenang.
-                      </p>
-                    </li>
-                    <li>
-                      <strong>Melindungi kerahasiaan pelapor</strong>
-                      <p>
-                        Identitas, isi laporan, dan bukti dibatasi bagi pihak yang berwenang
-                        menangani aduan.
-                      </p>
+                  <dl class="wbs-report-elements">
+                    <template v-for="element in reportElements" :key="element[0]"
+                      ><dt>{{ element[0] }} — {{ element[1] }}</dt>
+                      <dd>{{ element[2] }}</dd></template
+                    >
+                  </dl>
+                  <h3>Jenis aduan yang dapat dilaporkan</h3>
+
+                  <ol class="wbs-complaint-types">
+                    <li v-for="type in reportTypes" :key="type[0]">
+                      <strong>{{ type[0] }}</strong>
+                      <p>{{ type[1] }}</p>
                     </li>
                   </ol>
-                  <h3>Istilah dalam formulir</h3>
-                  <dl>
-                    <dt>Bidang</dt>
-                    <dd>Kelompok bidang yang berkaitan dengan dugaan pelanggaran.</dd>
-                    <dt>Sub kategori pelanggaran</dt>
-                    <dd>Jenis dugaan pelanggaran yang lebih spesifik dalam bidang yang dipilih.</dd>
-                    <dt>Kronologi</dt>
-                    <dd>
-                      Urutan kejadian: apa yang terjadi, siapa yang terlibat, kapan, di mana,
-                      mengapa, dan bagaimana kejadiannya.
-                    </dd>
-                    <dt>Bukti pendukung</dt>
-                    <dd>
-                      Dokumen, foto, rekaman, atau sumber informasi yang membantu pemeriksaan
-                      laporan.
-                    </dd>
-                    <dt>Nomor tiket</dt>
-                    <dd>
-                      Kunci rahasia untuk membuka rincian dan timeline laporan tanpa login. Simpan
-                      dan jangan bagikan kepada pihak lain.
-                    </dd>
-                  </dl>
                   <div class="wbs-monitoring-note">
                     <LockKeyhole :size="21" />
                     <div>
@@ -1003,8 +1032,51 @@ onMounted(async () => {
                   </div>
                 </div>
               </article>
-              <section class="panel form-panel">
-                <div class="wbs-column-heading"><h2>Form Whistleblowing System</h2></div>
+              <section
+                id="public-report-form"
+                class="panel form-panel"
+                :class="{ 'form-panel-fullscreen': formDisplay === 'fullscreen' }"
+                aria-label="Formulir laporan"
+              >
+                <div class="wbs-column-heading report-form-heading">
+                  <h2>Form Whistleblowing System</h2>
+                  <div class="form-display-controls" role="group" aria-label="Tampilan formulir">
+                    <button
+                      v-if="formDisplay !== 'normal'"
+                      type="button"
+                      class="icon-button"
+                      aria-label="Minimize formulir"
+                      title="Kembali ke dua kolom"
+                      @click="changeFormDisplay('normal')"
+                    >
+                      <Minimize2 :size="18" />
+                    </button>
+                    <button
+                      v-if="formDisplay === 'normal'"
+                      type="button"
+                      class="icon-button"
+                      aria-label="Maximize formulir"
+                      title="Lebar penuh"
+                      @click="changeFormDisplay('wide')"
+                    >
+                      <Maximize2 :size="18" />
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-button"
+                      :aria-label="
+                        formDisplay === 'fullscreen' ? 'Keluar layar penuh' : 'Layar penuh formulir'
+                      "
+                      :title="
+                        formDisplay === 'fullscreen' ? 'Keluar layar penuh (Esc)' : 'Layar penuh'
+                      "
+                      :aria-pressed="formDisplay === 'fullscreen'"
+                      @click="changeFormDisplay('fullscreen')"
+                    >
+                      <Expand :size="18" />
+                    </button>
+                  </div>
+                </div>
                 <div class="form-content">
                   <p class="wbs-form-notice">
                     <strong>Kerahasiaan laporan Anda dilindungi.</strong> Lengkapi informasi sesuai
@@ -1013,6 +1085,40 @@ onMounted(async () => {
                       >memantau perkembangan aduan</a
                     >.
                   </p>
+                  <div class="fields report-confidentiality">
+                    <fieldset>
+                      <legend>Kerahasiaan laporan</legend>
+                      <label class="radio-card"
+                        ><input
+                          v-model="form.confidentiality"
+                          type="radio"
+                          value="PROTECTED"
+                          @change="form.contactEmail = ''" /><span
+                          ><strong>Identitas terlindungi</strong
+                          ><small>Identitas tidak ditampilkan dalam ringkasan perkara.</small></span
+                        ><LockKeyhole :size="19" /></label
+                      ><label class="radio-card"
+                        ><input
+                          v-model="form.confidentiality"
+                          type="radio"
+                          value="IDENTIFIED" /><span
+                          ><strong>Bersedia dihubungi</strong
+                          ><small>Kontak tetap terbatas untuk petugas yang berwenang.</small></span
+                        ><UserRound :size="19"
+                      /></label>
+                    </fieldset>
+                    <label v-if="form.confidentiality === 'IDENTIFIED'" class="contact-email-field"
+                      >Email yang dapat dihubungi <span>*</span>
+                      <input
+                        v-model="form.contactEmail"
+                        type="email"
+                        maxlength="200"
+                        autocomplete="email"
+                        placeholder="nama@contoh.com"
+                        required
+                      />
+                    </label>
+                  </div>
                   <span class="eyebrow">FORMULIR PENGADUAN</span>
                   <h2>Informasi kejadian</h2>
                   <p class="form-intro">
@@ -1026,19 +1132,27 @@ onMounted(async () => {
                         maxlength="200"
                         placeholder="Ringkasan singkat dugaan pelanggaran" /></label
                     ><label
-                      >Bidang <span>*</span
-                      ><select v-model="form.category">
-                        <option disabled value="">Pilih bidang</option>
+                      >Kategori <span>*</span
+                      ><select v-model="form.category" @change="form.subcategory = ''">
+                        <option disabled value="">Pilih kategori</option>
                         <option v-for="c in categories">{{ c }}</option>
                       </select></label
                     >
                     <label
-                      >Sub kategori pelanggaran <span>*</span>
-                      <input
+                      >Subkategori <span>*</span>
+                      <select
                         v-model="form.subcategory"
-                        maxlength="200"
-                        placeholder="Jenis dugaan pelanggaran dalam bidang yang dipilih"
-                      />
+                        :disabled="!form.category || !subcategories.length"
+                      >
+                        <option disabled value="">
+                          {{
+                            !form.category ? 'Pilih kategori terlebih dahulu' : 'Pilih subkategori'
+                          }}
+                        </option>
+                        <option v-for="item in subcategories" :key="item" :value="item">
+                          {{ item }}
+                        </option>
+                      </select>
                     </label>
                     <div class="two-fields">
                       <label
@@ -1082,7 +1196,7 @@ onMounted(async () => {
                       ></textarea>
                     </label>
                   </div>
-                  <h2 class="reporter-section-title">Bukti &amp; kerahasiaan</h2>
+                  <h2 class="reporter-section-title">Bukti pendukung</h2>
                   <div class="fields">
                     <div class="info-box">
                       <ShieldCheck :size="21" />
@@ -1094,44 +1208,19 @@ onMounted(async () => {
                         </p>
                       </div>
                     </div>
-                    <EvidencePanel v-if="selected" :report-id="selected.id" />
-                    <div v-else class="info-box">
-                      <p>
-                        Simpan draf terlebih dahulu untuk mengunggah bukti, atau lanjutkan dengan
-                        menjelaskan sumber bukti.
-                      </p>
-                      <button type="button" class="button secondary" :disabled="busy" @click="save">
-                        Simpan draf
-                      </button>
-                    </div>
+                    <EvidencePanel
+                      :report-id="selected?.id"
+                      :prepare-report="prepareEvidenceReport"
+                      @uploading="evidenceUploading = $event"
+                    />
                     <label
-                      >Sumber bukti atau alasan belum menyertakan bukti <span>*</span
+                      >Keterangan bukti pelanggaran <span>*</span
                       ><textarea
                         v-model="form.evidenceReason"
                         rows="4"
-                        placeholder="Jelaskan bukti yang tersedia, sumbernya, atau alasan belum dapat menyertakannya."
+                        placeholder="Jelaskan bukti yang tersedia dan sumbernya."
                       ></textarea>
                     </label>
-                    <fieldset>
-                      <legend>Kerahasiaan laporan</legend>
-                      <label class="radio-card"
-                        ><input
-                          v-model="form.confidentiality"
-                          type="radio"
-                          value="PROTECTED" /><span
-                          ><strong>Identitas terlindungi</strong
-                          ><small>Identitas tidak ditampilkan dalam ringkasan perkara.</small></span
-                        ><LockKeyhole :size="19" /></label
-                      ><label class="radio-card"
-                        ><input
-                          v-model="form.confidentiality"
-                          type="radio"
-                          value="IDENTIFIED" /><span
-                          ><strong>Bersedia dihubungi</strong
-                          ><small>Kontak tetap terbatas untuk petugas yang berwenang.</small></span
-                        ><UserRound :size="19"
-                      /></label>
-                    </fieldset>
                   </div>
                   <h2 class="reporter-section-title">Konfirmasi laporan</h2>
                   <div class="reporter-confirmation">
@@ -1141,20 +1230,17 @@ onMounted(async () => {
                         dibuat dengan itikad baik.</span
                       ></label
                     >
-                    <p v-if="!user?.verified" class="warning-text">
-                      Verifikasi email diperlukan sebelum mengirim. Anda tetap dapat menyimpan draf.
-                    </p>
+
                     <RecaptchaWidget ref="submissionCaptcha" v-model="submissionToken" />
                   </div>
                 </div>
                 <div class="form-actions">
-                  <button type="button" class="button secondary" :disabled="busy" @click="save">
-                    <Save :size="16" />Simpan draf
-                  </button>
                   <button
                     type="button"
                     class="button"
-                    :disabled="busy || !confirmed || !user?.verified || !submissionToken"
+                    :disabled="
+                      busy || evidenceUploading || !confirmed || !user?.verified || !submissionToken
+                    "
                     @click="submit"
                   >
                     <Send :size="16" />{{ busy ? 'Mengirim?' : 'Kirim laporan' }}
@@ -1193,15 +1279,30 @@ onMounted(async () => {
             <div class="detail-layout" :class="{ 'timeline-hidden': !showTimeline }">
               <section class="panel detail-body">
                 <ReportTrackingCode
+                  id="report-ticket"
                   v-if="user?.role === 'REPORTER' && selected.trackingCode"
                   :code="selected.trackingCode"
+                  :submitted="submittedTicketId === selected.id"
                 />
                 <h3>Informasi laporan</h3>
+                <div
+                  v-if="
+                    selected.payload.confidentiality === 'IDENTIFIED' &&
+                    selected.payload.contactEmail
+                  "
+                  class="info-box"
+                >
+                  <Mail :size="19" />
+                  <div>
+                    <strong>Email pelapor</strong>
+                    <p>{{ selected.payload.contactEmail }}</p>
+                  </div>
+                </div>
                 <div class="preview">
                   <div
                     v-for="(label, key) in {
-                      category: 'Bidang',
-                      subcategory: 'Sub kategori pelanggaran',
+                      category: 'Kategori',
+                      subcategory: 'Subkategori',
                       when: 'Tanggal kejadian',
                       where: 'Lokasi',
                       what: 'Kejadian',
@@ -1247,7 +1348,10 @@ onMounted(async () => {
               </section>
               <aside class="detail-sidebar">
                 <section class="panel detail-actions" aria-label="Aksi laporan">
-                  <div v-if="internal" class="internal-actions">
+                  <div
+                    v-if="user?.role === 'INVESTIGATOR' && selected.stage === 'SUBMITTED'"
+                    class="internal-actions"
+                  >
                     <h3>Tindakan petugas</h3>
                     <p>Akses dan tahap diperiksa ulang oleh server.</p>
                     <label class="fields"
@@ -1255,13 +1359,6 @@ onMounted(async () => {
                     </label>
                     <div class="hero-actions">
                       <button
-                        v-if="user?.role === 'INVESTIGATOR'"
-                        class="button secondary"
-                        :disabled="busy || !commandReason.trim()"
-                        @click="command('CLARIFY')"
-                      >
-                        <MessageSquare :size="17" aria-hidden="true" />Minta klarifikasi</button
-                      ><button
                         v-if="selected.stage === 'SUBMITTED' && user?.role === 'INVESTIGATOR'"
                         class="button"
                         :disabled="busy || !commandReason.trim()"
@@ -1378,11 +1475,11 @@ onMounted(async () => {
                     v-for="item in [
                       [
                         'Apakah saya dapat melapor tanpa akun?',
-                        'Tidak. Anda memerlukan akun dan email terverifikasi untuk mengirim laporan.',
+                        'Ya. Lengkapi formulir publik dan simpan nomor tiket setelah mengirim laporan.',
                       ],
                       [
-                        'Apakah draf dapat dibaca petugas?',
-                        'Tidak. Draf bersifat privat dan hanya dapat diakses oleh pemilik.',
+                        'Apakah bukti dapat dibaca semua orang?',
+                        'Tidak. Bukti disimpan secara privat dan hanya dapat diakses sesuai kewenangan.',
                       ],
                       [
                         'Bagaimana jika belum memiliki bukti?',

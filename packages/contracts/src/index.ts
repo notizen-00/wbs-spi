@@ -27,12 +27,12 @@ export const stageLabels: Record<Stage, string> = {
   DRAFT: 'Draf',
   SUBMITTED: 'Terkirim',
   INITIAL_REVIEW: 'Verifikasi awal',
-  ASSIGNMENT_APPROVAL: 'Persetujuan penugasan',
+  ASSIGNMENT_APPROVAL: 'Penugasan oleh pejabat',
   INVESTIGATION: 'Pemeriksaan',
   RESULT_REVIEW: 'Review hasil',
-  RESULT_APPROVAL: 'Persetujuan hasil',
+  RESULT_APPROVAL: 'Penetapan tindak lanjut',
   FOLLOW_UP: 'Tindak lanjut',
-  CLOSURE_APPROVAL: 'Persetujuan penutupan',
+  CLOSURE_APPROVAL: 'Penetapan penutupan',
   COMPLETED: 'Selesai',
   CLOSED: 'Ditutup',
 };
@@ -47,6 +47,7 @@ export interface ReportPayload {
   why: string;
   how: string;
   confidentiality: 'PROTECTED' | 'IDENTIFIED';
+  contactEmail?: string;
   evidenceReason: string;
 }
 export interface Report {

@@ -52,6 +52,7 @@ export class ReportsService {
     const stage = String(query.stage ?? '');
     const lifecycle = String(query.lifecycle ?? '');
     const category = String(query.category ?? '').slice(0, 200);
+    const subcategory = String(query.subcategory ?? '').slice(0, 200);
     const sort = String(query.sort ?? 'newest');
     if (
       !['ALL', 'ACTIVE', 'DRAFT', 'FINISHED'].includes(group) ||
@@ -68,6 +69,7 @@ export class ReportsService {
     if (stage) constraints.push({ stage });
     if (lifecycle) constraints.push({ lifecycle });
     if (category) constraints.push({ payload: { path: ['category'], equals: category } });
+    if (subcategory) constraints.push({ payload: { path: ['subcategory'], equals: subcategory } });
     if (q)
       constraints.push({
         OR: [
@@ -188,10 +190,15 @@ export class ReportsService {
         }
         const categoryName = object(report.payload).category as string;
         const available = await tx.$queryRaw<
-          { id: string }[]
-        >`SELECT id FROM report_categories WHERE name=${categoryName} AND active=true FOR SHARE`;
+          { id: string; subcategories: string[] }[]
+        >`SELECT id, subcategories FROM report_categories WHERE name=${categoryName} AND active=true FOR SHARE`;
         if (!available.length)
           fail(422, 'Kategori laporan tidak tersedia. Pilih kategori aktif sebelum mengirim.');
+        if (
+          available[0]!.subcategories.length &&
+          !available[0]!.subcategories.includes(object(report.payload).subcategory)
+        )
+          fail(422, 'Pilih subkategori yang sesuai dengan kategori.');
         const members = await tx.intakeMember.findMany({
           where: {
             active: true,
@@ -208,7 +215,10 @@ export class ReportsService {
           select: { userId: true },
         });
         if (!members.length)
-          fail(503, 'Verifikator/Pemeriksa penerimaan belum dikonfigurasi. Draf Anda tetap tersimpan.');
+          fail(
+            503,
+            'Verifikator/Pemeriksa penerimaan belum dikonfigurasi. Draf Anda tetap tersimpan.',
+          );
         await tx.caseAccess.createMany({
           data: members.map((m) => ({ reportId: id, userId: m.userId })),
           skipDuplicates: true,
@@ -366,7 +376,7 @@ export class ReportsService {
     const reopenRequests = await this.prisma.reopenRequest.findMany({
       where: { reportId: id },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, reason: true, status: true },
+      select: { id: true, reason: true, status: true, createdAt: true },
     });
     const safeResponses = officialResponses.map((r) => ({
       content: r.content,
@@ -376,7 +386,13 @@ export class ReportsService {
     if (user.id === report.ownerId) return { officialResponses: safeResponses, reopenRequests };
     const tasks = await this.prisma.followUpTask.findMany({
       where: { reportId: id, ...(user.role === 'EXECUTOR' ? { executorId: user.id } : {}) },
-      select: { id: true, instruction: true, execution: true, status: true },
+      select: {
+        id: true,
+        instruction: true,
+        execution: true,
+        status: true,
+        executor: { select: { id: true, name: true } },
+      },
     });
     if (user.role === 'EXECUTOR')
       return {
@@ -391,7 +407,7 @@ export class ReportsService {
     const proposals = await this.prisma.proposal.findMany({
       where: { reportId: id },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, type: true, payload: true, status: true },
+      select: { id: true, type: true, payload: true, status: true, proposerId: true },
     });
     const findings = await this.prisma.finding.findMany({
       where: { reportId: id },
@@ -405,17 +421,35 @@ export class ReportsService {
         select: { id: true },
       }));
     const users =
-      user.role === 'INVESTIGATOR'
+      user.role === 'OFFICIAL'
         ? await this.prisma.user.findMany({
-            where: { role: { in: ['INVESTIGATOR', 'EXECUTOR'] }, active: true, verified: true },
+            where: {
+              role: 'EXECUTOR',
+              active: true,
+              verified: true,
+              NOT: { id: report.ownerId },
+              conflicts: { none: { reportId: id } },
+            },
             orderBy: { name: 'asc' },
             take: 200,
             select: { id: true, name: true, role: true },
           })
         : [];
+    const pendingReopen = reopenRequests.find((request) => request.status === 'PENDING');
+    const reopenForwarded =
+      !!pendingReopen &&
+      (proposals.some((proposal) => proposal.type === 'REOPEN' && proposal.status === 'PENDING') ||
+        !!(await this.prisma.caseEvent.findFirst({
+          where: {
+            reportId: id,
+            action: 'FORWARD_TO_OFFICIAL',
+            createdAt: { gte: pendingReopen.createdAt },
+          },
+        })));
     return {
       officialResponses: safeResponses,
       reopenRequests,
+      reopenForwarded,
       proposals,
       findings: findings.map((f) => ({ id: f.id, content: f.content, created_at: f.createdAt })),
       tasks,

@@ -13,16 +13,18 @@ export function caseNotification(
     ADVANCE: 'Verifikasi awal dimulai',
     CLARIFY: 'Klarifikasi laporan diperlukan',
     RESPOND: 'Jawaban klarifikasi diterima',
-    PROPOSE_ASSIGNMENT: 'Usulan penugasan menunggu persetujuan',
+    PROPOSE_ASSIGNMENT: 'Penugasan pelaksana ditetapkan pejabat',
+    FORWARD_TO_OFFICIAL: 'Laporan diteruskan ke pejabat',
     FINDING: 'Hasil pemeriksaan telah diserahkan',
     REVIEW_FINDING: 'Hasil pemeriksaan perlu diperbaiki',
-    PROPOSE_RESULT: 'Usulan tindak lanjut menunggu persetujuan',
+    PROPOSE_RESULT: 'Penugasan tindak lanjut ditetapkan pejabat',
     EXECUTE: 'Pelaksanaan tindak lanjut telah diserahkan',
     REVIEW_EXECUTION:
       decision === 'VERIFY'
         ? 'Tindak lanjut telah diverifikasi'
         : 'Pelaksanaan tindak lanjut perlu diperbaiki',
-    PROPOSE_CLOSURE: 'Usulan penutupan menunggu persetujuan',
+    PROPOSE_CLOSURE: 'Penutupan laporan ditetapkan pejabat',
+    CLOSE_NO_FOLLOW_UP: 'Laporan ditolak dan ditutup',
     SUSPEND: 'Penanganan laporan ditunda',
     RESUME: 'Penanganan laporan dilanjutkan',
     REQUEST_REOPEN: 'Permintaan pembukaan kembali diterima',
@@ -64,10 +66,15 @@ export function caseNotification(
   let instruction = 'Buka portal WBS untuk melihat perkembangan laporan.';
   if (role === 'REPORTER' && action === 'CLARIFY')
     instruction = 'Buka laporan dan jawab permintaan klarifikasi verifikator/pemeriksa.';
+  else if (role === 'REPORTER' && action === 'CLOSE_NO_FOLLOW_UP')
+    instruction = 'Buka monitoring laporan untuk membaca alasan laporan tidak ditindaklanjuti.';
   else if (role === 'REPORTER' && ['COMPLETED', 'CLOSED'].includes(stage))
     instruction = 'Buka laporan untuk membaca jawaban resmi yang telah diterbitkan.';
+  else if (role === 'OFFICIAL' && action === 'FORWARD_TO_OFFICIAL')
+    instruction =
+      'Tinjau laporan yang diteruskan verifikator, kemudian tetapkan penugasan atau tolak dengan alasan.';
   else if (role === 'OFFICIAL' && action.startsWith('PROPOSE_'))
-    instruction = 'Tinjau usulan dan berikan keputusan sesuai mandat Anda.';
+    instruction = 'Buka perkara untuk melihat penugasan atau penetapan pejabat.';
   else if (role === 'INVESTIGATOR' && stage === 'INVESTIGATION')
     instruction = 'Periksa penugasan aktif dan lengkapi hasil pemeriksaan.';
   else if (role === 'EXECUTOR' && stage === 'FOLLOW_UP')

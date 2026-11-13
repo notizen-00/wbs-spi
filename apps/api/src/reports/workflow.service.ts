@@ -18,6 +18,8 @@ export const workflowActions = [
   'REQUEST_REOPEN',
   'PROPOSE_REOPEN',
   'CONFLICT',
+  'CLOSE_NO_FOLLOW_UP',
+  'FORWARD_TO_OFFICIAL',
 ];
 
 @Injectable()
@@ -57,12 +59,43 @@ export class WorkflowService {
         update: { revokedAt: null },
       });
     };
-    const propose = async (type: string, payload: Record<string, unknown>) => {
-      await tx.proposal.create({
-        data: { reportId: report.id, type, proposerId: user.id, payload: json(payload) },
+    const official = () => {
+      if (user.role !== 'OFFICIAL' || user.id === report.ownerId)
+        fail(403, 'Penugasan dan usulan hanya dapat ditetapkan pejabat.');
+    };
+    const plan = async (type: string, payload: Record<string, unknown>) => {
+      official();
+      const pending = await tx.proposal.findMany({
+        where: { reportId: report.id, status: 'PENDING' },
+        select: { type: true },
+      });
+      if (
+        pending.some(
+          (item) => item.type !== type && !(type === 'RESULT' && item.type === 'ASSIGNMENT'),
+        )
+      )
+        fail(409, 'Ada proses lain yang belum diselesaikan.');
+      await tx.proposal.updateMany({
+        where: {
+          reportId: report.id,
+          type: { in: type === 'RESULT' ? ['RESULT', 'ASSIGNMENT'] : [type] },
+          status: 'PENDING',
+        },
+        data: { status: 'RETURNED' },
+      });
+      const proposal = await tx.proposal.create({
+        data: {
+          reportId: report.id,
+          type,
+          proposerId: user.id,
+          payload: json(payload),
+          status: 'APPROVED',
+        },
       });
       state.proposerId = user.id;
-      const now = new Date();
+      return proposal;
+    };
+    const forward = async () => {
       const officials = await tx.user.findMany({
         where: {
           role: 'OFFICIAL',
@@ -70,21 +103,12 @@ export class WorkflowService {
           verified: true,
           NOT: { id: report.ownerId },
           conflicts: { none: { reportId: report.id } },
-          mandates: {
-            some: {
-              decisionType: type,
-              validFrom: { lte: now },
-              validUntil: { gt: now },
-              revokedAt: null,
-            },
-          },
         },
         select: { id: true },
       });
-      await tx.caseAccess.createMany({
-        data: officials.map((u) => ({ reportId: report.id, userId: u.id })),
-        skipDuplicates: true,
-      });
+      if (!officials.length) fail(422, 'Belum ada pejabat aktif yang dapat menerima laporan.');
+      for (const recipient of officials) await grant(recipient.id);
+      state.proposerId = null;
     };
     const completedTasks = async () => {
       const total = await tx.followUpTask.count({ where: { reportId: report.id } });
@@ -103,15 +127,36 @@ export class WorkflowService {
     )
       fail(409, 'Selesaikan klarifikasi aktif sebelum melanjutkan.');
     switch (b.action) {
-      case 'PROPOSE_ASSIGNMENT':
+      case 'FORWARD_TO_OFFICIAL': {
         verifier();
-        stage('INITIAL_REVIEW');
-        await propose('ASSIGNMENT', {
-          assigneeId: await target(b.assigneeId, 'INVESTIGATOR'),
-          summary: text(b.summary, 'ringkasan tersamarkan'),
-        });
-        state.stage = 'ASSIGNMENT_APPROVAL';
+        stage('INITIAL_REVIEW', 'RESULT_REVIEW', 'FOLLOW_UP', 'COMPLETED', 'CLOSED');
+        if (state.stage === 'FOLLOW_UP') await completedTasks();
+        if (['COMPLETED', 'CLOSED'].includes(state.stage)) {
+          const request = await tx.reopenRequest.findFirst({
+            where: { reportId: report.id, status: 'PENDING' },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (!request) fail(422, 'Belum ada permintaan pembukaan kembali.');
+          if (
+            await tx.caseEvent.findFirst({
+              where: {
+                reportId: report.id,
+                action: 'FORWARD_TO_OFFICIAL',
+                createdAt: { gte: request.createdAt },
+              },
+            })
+          )
+            fail(409, 'Permintaan sudah diteruskan ke pejabat.');
+        }
+        const next = {
+          INITIAL_REVIEW: 'ASSIGNMENT_APPROVAL',
+          RESULT_REVIEW: 'RESULT_APPROVAL',
+          FOLLOW_UP: 'CLOSURE_APPROVAL',
+        };
+        await forward();
+        state.stage = next[state.stage as keyof typeof next] ?? state.stage;
         break;
+      }
       case 'DECIDE': {
         if (user.role !== 'OFFICIAL') fail(403, 'Memerlukan pejabat berwenang.');
         const p = await tx.proposal.findFirst({
@@ -158,15 +203,24 @@ export class WorkflowService {
           break;
         }
         if (p.type === 'ASSIGNMENT') {
-          const assignee = await target(payload.assigneeId, 'INVESTIGATOR');
-          await tx.assignment.create({
-            data: { reportId: report.id, userId: assignee, proposalId: p.id },
+          const executor = await target(b.executorId, 'EXECUTOR');
+          const instruction = text(b.instruction, 'instruksi pelaksanaan');
+          await tx.proposal.update({
+            where: { id: p.id },
+            data: { payload: json({ ...payload, executorId: executor, instruction }) },
           });
-          await grant(assignee);
-          state.stage = 'INVESTIGATION';
+          await tx.followUpTask.create({
+            data: { reportId: report.id, executorId: executor, instruction },
+          });
+          await grant(executor);
+          state.stage = 'FOLLOW_UP';
         }
         if (p.type === 'RESULT') {
-          const executor = await target(payload.executorId, 'EXECUTOR');
+          const executor = await target(b.executorId, 'EXECUTOR');
+          await tx.proposal.update({
+            where: { id: p.id },
+            data: { payload: json({ ...payload, executorId: executor }) },
+          });
           await tx.followUpTask.create({
             data: { reportId: report.id, executorId: executor, instruction: payload.instruction },
           });
@@ -215,20 +269,25 @@ export class WorkflowService {
         state.stage = 'RESULT_REVIEW';
         break;
       case 'REVIEW_FINDING':
-        verifier();
-        stage('RESULT_REVIEW');
+        official();
+        stage('RESULT_APPROVAL');
         if (b.decision !== 'RETURN') fail(422, 'Gunakan usulan hasil untuk hasil yang memadai.');
         state.stage = 'INVESTIGATION';
         break;
-      case 'PROPOSE_RESULT':
-        verifier();
-        stage('RESULT_REVIEW');
-        await propose('RESULT', {
-          executorId: await target(b.executorId, 'EXECUTOR'),
-          instruction: text(b.instruction, 'rencana tindak lanjut'),
+      case 'PROPOSE_ASSIGNMENT':
+      case 'PROPOSE_RESULT': {
+        official();
+        stage('ASSIGNMENT_APPROVAL', 'RESULT_APPROVAL');
+        const executor = await target(b.executorId, 'EXECUTOR');
+        const instruction = text(b.instruction, 'rencana tindak lanjut');
+        await plan('RESULT', { executorId: executor, instruction });
+        await tx.followUpTask.create({
+          data: { reportId: report.id, executorId: executor, instruction },
         });
-        state.stage = 'RESULT_APPROVAL';
+        await grant(executor);
+        state.stage = 'FOLLOW_UP';
         break;
+      }
       case 'EXECUTE': {
         stage('FOLLOW_UP');
         if (user.role !== 'EXECUTOR') fail(403, 'Memerlukan pelaksana.');
@@ -277,23 +336,48 @@ export class WorkflowService {
         if (!task.count) fail(422, 'Tugas atau bukti belum dapat diverifikasi.');
         break;
       }
-      case 'PROPOSE_CLOSURE':
-        verifier();
-        stage('INITIAL_REVIEW', 'FOLLOW_UP');
+      case 'PROPOSE_CLOSURE': {
+        official();
+        stage('CLOSURE_APPROVAL');
         if (!['COMPLETED', 'CLOSED'].includes(b.outcome)) fail(422, 'Pilih hasil penutupan.');
-        if (b.outcome === 'COMPLETED') {
-          stage('FOLLOW_UP');
-          await completedTasks();
-        }
-        await propose('CLOSURE', {
+        if (b.outcome === 'COMPLETED') await completedTasks();
+        const response = text(b.response, 'jawaban resmi yang aman');
+        const proposal = await plan('CLOSURE', {
           outcome: b.outcome,
-          response: text(b.response, 'jawaban resmi yang aman'),
-          originStage: state.stage,
+          response,
+          originStage: 'FOLLOW_UP',
         });
-        state.stage = 'CLOSURE_APPROVAL';
+        await tx.officialResponse.create({
+          data: {
+            reportId: report.id,
+            proposalId: proposal.id,
+            content: response,
+            outcome: b.outcome,
+          },
+        });
+        state.stage = b.outcome;
+        state.lifecycle = b.outcome;
+        break;
+      }
+      case 'CLOSE_NO_FOLLOW_UP':
+        if (user.role === 'OFFICIAL') {
+          official();
+          stage('ASSIGNMENT_APPROVAL', 'RESULT_APPROVAL');
+        } else {
+          verifier();
+          stage('INITIAL_REVIEW', 'RESULT_REVIEW');
+        }
+        text(b.reason, 'alasan penolakan laporan');
+        await tx.proposal.updateMany({
+          where: { reportId: report.id, status: 'PENDING' },
+          data: { status: 'RETURNED' },
+        });
+        state.stage = 'CLOSED';
+        state.lifecycle = 'CLOSED';
+        state.proposerId = null;
         break;
       case 'SUSPEND': {
-        verifier();
+        official();
         if (['DRAFT', 'COMPLETED', 'CLOSED'].includes(state.stage))
           fail(422, 'Tahap tidak dapat ditunda.');
         const evaluationAt = new Date(b.evaluationAt);
@@ -313,7 +397,7 @@ export class WorkflowService {
         break;
       }
       case 'RESUME': {
-        verifier();
+        official();
         if (state.lifecycle !== 'SUSPENDED') fail(422, 'Perkara tidak sedang ditunda.');
         const suspension = await tx.suspension.findFirst({
           where: { reportId: report.id, resumedAt: null },
@@ -334,17 +418,38 @@ export class WorkflowService {
           data: { reportId: report.id, requesterId: user.id, reason: b.reason },
         });
         break;
-      case 'PROPOSE_REOPEN':
-        verifier();
+      case 'PROPOSE_REOPEN': {
+        official();
         stage('COMPLETED', 'CLOSED');
         if (!['INITIAL_REVIEW', 'INVESTIGATION'].includes(b.targetStage))
           fail(422, 'Tahap tujuan tidak valid.');
+        const request = await tx.reopenRequest.findFirst({
+          where: { reportId: report.id, status: 'PENDING' },
+          orderBy: { createdAt: 'desc' },
+        });
         if (
-          !(await tx.reopenRequest.findFirst({ where: { reportId: report.id, status: 'PENDING' } }))
+          !request ||
+          (!(await tx.proposal.findFirst({
+            where: { reportId: report.id, type: 'REOPEN', status: 'PENDING' },
+          })) &&
+            !(await tx.caseEvent.findFirst({
+              where: {
+                reportId: report.id,
+                action: 'FORWARD_TO_OFFICIAL',
+                createdAt: { gte: request.createdAt },
+              },
+            })))
         )
-          fail(422, 'Belum ada permintaan pembukaan kembali.');
-        await propose('REOPEN', { targetStage: b.targetStage });
+          fail(422, 'Permintaan pembukaan kembali belum diteruskan verifikator.');
+        await plan('REOPEN', { targetStage: b.targetStage });
+        await tx.reopenRequest.updateMany({
+          where: { reportId: report.id, status: 'PENDING' },
+          data: { status: 'APPROVED' },
+        });
+        state.stage = b.targetStage;
+        state.lifecycle = 'ACTIVE';
         break;
+      }
       case 'CONFLICT':
         if (user.id === report.ownerId || user.role === 'REPORTER')
           fail(403, 'Hanya petugas terkait dapat menyatakan konflik.');
@@ -365,6 +470,11 @@ export class WorkflowService {
       default:
         fail(422, 'Perintah tidak dikenal.');
     }
-    return { ...state, visibility: b.action === 'REQUEST_REOPEN' ? 'PUBLIC' : 'INTERNAL' };
+    return {
+      ...state,
+      visibility: ['REQUEST_REOPEN', 'CLOSE_NO_FOLLOW_UP', 'FORWARD_TO_OFFICIAL'].includes(b.action)
+        ? 'PUBLIC'
+        : 'INTERNAL',
+    };
   }
 }

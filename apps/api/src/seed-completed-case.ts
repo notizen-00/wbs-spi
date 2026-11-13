@@ -13,7 +13,8 @@ import { seed } from './seed';
 export const completedCaseId = '2f6c9df0-7a42-4f37-8d82-3ae1e35bc001';
 const payload = {
   title: '[DEMO SINTETIS] Pungutan tambahan layanan administrasi',
-  category: 'Pungutan liar',
+  category: 'Pelanggaran Umum (Zona Integritas)',
+  subcategory: 'Suap atau gratifikasi',
   what: 'Petugas fiktif meminta biaya Rp150.000 untuk layanan administrasi yang seharusnya gratis.',
   who: 'Petugas A dan mahasiswa B adalah tokoh rekaan untuk simulasi, bukan orang nyata.',
   when: '2026-11-02',
@@ -175,50 +176,21 @@ export async function seedCompletedCase(
     'Layanan dinyatakan gratis. Permintaan Rp150.000 tidak disertai kuitansi resmi.',
   );
   await command(
-    'assignment',
+    'forward-assignment',
     manager,
-    'PROPOSE_ASSIGNMENT',
-    'Informasi awal memadai untuk pemeriksaan.',
-    {
-      assigneeId: investigator.id,
-      summary:
-        'Dugaan pungutan tidak resmi pada layanan administrasi unit simulasi; periksa tarif dan prosedur tanpa membuka identitas pelapor.',
-    },
-  );
-  await command(
-    'approve-assignment',
-    official,
-    'DECIDE',
-    'Penugasan pemeriksaan disetujui sesuai mandat.',
-    { decision: 'APPROVE' },
-  );
-  await command(
-    'finding',
-    investigator,
-    'FINDING',
-    'Pemeriksaan dokumen dan wawancara simulasi telah selesai.',
-    {
-      content:
-        'SIMULASI: Tarif resmi layanan adalah Rp0. Permintaan Rp150.000 tidak memiliki dasar. Rekomendasi: hentikan pungutan, kembalikan pembayaran simulasi, tampilkan tarif gratis, dan beri pengarahan petugas.',
-    },
+    'FORWARD_TO_OFFICIAL',
+    'Informasi awal memadai dan diteruskan ke pejabat.',
   );
   await command(
     'result',
-    manager,
+    official,
     'PROPOSE_RESULT',
-    'Hasil pemeriksaan memadai; usulkan perbaikan layanan.',
+    'Pejabat menetapkan tindak lanjut dan pelaksana.',
     {
       executorId: executor.id,
       instruction:
         'Hentikan pungutan; catat pengembalian Rp150.000 dalam simulasi; pasang informasi layanan gratis; lakukan pengarahan petugas; unggah berita acara sintetis.',
     },
-  );
-  await command(
-    'approve-result',
-    official,
-    'DECIDE',
-    'Hasil dan rencana tindak lanjut disetujui.',
-    { decision: 'APPROVE' },
   );
   const task = await prisma.followUpTask.findFirstOrThrow({
     where: { reportId: completedCaseId, executorId: executor.id },
@@ -250,8 +222,14 @@ export async function seedCompletedCase(
     { taskId: task.id, decision: 'VERIFY' },
   );
   await command(
-    'closure',
+    'forward-closure',
     manager,
+    'FORWARD_TO_OFFICIAL',
+    'Pelaksanaan telah diperiksa dan diteruskan ke pejabat.',
+  );
+  await command(
+    'closure',
+    official,
     'PROPOSE_CLOSURE',
     'Seluruh tindak lanjut telah terverifikasi; usulkan penyelesaian perkara.',
     {
@@ -259,13 +237,6 @@ export async function seedCompletedCase(
       response:
         'Laporan simulasi telah diperiksa. Pungutan tidak resmi dihentikan, pengembalian dana simulasi dicatat, informasi layanan gratis dipasang, dan pengarahan petugas selesai. Pelaksanaan telah diverifikasi. Terima kasih atas laporan Anda. Seluruh tokoh, unit, dan bukti pada kasus ini adalah sintetis.',
     },
-  );
-  await command(
-    'approve-closure',
-    official,
-    'DECIDE',
-    'Penutupan disetujui setelah seluruh tindak lanjut diverifikasi.',
-    { decision: 'APPROVE' },
   );
   return prisma.report.findUniqueOrThrow({ where: { id: completedCaseId } });
 }

@@ -11,12 +11,12 @@ test('notifikasi membedakan tindakan penerima dan menyertakan referensi laporan'
   assert.ok(reporter.subject.includes('WBS/2026/00042'));
   assert.ok(reporter.message.includes('jawab permintaan klarifikasi'));
   const official = caseNotification(
-    'PROPOSE_RESULT',
+    'FORWARD_TO_OFFICIAL',
     'RESULT_APPROVAL',
     'WBS/2026/00042',
     'OFFICIAL',
   );
-  assert.ok(official.message.includes('berikan keputusan'));
+  assert.ok(official.message.includes('tetapkan penugasan'));
   const publicUpdate = caseNotification(
     'PROPOSE_RESULT',
     'RESULT_APPROVAL',

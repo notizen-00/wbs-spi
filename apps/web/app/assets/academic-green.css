@@ -25,6 +25,27 @@
   box-shadow: 0 3px 10px #123e3015;
 }
 .sidebar nav button.active:before { background: var(--academic-gold); }
+.sidebar nav button .count,
+.subtle-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  padding: 2px 8px;
+  border: 1px solid #9ebda8;
+  border-radius: 999px;
+  background: #d0e3d4;
+  color: #123e30;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.sidebar nav button.active .count {
+  background: #f0d694;
+  border-color: #f0d694;
+  color: #123e30;
+}
 .sidebar .brand-icon { background: #d2e3d5; color: var(--dark); }
 .sidebar .institution { border-color: #cbdccf; }
 .topbar {
@@ -246,6 +267,7 @@ input::placeholder, textarea::placeholder { color: #6a7d70; }
 .wbs-form-notice a { color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 1000px) {
   .reporter-page .form-layout { grid-template-columns: minmax(0, 1fr); }
+  .reporter-page .form-layout > .form-panel { order: -1; }
 }
 .reporter-page .form-panel {
   border-radius: 12px;
@@ -304,7 +326,8 @@ input::placeholder, textarea::placeholder { color: #6a7d70; }
   }
   .reporter-header nav {
     width: 100%;
-    gap: 24px;
+    flex-wrap: wrap;
+    gap: 8px 20px;
     font-size: 12px;
   }
   .reporter-page main {
@@ -328,3 +351,44 @@ input::placeholder, textarea::placeholder { color: #6a7d70; }
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.report-confidentiality { margin-bottom: 32px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+.reporter-page .form-actions { justify-content: flex-end; }
+.reporter-page .form-layout.form-layout-wide { grid-template-columns: minmax(0, 1fr); }
+.form-layout-wide > .wbs-explanation { display: none; }
+.report-form-heading { flex-wrap: wrap; }
+.form-display-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+#public-report-form { scroll-margin-top: 20px; }
+.reporter-page .form-panel.form-panel-fullscreen { position: fixed; inset: 0; z-index: 1100; width: 100%; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; border: 0; border-radius: 0; background: white; scrollbar-gutter: stable; }
+.form-panel-fullscreen .report-form-heading { position: sticky; top: 0; z-index: 2; background: white; box-shadow: 0 3px 12px #123e300d; }
+
+/* Action colors keep destructive, corrective and affirmative choices distinct. */
+.button.danger, .button.admin-danger.danger { background: #b42332; color: #fff; border-color: #b42332; }
+.button.danger:hover:not(:disabled) { background: #8f1826; border-color: #8f1826; }
+.button.warning { background: #fff3d6; color: #704600; border-color: #d4b16a; }
+.button.warning:hover:not(:disabled) { background: #ffe6ad; }
+.button.neutral { background: #f1f3f2; color: #35433d; border-color: #c4cdc8; }
+.button.neutral:hover:not(:disabled) { background: #e2e8e4; }
+.text-button.danger, .admin-delete.danger { color: #a51d28; }
+.text-button.danger:hover:not(:disabled) { background: #fff0f0; }
+.workspace-actions .button.action-button.positive { background: #e7f2eb; color: #155b40; border: 1px solid #9fc4ae; }
+.workspace-actions .button.action-button.positive:hover { background: #d4e9dc; }
+.workspace-actions .button.action-button.positive.chosen { background: #176047; color: white; border-color: #176047; }
+.workspace-actions .button.action-button.danger { background: #fff1f0; color: #a51d28; border: 1px solid #dfa5aa; }
+.workspace-actions .button.action-button.danger:hover { background: #ffe0df; }
+.workspace-actions .button.action-button.danger.chosen { background: #b42332; color: white; border-color: #b42332; }
+.workspace-actions .button.action-button.warning { background: #fff3d6; color: #704600; border: 1px solid #d4b16a; }
+.workspace-actions .button.action-button.warning.chosen { background: #855700; color: white; border-color: #855700; }
+.button.danger:focus-visible, .text-button.danger:focus-visible { outline: 3px solid #b42332; outline-offset: 3px; }
+.button.warning:focus-visible { outline: 3px solid #855700; outline-offset: 3px; }
+.button:disabled { cursor: not-allowed; }
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+.workspace-actions .button.action-button.danger.chosen { outline-color: #eab3b8; }
+.workspace-actions .button.action-button.warning.chosen { outline-color: #e8ce97; }
+.workspace-actions .button.action-button:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+.workspace-actions .button.action-button.danger:focus-visible { outline-color: #b42332; }
+.workspace-actions .button.action-button.warning:focus-visible { outline-color: #855700; }

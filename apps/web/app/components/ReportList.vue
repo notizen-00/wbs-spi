@@ -20,6 +20,7 @@ const criteria = reactive({
   stage: '',
   lifecycle: '',
   category: '',
+  subcategory: '',
   sort: 'newest',
   pageSize: 10,
 });
@@ -47,6 +48,39 @@ const availableStages = computed(() =>
             : !['DRAFT', 'COMPLETED', 'CLOSED'].includes(stage))),
   ),
 );
+const { site } = useSiteConfiguration();
+const subcategories = computed(() => site.value.subcategories?.[criteria.category] ?? []);
+const availableConditions = computed(() => {
+  if (criteria.stage === 'COMPLETED') return [{ value: 'COMPLETED', label: 'Selesai' }];
+  if (criteria.stage === 'CLOSED') return [{ value: 'CLOSED', label: 'Ditutup' }];
+  const activeOnly = criteria.group === 'ACTIVE' || !!criteria.stage || criteria.group === 'DRAFT';
+  return [
+    ...(criteria.group === 'FINISHED'
+      ? []
+      : [
+          { value: 'ACTIVE', label: 'Berjalan' },
+          ...(criteria.group === 'DRAFT' || criteria.stage === 'DRAFT'
+            ? []
+            : [{ value: 'SUSPENDED', label: 'Ditunda' }]),
+        ]),
+    ...(activeOnly
+      ? []
+      : [
+          { value: 'COMPLETED', label: 'Selesai' },
+          { value: 'CLOSED', label: 'Ditutup' },
+        ]),
+  ];
+});
+watch(
+  () => criteria.category,
+  () => {
+    criteria.subcategory = '';
+  },
+);
+watch(availableConditions, () => {
+  if (!availableConditions.value.some((condition) => condition.value === criteria.lifecycle))
+    criteria.lifecycle = '';
+});
 const filtered = computed(() =>
   Boolean(
     criteria.q ||
@@ -54,6 +88,8 @@ const filtered = computed(() =>
     criteria.stage ||
     criteria.lifecycle ||
     criteria.category ||
+    criteria.subcategory ||
+    criteria.pageSize !== 10 ||
     criteria.sort !== 'newest',
   ),
 );
@@ -77,6 +113,8 @@ async function load(current: number) {
     }>('/api/v1/reports', {
       query: { paginated: 'true', ...criteria, page: page.value },
       signal: controller.signal,
+      timeout: 10000,
+      retry: 0,
     });
     if (current !== generation) return;
     items.value = response.items;
@@ -136,7 +174,7 @@ onUnmounted(() => {
 });
 function actionHint(report: Report): string {
   const role = props.user.role;
-  if (report.lifecycle === 'SUSPENDED') return role === 'INVESTIGATOR' ? 'Evaluasi penundaan' : '';
+  if (report.lifecycle === 'SUSPENDED') return role === 'OFFICIAL' ? 'Evaluasi penundaan' : '';
   if (role === 'REPORTER') {
     if (report.stage === 'DRAFT') return 'Lengkapi draf';
     if (report.clarification && !report.clarification.response) return 'Jawab klarifikasi';
@@ -144,7 +182,7 @@ function actionHint(report: Report): string {
   }
   if (role === 'INVESTIGATOR') {
     if (report.stage === 'SUBMITTED') return 'Mulai verifikasi';
-    if (report.stage === 'INITIAL_REVIEW') return 'Tinjau & usulkan penugasan';
+    if (report.stage === 'INITIAL_REVIEW') return 'Tolak atau teruskan ke pejabat';
     if (report.stage === 'RESULT_REVIEW') return 'Tinjau hasil pemeriksaan';
     if (report.stage === 'FOLLOW_UP') return 'Tinjau tindak lanjut';
   }
@@ -152,7 +190,7 @@ function actionHint(report: Report): string {
     role === 'OFFICIAL' &&
     ['ASSIGNMENT_APPROVAL', 'RESULT_APPROVAL', 'CLOSURE_APPROVAL'].includes(report.stage)
   )
-    return 'Tinjau & putuskan proposal';
+    return 'Tugaskan pelaksana atau tolak';
   if (role === 'INVESTIGATOR' && report.stage === 'INVESTIGATION') return 'Catat hasil pemeriksaan';
   if (role === 'EXECUTOR' && report.stage === 'FOLLOW_UP') return 'Catat pelaksanaan';
   return '';
@@ -164,7 +202,9 @@ function reset() {
     stage: '',
     lifecycle: '',
     category: '',
+    subcategory: '',
     sort: 'newest',
+    pageSize: 10,
   });
 }
 </script>
@@ -210,18 +250,31 @@ function reset() {
         <label
           >Kondisi perkara<select v-model="criteria.lifecycle">
             <option value="">Semua kondisi</option>
-            <option value="ACTIVE">Berjalan</option>
-            <option value="SUSPENDED">Ditunda</option>
-            <option value="COMPLETED">Selesai</option>
-            <option value="CLOSED">Ditutup</option>
+            <option
+              v-for="condition in availableConditions"
+              :key="condition.value"
+              :value="condition.value"
+            >
+              {{ condition.label }}
+            </option>
           </select></label
         >
         <label
-          >Bidang<select v-model="criteria.category" aria-label="Bidang">
-            <option value="">Semua bidang</option>
+          >Kategori<select v-model="criteria.category" aria-label="Kategori">
+            <option value="">Semua kategori</option>
             <option v-for="category in categories" :key="category" :value="category">
               {{ category }}
             </option>
+          </select></label
+        >
+        <label
+          >Subkategori<select
+            v-model="criteria.subcategory"
+            aria-label="Subkategori"
+            :disabled="!criteria.category || !subcategories.length"
+          >
+            <option value="">Semua subkategori</option>
+            <option v-for="item in subcategories" :key="item" :value="item">{{ item }}</option>
           </select></label
         >
         <label
@@ -521,7 +574,7 @@ function reset() {
 }
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
   margin-top: 20px;
 }
