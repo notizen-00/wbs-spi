@@ -130,6 +130,42 @@ export class AuthService implements OnModuleDestroy {
           : 'Kata sandi diperbarui. Semua sesi lama telah dicabut.',
     };
   }
+  async guest(req: Request, res: Response) {
+    await this.rate(req, 'guest', 20);
+    if (req.cookies?.wbs_session) {
+      try {
+        return await this.session(req);
+      } catch (error) {
+        if (!(error instanceof Error && 'getStatus' in error && (error as any).getStatus() === 401))
+          throw error;
+      }
+    }
+    const user = await this.prisma.user.create({
+      data: {
+        name: 'Pelapor tamu',
+        email: `guest-${token()}@guest.invalid`,
+        passwordHash: passwordHash(token()),
+        role: 'REPORTER',
+        verified: true,
+      },
+    });
+    const value = token();
+    await this.redis.set(`session:${hash(value)}`, `${user.id}:${user.authVersion}`, 'EX', 28800);
+    res.cookie('wbs_session', value, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 28800000,
+      path: '/',
+    });
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      verified: user.verified,
+    };
+  }
   async login(req: Request, res: Response, input: unknown) {
     await this.rate(req, 'login');
     const b = object(input);

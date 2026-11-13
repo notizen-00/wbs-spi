@@ -28,7 +28,10 @@ export function useSiteConfiguration() {
     ],
   }));
   async function reloadSite() {
-    const result = await $fetch<SiteConfiguration>('/api/v1/public/settings');
+    const result = await $fetch<SiteConfiguration>('/api/v1/public/settings', {
+      timeout: 5000,
+      retry: 0,
+    });
     if (result && typeof result.appName === 'string' && Array.isArray(result.categories))
       site.value = result;
   }

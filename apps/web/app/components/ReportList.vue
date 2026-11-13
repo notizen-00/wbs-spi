@@ -217,8 +217,8 @@ function reset() {
           </select></label
         >
         <label
-          >Kategori<select v-model="criteria.category" aria-label="Kategori">
-            <option value="">Semua kategori</option>
+          >Bidang<select v-model="criteria.category" aria-label="Bidang">
+            <option value="">Semua bidang</option>
             <option v-for="category in categories" :key="category" :value="category">
               {{ category }}
             </option>

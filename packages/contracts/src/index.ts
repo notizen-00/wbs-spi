@@ -39,6 +39,7 @@ export const stageLabels: Record<Stage, string> = {
 export interface ReportPayload {
   title: string;
   category: string;
+  subcategory?: string;
   what: string;
   who: string;
   when: string;

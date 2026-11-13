@@ -4,7 +4,7 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   css: ['~/assets/main.css', '~/assets/academic-green.css'],
   nitro: {
-    devProxy: { '/api': { target: 'http://localhost:3001/api', changeOrigin: true, ws: true } },
+    devProxy: { '/api': { target: 'http://127.0.0.1:3001/api', changeOrigin: true, ws: true } },
   },
   routeRules: {
     '/**': {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Search, LoaderCircle } from '@lucide/vue';
 import { formatDateTime } from '../utils/date-time';
+import type { Report } from '@wbs/contracts';
 const code = ref(''),
   captchaToken = ref(''),
   busy = ref(false),
@@ -9,6 +10,8 @@ interface TrackingStatus {
   label: string;
   lifecycle: string;
   updatedAt: string;
+  report: Report;
+  officialResponses: { content: string; outcome: string; createdAt: string }[];
 }
 const result = ref<TrackingStatus | null>(null);
 const captcha = ref<{ reset: () => void } | null>(null);
@@ -40,12 +43,12 @@ async function check() {
       <span class="tracking-eyebrow">CEK PERKEMBANGAN</span>
       <h2 id="tracking-title">Cek status laporan</h2>
       <p>
-        Masukkan kode pelacakan yang tersedia pada detail laporan Anda. Pengecekan ini hanya
-        menampilkan status, tanpa membuka isi laporan.
+        Masukkan nomor tiket yang Anda simpan setelah mengirim laporan untuk melihat rincian,
+        timeline penanganan, klarifikasi, dan jawaban resmi tanpa login.
       </p>
     </div>
     <form @submit.prevent="check">
-      <label for="tracking-code">Kode pelacakan</label
+      <label for="tracking-code">Nomor tiket</label
       ><input
         id="tracking-code"
         v-model="code"
@@ -55,7 +58,9 @@ async function check() {
         spellcheck="false"
         required
         :disabled="busy"
-      /><small>Kode pelacakan berbeda dari nomor penerimaan laporan.</small
+      /><small
+        >Gunakan tiket rahasia WBS- berisi 32 karakter setelah tanda hubung. Jangan bagikan tiket
+        Anda.</small
       ><RecaptchaWidget ref="captcha" v-model="captchaToken" /><button
         class="button"
         type="submit"
@@ -69,8 +74,39 @@ async function check() {
       <div v-if="result" class="tracking-result" role="status">
         <strong>{{ result.label }}</strong
         ><span v-if="result.lifecycle === 'SUSPENDED'">Penanganan sedang ditunda.</span
-        ><span>Diperbarui {{ formatDateTime(result.updatedAt) }}</span
-        ><small>Masuk ke akun untuk membaca rincian dan jawaban resmi.</small>
+        ><span>Diperbarui {{ formatDateTime(result.updatedAt) }}</span>
+        <h3>{{ result.report.payload.title }}</h3>
+        <p>Nomor laporan: {{ result.report.number }}</p>
+        <dl>
+          <template
+            v-for="(label, key) in {
+              category: 'Bidang',
+              subcategory: 'Sub kategori pelanggaran',
+              when: 'Tanggal kejadian',
+              where: 'Lokasi',
+              what: 'Kejadian',
+              who: 'Pihak terkait',
+              why: 'Dasar laporan',
+              how: 'Kronologi',
+              evidenceReason: 'Sumber bukti',
+            }"
+            :key="key"
+          >
+            <dt>{{ label }}</dt>
+            <dd>{{ result.report.payload[key] || '—' }}</dd>
+          </template>
+        </dl>
+        <section v-if="result.report.clarification">
+          <h3>Klarifikasi</h3>
+          <p>{{ result.report.clarification.question }}</p>
+          <p>{{ result.report.clarification.response || 'Menunggu jawaban pelapor.' }}</p>
+        </section>
+        <ReportTimeline :report="result.report" />
+        <section v-for="answer in result.officialResponses" :key="answer.createdAt">
+          <h3>Jawaban resmi</h3>
+          <p>{{ answer.content }}</p>
+          <small>{{ formatDateTime(answer.createdAt) }}</small>
+        </section>
       </div>
     </form>
   </section>
@@ -131,6 +167,9 @@ async function check() {
   margin-top: 15px;
 }
 .tracking-result {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
   display: grid;
   gap: 9px;
   border-left: 3px solid #5b7d45;

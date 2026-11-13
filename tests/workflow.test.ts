@@ -965,7 +965,7 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
     },
   );
   await t.test(
-    'kode pelacakan unik, hanya pemilik melihat kode, status publik tidak membocorkan isi',
+    'tiket rahasia membuka rincian dan timeline publik tanpa membocorkan aktivitas internal',
     async () => {
       const draft = await reports.create(reporter, {
         payload: { title: 'Judul rahasia pelacakan' },
@@ -976,8 +976,21 @@ test('migrasi dan alur perkara, mandat, konflik, penundaan, penutupan dan reopen
       await prisma.report.update({ where: { id: draft.id }, data: { stage: 'SUBMITTED' } });
       await prisma.caseAccess.create({ data: { reportId: draft.id, userId: manager.id } });
       assert.equal((await reports.detail(draft.id, manager)).trackingCode, undefined);
+      await prisma.caseEvent.create({
+        data: {
+          reportId: draft.id,
+          actorId: manager.id,
+          action: 'INTERNAL_NOTE',
+          reason: 'Catatan internal rahasia',
+          visibility: 'INTERNAL',
+        },
+      });
       const status = await tracking.status(draft.trackingCode!.toLowerCase());
-      assert.deepEqual(Object.keys(status).sort(), ['label', 'lifecycle', 'stage', 'updatedAt']);
+      assert.ok(status.report.events.every((event) => event.action !== 'INTERNAL_NOTE'));
+      assert.equal((status.report.payload as any).title, 'Judul rahasia pelacakan');
+      assert.ok(Array.isArray(status.report.events));
+      assert.equal('ownerId' in status.report, false);
+      assert.equal('trackingCode' in status.report, false);
       assert.equal(status.stage, 'SUBMITTED');
       await assert.rejects(() => tracking.status('WBS/2026/00001'));
       await assert.rejects(() => tracking.status('WBS-' + '0'.repeat(32)));

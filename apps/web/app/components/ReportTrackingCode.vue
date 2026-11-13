@@ -21,18 +21,20 @@ watch(
 );
 </script>
 <template>
-  <section class="tracking-code-box" aria-label="Kode pelacakan laporan">
+  <section class="tracking-code-box" aria-label="Nomor tiket laporan">
     <div>
-      <strong>Kode pelacakan</strong>
-      <p>Simpan kode ini untuk mengecek status tanpa login. Jangan bagikan kepada pihak lain.</p>
+      <strong>Nomor tiket</strong>
+      <p>
+        Simpan nomor tiket ini untuk mengecek status tanpa login. Jangan bagikan kepada pihak lain.
+      </p>
       <code>{{ code }}</code>
     </div>
     <button type="button" class="button secondary" @click="copy">
       <Check v-if="copied" :size="16" /><Copy v-else :size="16" />{{
-        copied ? 'Tersalin' : 'Salin kode'
+        copied ? 'Tersalin' : 'Salin tiket'
       }}</button
     ><small v-if="failed" role="status">Pilih dan salin kode secara manual.</small
-    ><small v-if="copied" role="status">Kode pelacakan berhasil disalin.</small>
+    ><small v-if="copied" role="status">Nomor tiket berhasil disalin.</small>
   </section>
 </template>
 <style scoped>

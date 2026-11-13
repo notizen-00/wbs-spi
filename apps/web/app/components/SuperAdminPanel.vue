@@ -60,9 +60,9 @@ const form = reactive({
 });
 const auditLabels: Record<string, string> = {
   CREATE_SUPER_ADMIN: 'Akun super admin dibuat',
-  CREATE_CATEGORY: 'Kategori ditambahkan',
-  UPDATE_CATEGORY: 'Kategori diperbarui',
-  DELETE_CATEGORY: 'Kategori dihapus',
+  CREATE_CATEGORY: 'Bidang ditambahkan',
+  UPDATE_CATEGORY: 'Bidang diperbarui',
+  DELETE_CATEGORY: 'Bidang dihapus',
   UPDATE_SITE_SETTINGS: 'Pengaturan situs diperbarui',
 };
 async function load() {
@@ -136,7 +136,7 @@ function saveCategory() {
         method: form.id ? 'PATCH' : 'POST',
         body: form,
       }),
-    'Kategori berhasil disimpan.',
+    'Bidang berhasil disimpan.',
   );
 }
 function deleteCategory() {
@@ -148,7 +148,7 @@ function deleteCategory() {
           method: 'DELETE',
           body: { expectedVersion: item.version },
         }),
-      'Kategori berhasil dihapus.',
+      'Bidang berhasil dihapus.',
     );
 }
 function saveSettings() {
@@ -191,7 +191,7 @@ async function chooseLogo(event: Event) {
       <h1>
         {{
           section === 'categories'
-            ? 'Kategori laporan'
+            ? 'Bidang laporan'
             : section === 'settings'
               ? 'Pengaturan situs'
               : 'Dashboard super admin'
@@ -213,12 +213,12 @@ async function chooseLogo(event: Event) {
       ><div class="admin-overview">
         <button class="panel admin-summary" @click="emit('navigate', 'adminCategories')">
           <Tags :size="24" />
-          <h2>Kategori laporan</h2>
+          <h2>Bidang laporan</h2>
           <strong
             >{{ categories.filter((c) => c.active).length }} aktif /
-            {{ categories.length }} kategori</strong
+            {{ categories.length }} bidang</strong
           >
-          <p>Tambah, ubah, nonaktifkan, atau hapus kategori yang belum digunakan.</p></button
+          <p>Tambah, ubah, nonaktifkan, atau hapus bidang yang belum digunakan.</p></button
         ><button class="panel admin-summary" @click="emit('navigate', 'adminSettings')">
           <Settings :size="24" />
           <h2>Identitas & pusat bantuan</h2>
@@ -239,18 +239,18 @@ async function chooseLogo(event: Event) {
     <section v-else-if="section === 'categories'" class="panel admin-section">
       <div class="admin-section-heading">
         <div>
-          <h2>Daftar kategori</h2>
+          <h2>Daftar bidang</h2>
           <p>
-            Kategori nonaktif tidak ditawarkan pada laporan baru. Riwayat laporan tetap tersimpan.
+            Bidang nonaktif tidak ditawarkan pada laporan baru. Riwayat laporan tetap tersimpan.
           </p>
         </div>
         <button class="button" :disabled="busy" @click="edit()">
-          <Plus :size="16" />Tambah kategori
+          <Plus :size="16" />Tambah bidang
         </button>
       </div>
       <form v-if="editing" class="admin-category-form fields" @submit.prevent="saveCategory">
-        <h3>{{ form.id ? 'Ubah kategori' : 'Kategori baru' }}</h3>
-        <label>Nama kategori<input v-model="form.name" required maxlength="120" /></label
+        <h3>{{ form.id ? 'Ubah bidang' : 'Bidang baru' }}</h3>
+        <label>Nama bidang<input v-model="form.name" required maxlength="120" /></label
         ><label
           >Deskripsi<textarea
             v-model="form.description"
@@ -268,7 +268,7 @@ async function chooseLogo(event: Event) {
           ><input v-model="form.active" type="checkbox" />Aktif untuk laporan baru</label
         >
         <div class="admin-actions">
-          <button class="button" :disabled="busy"><Save :size="16" />Simpan kategori</button
+          <button class="button" :disabled="busy"><Save :size="16" />Simpan bidang</button
           ><button type="button" class="button secondary" :disabled="busy" @click="editing = false">
             Batal
           </button>
@@ -276,16 +276,16 @@ async function chooseLogo(event: Event) {
       </form>
       <div v-if="deletion" class="admin-confirm" role="alert">
         <p>
-          Hapus kategori <strong>{{ deletion.name }}</strong
-          >? Penghapusan ditolak jika kategori telah digunakan laporan.
+          Hapus bidang <strong>{{ deletion.name }}</strong
+          >? Penghapusan ditolak jika bidang telah digunakan laporan.
         </p>
         <div class="admin-actions">
           <button class="button admin-danger" :disabled="busy" @click="deleteCategory">
-            Ya, hapus kategori</button
+            Ya, hapus bidang</button
           ><button class="button secondary" :disabled="busy" @click="deletion = null">Batal</button>
         </div>
       </div>
-      <div v-if="!categories.length" class="empty">Belum ada kategori.</div>
+      <div v-if="!categories.length" class="empty">Belum ada bidang.</div>
       <article v-for="category in categories" :key="category.id" class="admin-category-row">
         <div>
           <h3>{{ category.name }}</h3>
@@ -298,14 +298,14 @@ async function chooseLogo(event: Event) {
           <button
             class="text-button"
             :disabled="busy"
-            :aria-label="`Ubah kategori ${category.name}`"
+            :aria-label="`Ubah bidang ${category.name}`"
             @click="edit(category)"
           >
             <Pencil :size="15" />Ubah</button
           ><button
             class="text-button admin-delete"
             :disabled="busy"
-            :aria-label="`Hapus kategori ${category.name}`"
+            :aria-label="`Hapus bidang ${category.name}`"
             @click="
               deletion = category;
               editing = false;

@@ -22,6 +22,9 @@ export class AuthController {
     await this.challenge(req, body);
     return this.auth.register(req, body);
   }
+  @Post('auth/guest') guest(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.auth.guest(req, res);
+  }
   @Post('auth/recovery') async recovery(@Req() req: Request, @Body() body: unknown) {
     await this.challenge(req, body);
     return this.auth.recovery(req, body);

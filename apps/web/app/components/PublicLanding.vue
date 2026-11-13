@@ -21,7 +21,12 @@ function closeMobileNav(event: KeyboardEvent) {
     mobileNavToggle.value?.focus();
   }
 }
-const props = defineProps<{ authPage: boolean; trackingPage?: boolean; demoAvailable?: boolean }>();
+const props = defineProps<{
+  authPage: boolean;
+  trackingPage?: boolean;
+  demoAvailable?: boolean;
+  serviceError?: string;
+}>();
 const { site } = useSiteConfiguration();
 const {
   data: statistics,
@@ -39,7 +44,7 @@ const {
       categories: { name: string; count: number }[];
       monthly: { month: string; count: number }[];
       updatedAt: string;
-    }>('/api/v1/public/statistics'),
+    }>('/api/v1/public/statistics', { timeout: 5000, retry: 0 }),
   { immediate: !props.authPage && !props.trackingPage },
 );
 watch(
@@ -60,7 +65,7 @@ const chartCategories = computed(() => {
   if (rows.length <= 6) return rows;
   return [
     ...rows.slice(0, 5),
-    { name: 'Kategori lainnya', count: rows.slice(5).reduce((sum, row) => sum + row.count, 0) },
+    { name: 'Bidang lainnya', count: rows.slice(5).reduce((sum, row) => sum + row.count, 0) },
   ];
 });
 const chartMax = computed(() => Math.max(1, ...chartCategories.value.map((row) => row.count)));
@@ -76,12 +81,12 @@ const steps = [
     'Tuliskan kejadian secara jelas: apa, siapa, kapan, di mana, mengapa, dan bagaimana. Sertakan sumber bukti yang tersedia.',
   ],
   [
-    'Masuk dan kirim laporan',
-    'Buat akun atau masuk, verifikasi email, lalu lengkapi laporan. Anda dapat menyimpannya sebagai draf sebelum mengirim.',
+    'Lengkapi dan kirim laporan',
+    'Klik Laporkan dan lengkapi formulir tanpa membuat akun atau login. Anda dapat menyimpannya sebagai draf sebelum mengirim.',
   ],
   [
     'Pantau penanganan',
-    'Simpan nomor laporan dan pantau perkembangannya melalui dashboard. Jawab klarifikasi jika diminta oleh verifikator/pemeriksa.',
+    'Simpan nomor tiket rahasia dan pantau timeline melalui menu Cek status. Jawab klarifikasi jika diminta oleh verifikator/pemeriksa.',
   ],
   [
     'Terima jawaban resmi',
@@ -95,7 +100,7 @@ const faqs = [
   ],
   [
     'Apakah saya perlu membuat akun?',
-    'Ya. Akun diperlukan untuk menyimpan draf, mengirim laporan, menjawab klarifikasi, dan memantau penanganan. Email harus terverifikasi sebelum laporan dikirim.',
+    'Tidak. Klik Laporkan untuk menyampaikan aduan tanpa login. Simpan nomor tiket rahasia untuk memantau laporan Anda.',
   ],
   [
     'Bukti apa yang dapat disertakan?',
@@ -103,11 +108,11 @@ const faqs = [
   ],
   [
     'Bagaimana melihat perkembangan laporan?',
-    'Masuk ke dashboard dan buka Laporan saya. Pilih laporan untuk melihat status, riwayat, klarifikasi, dan jawaban resmi yang sesuai dengan hak akses Anda.',
+    'Buka Cek status dan masukkan nomor tiket untuk melihat rincian, timeline, klarifikasi, dan jawaban resmi tanpa login.',
   ],
   [
-    'Saya lupa kata sandi atau belum menerima verifikasi.',
-    'Buka halaman Masuk, lalu pilih Lupa kata sandi / verifikasi ulang. Ikuti tautan yang dikirim ke alamat email akun Anda.',
+    'Bagaimana jika nomor tiket hilang?',
+    'Simpan tiket di tempat aman setelah mengirim laporan. Tiket bersifat rahasia dan diperlukan untuk membuka monitoring tanpa login.',
   ],
 ];
 </script>
@@ -152,11 +157,14 @@ const faqs = [
           >Alur aplikasi demo</a
         >
       </nav>
-      <a href="/login" class="button secondary public-login" @click.prevent="$emit('login')"
-        >Masuk<ArrowRight :size="16"
+      <a href="/reports/new" class="button secondary public-login" @click.prevent="$emit('login')"
+        >Laporkan<ArrowRight :size="16"
       /></a>
     </header>
     <main id="public-content" class="public-main">
+      <div v-if="serviceError && !authPage" class="alert error" role="alert">
+        {{ serviceError }}
+      </div>
       <section
         v-if="trackingPage"
         class="public-tracking-page"
@@ -178,7 +186,7 @@ const faqs = [
               portal ini.
             </p>
             <div class="public-actions">
-              <a href="/login" class="button public-primary" @click.prevent="$emit('report')"
+              <a href="/reports/new" class="button public-primary" @click.prevent="$emit('report')"
                 >Buat laporan<ArrowUpRight :size="18" /></a
               ><a href="/guide" class="public-text-link" @click.prevent="$emit('section', 'guide')"
                 >Lihat cara melapor<ArrowRight :size="17"
@@ -401,20 +409,19 @@ const faqs = [
         <section class="public-cta">
           <div>
             <h2>Sudah pernah mengirim laporan?</h2>
-            <p>Masuk ke akun Anda untuk mengecek status atau menjawab klarifikasi.</p>
+            <p>Laporkan kejadian tanpa login dan simpan nomor tiket untuk memantau penanganan.</p>
           </div>
-          <a href="/login" class="button public-primary" @click.prevent="$emit('login')"
-            >Masuk ke portal<ArrowRight :size="17"
+          <a href="/reports/new" class="button public-primary" @click.prevent="$emit('login')"
+            >Laporkan<ArrowRight :size="17"
           /></a>
         </section>
       </template>
       <section v-else class="public-auth-layout" aria-label="Akses akun WBS">
         <div class="public-auth-intro">
-          <span class="public-eyebrow">AKSES PORTAL WBS</span>
-          <h1>Laporan Anda,<br />dan perkembangannya.</h1>
+          <span class="public-eyebrow">AKSES PETUGAS WBS</span>
+          <h1>Pengelolaan aduan<br />untuk petugas.</h1>
           <p>
-            Masuk untuk menyampaikan laporan, menjawab klarifikasi, dan mengikuti perkembangan
-            penanganan.
+            Masuk dengan akun petugas untuk memverifikasi laporan dan mengelola penanganan aduan.
           </p>
           <ul>
             <li><CheckCircle2 :size="18" />Simpan laporan sebagai draf privat</li>
@@ -429,6 +436,7 @@ const faqs = [
       </section>
     </main>
     <footer class="public-footer">
+      <a href="/login">Akses petugas</a>
       <span>© {{ new Date().getFullYear() }} {{ site.institutionName }} · {{ site.tagline }}</span>
       <div>
         <a href="/help" @click.prevent="$emit('section', 'help')">Pusat bantuan</a

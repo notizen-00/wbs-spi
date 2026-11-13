@@ -32,6 +32,7 @@ export function reportPayload(value: unknown): ReportPayload {
   for (const field of [
     'title',
     'category',
+    'subcategory',
     'what',
     'who',
     'when',
