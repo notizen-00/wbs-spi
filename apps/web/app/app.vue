@@ -479,7 +479,9 @@ onMounted(async () => {
     retry: 0,
   }).catch(() => null);
   sessionReady.value = true;
+  const startupError = error.value;
   await applyPath();
+  if (startupError) error.value = startupError;
   if (reset) {
     resetToken.value = reset;
     auth.value = 'reset';
