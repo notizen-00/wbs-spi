@@ -14,7 +14,10 @@ packages/contracts     Tipe publik dan label status bersama
 packages/domain        Aturan transisi serta validasi pengiriman
 database/prisma        Schema Prisma dan empat migrasi PostgreSQL berversi
 prisma.config.ts       Konfigurasi Prisma CLI, datasource, migrasi dan seed
-deploy                 Docker Compose, Dockerfile dan reverse proxy
+manifest               Docker Compose dan konfigurasi reverse proxy
+Dockerfile             Build image aplikasi
+minio.Dockerfile       Build image MinIO dan client mc
+deploy/windows         Script deployment native Windows
 tests                  Integrasi PostgreSQL tertanam dan pengujian browser
 artifacts              Screenshot desktop/mobile hasil uji browser
 ```
@@ -151,7 +154,7 @@ Prasyarat: Node.js 24.15+ dan Docker Desktop dengan Linux containers berjalan. G
 Copy-Item .env.example .env
 npm.cmd ci
 npm.cmd run db:generate
-docker compose -f deploy/compose.yml up -d
+docker compose -f manifest/docker-compose.yml up -d
 npm.cmd run db:migrate
 
 # Tentukan kata sandi akun sintetis sendiri, minimal 6 karakter.
@@ -174,7 +177,7 @@ npm.cmd run worker
 - Kotak email pengembangan Mailpit: http://localhost:8025
 - Konsol storage pengembangan: http://localhost:9001
 
-Storage menggunakan **MinIO**. Pengaturan `MINIO_*`, inisialisasi bucket privat, dan panduan memakai server MinIO sendiri ada di [docs/minio.md](docs/minio.md). Untuk menjalankan hanya storage: `docker compose --env-file .env -f deploy/compose.yml up -d minio storage-init`, lalu `npm.cmd run storage:check`.
+Storage menggunakan **MinIO**. Pengaturan `MINIO_*`, inisialisasi bucket privat, dan panduan memakai server MinIO sendiri ada di [docs/minio.md](docs/minio.md). Untuk menjalankan hanya storage: `docker compose --env-file .env -f manifest/docker-compose.yml up -d minio storage-init`, lalu `npm.cmd run storage:check`.
 
 ClamAV perlu mengunduh basis definisi saat startup pertama; berkas tetap terkunci sampai scan berhasil. Seluruh port infrastruktur Compose dibatasi ke loopback. Kredensial `.env.example` hanya untuk pengembangan lokal.
 
@@ -216,26 +219,26 @@ Gunakan [`.env.docker.example`](.env.docker.example) sebagai konfigurasi stack D
 
 ```powershell
 if (-not (Test-Path .env.docker)) { Copy-Item .env.docker.example .env.docker }
-docker compose --env-file .env.docker -f deploy/compose.app.yml config -q
-docker compose --env-file .env.docker -f deploy/compose.app.yml up --build -d
+docker compose --env-file .env.docker -f manifest/docker-compose.app.yml config -q
+docker compose --env-file .env.docker -f manifest/docker-compose.app.yml up --build -d
 # Buat akun sintetis dalam environment container, dengan kata sandi dari shell.
 $env:SEED_PASSWORD = 'Ganti-Dengan-Sandi-Uji-Anda'
-docker compose --env-file .env.docker -f deploy/compose.app.yml exec -e SEED_PASSWORD api npm run db:seed
+docker compose --env-file .env.docker -f manifest/docker-compose.app.yml exec -e SEED_PASSWORD api npm run db:seed
 Remove-Item Env:SEED_PASSWORD
 
 # Opsional: akun super admin dengan password eksplisit agar tidak menulis file lokal container.
 $env:SUPER_ADMIN_EMAIL = 'superadmin@example.test'
 $env:SUPER_ADMIN_PASSWORD = 'Ganti-Dengan-Sandi-Admin-Anda'
-docker compose --env-file .env.docker -f deploy/compose.app.yml exec -e SUPER_ADMIN_EMAIL -e SUPER_ADMIN_PASSWORD api npm run db:seed:admin
+docker compose --env-file .env.docker -f manifest/docker-compose.app.yml exec -e SUPER_ADMIN_EMAIL -e SUPER_ADMIN_PASSWORD api npm run db:seed:admin
 Remove-Item Env:SUPER_ADMIN_EMAIL
 Remove-Item Env:SUPER_ADMIN_PASSWORD
 ```
 
-Buka http://localhost:8081. Port web dapat diganti melalui `DOCKER_WEB_PORT` di `.env.docker`; sesuaikan juga `DOCKER_APP_ORIGIN` dengan alamat yang dibuka di browser. Jika origin tidak diisi, default mengikuti `http://localhost:<DOCKER_WEB_PORT>`. Untuk akses dari komputer lain melalui IP server, isi `DOCKER_WEB_BIND_ADDRESS=0.0.0.0` (default `127.0.0.1`, hanya lokal server) dan gunakan `DOCKER_APP_ORIGIN=http://IP_SERVER:PORT`. Setelah mengganti bind/port/origin, jalankan ulang `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-build` untuk menerapkan konfigurasi pada proxy, API, dan worker. Jika firewall server aktif, izinkan koneksi TCP ke port web yang dipilih.
+Buka http://localhost:8081. Port web dapat diganti melalui `DOCKER_WEB_PORT` di `.env.docker`; sesuaikan juga `DOCKER_APP_ORIGIN` dengan alamat yang dibuka di browser. Jika origin tidak diisi, default mengikuti `http://localhost:<DOCKER_WEB_PORT>`. Untuk akses dari komputer lain melalui IP server, isi `DOCKER_WEB_BIND_ADDRESS=0.0.0.0` (default `127.0.0.1`, hanya lokal server) dan gunakan `DOCKER_APP_ORIGIN=http://IP_SERVER:PORT`. Setelah mengganti bind/port/origin, jalankan ulang `docker compose --env-file .env.docker -f manifest/docker-compose.app.yml up -d --no-build` untuk menerapkan konfigurasi pada proxy, API, dan worker. Jika firewall server aktif, izinkan koneksi TCP ke port web yang dipilih.
 
 Compose ini khusus integrasi lokal, menggunakan cookie development pada HTTP dan kredensial contoh. Image dibangun sekali, dipakai API, worker, web, serta proses migrasi. Ubah `POSTGRES_PASSWORD` bersama kredensial pada `DOCKER_DATABASE_URL`; URL yang sama diteruskan ke migrator, API, dan worker. Inisialisasi password PostgreSQL hanya berlaku pada volume baru; mengedit env tidak mengganti password database yang sudah ada.
 
-MinIO dan client `mc` juga dibangun lokal dari tag source resmi melalui `deploy/minio.Dockerfile`, sehingga tidak bergantung pada image `minio/minio`/`minio/mc` yang gagal di-pull. Build pertama lebih lama karena kompilasi Go. Semua service yang memakai image lokal diberi konfigurasi build agar Compose tidak mencoba menarik `wbs-local:dev` dari registry. Detail: [storage MinIO](docs/minio.md).
+MinIO dan client `mc` juga dibangun lokal dari tag source resmi melalui `minio.Dockerfile`, sehingga tidak bergantung pada image `minio/minio`/`minio/mc` yang gagal di-pull. Build pertama lebih lama karena kompilasi Go. Semua service yang memakai image lokal diberi konfigurasi build agar Compose tidak mencoba menarik `wbs-local:dev` dari registry. Detail: [storage MinIO](docs/minio.md).
 
 Image dasar build Node, Go, dan Alpine memakai Docker Official Images pada Amazon ECR Public. Ini menghindari endpoint Docker Hub untuk tahap build yang sebelumnya gagal dengan `TLS handshake timeout`. Lokasi dapat diganti melalui `NODE_BASE_IMAGE`, `GO_BASE_IMAGE`, dan `ALPINE_BASE_IMAGE`; default berlaku juga pada `.env.docker` lama yang belum memiliki variabel tersebut. Jika ingin memakai Docker Hub kembali, isikan `node:24-alpine`, `golang:1.24-alpine`, dan `alpine:3.22`. Referensi distribusi resmi: [Docker Official Images on ECR Public](https://www.docker.com/blog/news-from-aws-reinvent-docker-official-images-on-amazon-ecr-public/).
 
@@ -243,7 +246,7 @@ Image dasar build Node, Go, dan Alpine memakai Docker Official Images pada Amazo
 
 Redis Docker dipublikasikan pada `127.0.0.1:6380` agar tidak bentrok dengan Redis/Memurai native di 6379. Ganti port host melalui `DOCKER_REDIS_PORT` di `.env.docker`. API dan worker dalam container tetap memakai `redis://redis:6379`. Jika API/worker dijalankan native tetapi Redis memakai Docker, atur `REDIS_URL=redis://localhost:6380` di `.env` (sesuaikan dengan port pilihan), lalu restart API/worker native.
 
-Untuk menerapkan perubahan port Redis saja: `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-deps redis`. Recreate Redis dapat mengakhiri sesi pengguna karena sesi disimpan di Redis.
+Untuk menerapkan perubahan port Redis saja: `docker compose --env-file .env.docker -f manifest/docker-compose.app.yml up -d --no-deps redis`. Recreate Redis dapat mengakhiri sesi pengguna karena sesi disimpan di Redis.
 
 Jika layanan native masih berjalan, pastikan port 5432, 9000/9001, 3310, atau 1025/8025 tidak bentrok sebelum menjalankan stack. Data database dan MinIO native tidak otomatis dipindahkan ke volume Docker. Perubahan ini tidak menjalankan container atau memigrasikan data native.
 
@@ -296,4 +299,4 @@ Buka `/demo` atau pilih **Alur aplikasi demo** pada navigasi beranda publik. Men
 
 Untuk menampilkan password demo, isi `DEMO_PUBLIC_PASSWORD` pada `.env` (native) atau `.env.docker` (Docker) dengan password akun demo yang ditentukan saat seed. Nilai ini sengaja ditampilkan kepada pengunjung halaman demo. Tanpa nilai ini, halaman meminta pengunjung menggunakan password dari verifikator/pemeriksa demo. Variabel ini tidak membuat akun atau mengganti password; jalankan seed terlebih dahulu. Jangan isi dengan password super admin atau akun nyata.
 
-Setelah mengubah `.env.docker`, terapkan environment dengan `docker compose --env-file .env.docker -f deploy/compose.app.yml up -d --no-build`. Perubahan kode halaman memerlukan build image terbaru. Untuk native, restart API setelah mengubah `.env`.
+Setelah mengubah `.env.docker`, terapkan environment dengan `docker compose --env-file .env.docker -f manifest/docker-compose.app.yml up -d --no-build`. Perubahan kode halaman memerlukan build image terbaru. Untuk native, restart API setelah mengubah `.env`.

@@ -1,9 +1,10 @@
+name: deploy
 # Local integration environment. Production requires TLS and institution-approved secrets/policies.
 include:
-  - path: compose.yml
+  - path: docker-compose.yml
 x-app-build: &app-build
   context: ..
-  dockerfile: deploy/Dockerfile
+  dockerfile: Dockerfile
   args:
     NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-public.ecr.aws/docker/library/node:24-alpine}
 services:

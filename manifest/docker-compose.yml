@@ -1,3 +1,4 @@
+name: deploy
 services:
   postgres:
     image: postgres:17-alpine
@@ -21,7 +22,7 @@ services:
     image: wbs-minio:source-2025-09-07
     build:
       context: ..
-      dockerfile: deploy/minio.Dockerfile
+      dockerfile: minio.Dockerfile
       target: server
       args:
         GO_BASE_IMAGE: ${GO_BASE_IMAGE:-public.ecr.aws/docker/library/golang:1.24-alpine}
@@ -37,7 +38,7 @@ services:
     image: wbs-minio-mc:source-2025-08-13
     build:
       context: ..
-      dockerfile: deploy/minio.Dockerfile
+      dockerfile: minio.Dockerfile
       target: client
       args:
         GO_BASE_IMAGE: ${GO_BASE_IMAGE:-public.ecr.aws/docker/library/golang:1.24-alpine}
